@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:18
+    restart: always
+    env_file:
+      - ./config/.env.database
+    volumes:
+      - ./data:/var/lib/postgres/data
+    ports:
+      - 5432
+
+  backend:
+    build: ./backend
+    env_file:
+      - ./config/.env.backend
+    ports:
+      - 3000:3000
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+
+  # frontend:
+  #   build: ./frontend
+  #   env_file:
+  #     - .config/.env.frontend
+  #   ports:
+  #     - 5173:5173
