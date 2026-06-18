@@ -18,10 +18,10 @@ html[data-theme="light"] {
   --card: #ffffff;
   --muted: #4a6275;
   --border: #dce4ea;
-  --primary: #fdb94e;
-  --primary-hover: #fca62e;
+  --primary: #4e94fd;
+  --primary-hover: #8db9fa;
   --primary-foreground: #002b45;
-  --ring: #fdb94e;
+  --ring: #4e94fd;
 }
 
 html[data-theme="dark"] {
@@ -31,10 +31,10 @@ html[data-theme="dark"] {
   --card: #003552;
   --muted: #a8bcc9;
   --border: #1a4a63;
-  --primary: #fdb94e;
-  --primary-hover: #fca62e;
+  --primary: #4e94fd;
+  --primary-hover: #8db9fa;
   --primary-foreground: #002b45;
-  --ring: #fdb94e;
+  --ring: #4e94fd;
 }
 
 @theme inline {

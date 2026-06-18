@@ -9,29 +9,44 @@ import { Label } from "@/components/ui/Label";
 import { submitRegisterForm } from "@/actions/registerForm";
 import { toast } from "sonner"
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import api from "@/lib/axios";
 
 export function RegisterForm() {
-  const [state, action, isPending] = useActionState(submitRegisterForm, null);
+  type RegisterFormData = {
+    fullName: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+  };
+  
+  const { register, handleSubmit, formState } = useForm<RegisterFormData>();
   const router = useRouter();
 
-  useEffect(() => {
-    if (state?.success) {
-      toast.success("User registered. Moving to app...")
+  const onSubmit = async (data: RegisterFormData) => {
+    try {
+      const registerData = await api.post("/register", data);
+
+      toast.success("Registered user successfully", {
+        description: "Redirecting to login...",
+      });
       setTimeout(() => {
-        router.push('/')
-      }, 5000);
+        router.push("/login");
+      }, 2000);
+    } catch (e: any) {
+      toast.error("Could not register user", {
+        description: e.response["data"]["message"],
+      });
     }
-    else if (!state?.success) {
-      toast.error("Failed to registed user")
-    }
-  }, [state])
+  }
 
   return (
     <>
-      <form action={action} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <Label htmlFor="fullName">Full name</Label>
           <Input
+            {...register("fullName", { required: true })}
             id="fullName"
             name="fullName"
             type="text"
@@ -44,6 +59,7 @@ export function RegisterForm() {
         <div>
           <Label htmlFor="email">Email</Label>
           <Input
+            {...register("email", { required: true })}
             id="email"
             name="email"
             type="email"
@@ -56,6 +72,7 @@ export function RegisterForm() {
         <div>
           <Label htmlFor="password">Password</Label>
           <Input
+            {...register("password", { required: true })}
             id="password"
             name="password"
             type="password"
@@ -69,6 +86,7 @@ export function RegisterForm() {
         <div>
           <Label htmlFor="confirmPassword">Confirm password</Label>
           <Input
+            {...register("confirmPassword", { required: true })}
             id="confirmPassword"
             name="confirmPassword"
             type="password"
