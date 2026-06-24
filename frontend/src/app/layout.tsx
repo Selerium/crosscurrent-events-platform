@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
-import { ThemeScript } from "@/components/theme/ThemeScript";
+// import { ThemeScript } from "@/components/theme/ThemeScript";
 import { parseTheme, THEME_COOKIE } from "@/lib/theme";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -39,13 +39,13 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        <ThemeScript />
+        {/* <ThemeScript /> */}
         <ThemeProvider initialTheme={theme}>
-          <main>
-            <SiteHeader />
-            {children}
-          </main>
-          <Toaster position="top-center" duration={5000} />
+        <main>
+          <SiteHeader />
+          {children}
+        </main>
+        <Toaster position="top-center" duration={5000} />
         </ThemeProvider>
       </body>
     </html>

@@ -33,7 +33,10 @@ export function LoginForm() {
         description: "Redirecting to app...",
       });
       setTimeout(() => {
-        router.push("/dashboard");
+        if (userData['data']['firstTime'])
+          router.push("/profile/first-time");
+        else  
+          router.push("/dashboard");
       }, 2000);
     } catch (e: any) {
       toast.error("Could not log in", {
