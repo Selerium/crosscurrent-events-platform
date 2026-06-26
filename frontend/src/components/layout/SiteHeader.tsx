@@ -27,7 +27,7 @@ export function SiteHeader({ children }: SiteHeaderProps) {
             </Link>
             <Link
               href="/register"
-              className="rounded-lg bg-primary px-3 py-2 font-medium text-primary-foreground hover:bg-primary-hover"
+              className="rounded-lg bg-primary px-3 py-2 font-bold text-white hover:bg-primary-hover"
             >
               Get started
             </Link>

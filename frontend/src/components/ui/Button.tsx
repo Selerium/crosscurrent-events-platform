@@ -31,7 +31,7 @@ export function Button({
     <button
       type={type}
       className={[
-        "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
+        "inline-flex gap-2 rounded-lg px-4 py-2.5 text-sm font-bold cursor-pointer transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "disabled:pointer-events-none disabled:opacity-50",
         variantClasses[variant],
