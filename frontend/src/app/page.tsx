@@ -1,18 +1,32 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Home() {
   return (
     <div className="flex min-h-full flex-col">
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center sm:px-6">
-        <p className="mb-3 text-sm font-medium uppercase tracking-wide text-primary">
-          Starter template
-        </p>
+        <Image
+          src="/cc-long.png"
+          alt="CrossCurrent"
+          width={274}
+          height={136}
+          className="brand-logo-light mb-6 h-16 w-auto"
+          priority
+        />
+        <Image
+          src="/cc-long-white.png"
+          alt="CrossCurrent"
+          width={274}
+          height={136}
+          className="brand-logo-dark mb-6 hidden h-16 w-auto"
+          priority
+        />
         <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-          User authentication, ready to build on
+          Events and registrations for CrossCurrent
         </h1>
         <p className="mt-4 max-w-lg text-base text-muted">
-          A full-stack template with registration, login, JWT sessions, and role-based
-          profiles. Fork it and add your own features.
+          Register for upcoming events, manage profiles, and keep church groups
+          connected in one place.
         </p>
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
           <Link

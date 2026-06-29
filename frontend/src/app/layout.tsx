@@ -19,8 +19,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Platform",
-  description: "A starter platform with user authentication and management",
+  title: {
+    default: "CrossCurrent",
+    template: "%s | CrossCurrent",
+  },
+  description: "CrossCurrent events and church registration platform",
+  icons: {
+    icon: [
+      { url: "/cc-short.png", type: "image/png" },
+      { url: "/cc-short-white.png", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: [{ url: "/cc-short.png", type: "image/png" }],
+  },
 };
 
 export default async function RootLayout({
@@ -41,11 +51,11 @@ export default async function RootLayout({
       <body className="flex min-h-full flex-col">
         {/* <ThemeScript /> */}
         <ThemeProvider initialTheme={theme}>
-        <main>
-          <SiteHeader />
-          {children}
-        </main>
-        <Toaster position="top-center" duration={5000} />
+          <main>
+            <SiteHeader />
+            {children}
+          </main>
+          <Toaster position="top-center" duration={5000} />
         </ThemeProvider>
       </body>
     </html>

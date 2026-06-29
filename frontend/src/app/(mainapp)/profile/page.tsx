@@ -64,7 +64,7 @@ export default function Profile() {
               <div className="flex flex-col gap-4 w-full">
                 <div className="flex w-full justify-between items-center">
                   <h2 className="text-xl font-bold">Profile</h2>
-                  <Button onClick={editDetails} className="text-white">
+                  <Button onClick={editDetails} className="text-primary-foreground">
                     {editMode ? "Save" : "Edit"}
                   </Button>
                 </div>
@@ -157,10 +157,36 @@ export default function Profile() {
               <div className="flex flex-col gap-4 w-full">
                 <h2 className="text-xl font-bold">Settings</h2>
                 <hr />
-                <div className="flex flex-col gap-2 rounded-lg w-fit">
-                  <p className="font-bold">Password reset</p>
-                  <p className="min-w-72"></p>
-                  <Button className="justify-center text-white">Reset Password</Button>
+                <div className="flex flex-col gap-2 rounded-lg w-full">
+                  <p className="font-bold">Account Settings</p>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-72 w-1/2">Change your password</p>
+                    <Button className="justify-center text-primary-foreground min-w-72 w-1/2">
+                      Reset Password
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-72 w-1/2">Change your email</p>
+                    <Button className="justify-center text-primary-foreground min-w-72 w-1/2">
+                      Reset Email
+                    </Button>
+                  </div>
+                  {/* <hr className="my-4" />
+                  <p className="font-bold">Delete Account</p>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-72 w-1/2">
+                      This option deletes all your identity data from
+                      CrossCurrent's events platform. Some information is
+                      retained to keep records of registrations and previous
+                      events, but all identifying data is removed.{" "}
+                      <span className="font-bold">
+                        This choice cannot be reversed - be completely sure!
+                      </span>
+                    </p>
+                    <Button className="justify-center text-white min-w-72 w-1/2 bg-red-700">
+                      Delete Account
+                    </Button>
+                  </div> */}
                 </div>
               </div>
             </div>

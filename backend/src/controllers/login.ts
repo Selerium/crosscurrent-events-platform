@@ -34,6 +34,7 @@ loginHandler.post("", async (req, res) => {
       id: user.profile?.id,
       name: user.profile?.name,
       role: user.profile?.role,
+      firstTime: user.profile?.firstTime,
     },
     jwtsecret,
     { expiresIn: "15m", subject: user.profile?.id },

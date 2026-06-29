@@ -21,21 +21,121 @@ model RefreshTokens {
 }
 
 model User {
-  id            String          @id @default(uuid())
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
   email         String          @unique
   password      String
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  profile       Profile?
   refreshTokens RefreshTokens[]
+
+  profile Profile?
 }
 
 model Profile {
-  id     String @id @default(uuid())
-  name   String
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
   userId String @unique
-  role   Role   @default(STUDENT)
   user   User   @relation(fields: [userId], references: [id])
+
+  name      String
+  role      Role    @default(STUDENT)
+  firstTime Boolean @default(true)
+
+  gender      Gender?
+  dob         DateTime?
+  nationality String?
+  // idDocument  String?
+  phone       String?
+
+  parentOneName  String?
+  parentOneEmail String?
+  parentOnePhone String?
+
+  churchId         String
+  church           Church  @relation("ChurchProfiles", fields: [churchId], references: [id])
+  primaryForChurch Boolean
+
+  registrations Registration[]
+}
+
+model Church {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  name    String
+  country String
+  state   String
+
+  // primaryContactName String
+  // primaryContactRole String
+  // primaryContactEmail String
+  // primaryContactNumber String
+
+  members Profile[] @relation("ChurchProfiles")
+}
+
+model Registration {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id])
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id])
+
+  medications String[]
+  allergies   String[]
+  shirtSize   ShirtSize
+  swimming    Boolean
+  selfPay     Boolean
+  room        String?
+  group       String?
+
+  paid Boolean
+}
+
+model Event {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  startDate      DateTime
+  endDate        DateTime
+  name           String
+  brief          String
+  maxSignUps     Int
+  location       String
+  schedule       Json[]
+  price          Int
+  earlyBirdPrice Int?
+  earlyBirdDate  DateTime?
+
+  registrations Registration[]
+}
+
+enum ShirtSize {
+  XS
+  S
+  M
+  L
+  XL
+  XXL
+  XXXL
+}
+
+enum Gender {
+  MALE
+  FEMALE
 }
 
 enum Role {

@@ -102,7 +102,7 @@ export function RegisterForm() {
           policy.
         </p>
 
-        <Button type="submit" variant="primary" fullWidth>
+        <Button className="justify-center text-primary-foreground" type="submit" variant="primary" fullWidth>
           Create account
         </Button>
       </form>

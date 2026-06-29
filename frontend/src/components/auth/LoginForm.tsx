@@ -25,19 +25,20 @@ export function LoginForm() {
       const loginData = await api.post("/login", data);
       const userData = await api.get("/me");
 
-      localStorage.setItem('id', userData['data']['id']);
-      localStorage.setItem('name', userData['data']['name']);
-      localStorage.setItem('role', userData['data']['role']);
-      
-      toast.success("Logged in successfully", {
-        description: "Redirecting to app...",
-      });
-      setTimeout(() => {
-        if (userData['data']['firstTime'])
-          router.push("/profile/first-time");
-        else  
-          router.push("/dashboard");
-      }, 2000);
+      localStorage.setItem("id", userData["data"]["id"]);
+      localStorage.setItem("name", userData["data"]["name"]);
+      localStorage.setItem("role", userData["data"]["role"]);
+
+      if (userData["data"]["admin"]) router.push("/admin");
+      else {
+        toast.success("Logged in successfully", {
+          description: "Redirecting to app...",
+        });
+        setTimeout(() => {
+          if (userData["data"]["firstTime"]) router.push("/profile/first-time");
+          else router.push("/dashboard");
+        }, 2000);
+      }
     } catch (e: any) {
       toast.error("Could not log in", {
         description: e.response["data"]["message"],
@@ -85,7 +86,12 @@ export function LoginForm() {
           />
         </div>
 
-        <Button type="submit" variant="primary" fullWidth>
+        <Button
+          className="justify-center text-primary-foreground"
+          type="submit"
+          variant="primary"
+          fullWidth
+        >
           Sign in
         </Button>
       </form>
