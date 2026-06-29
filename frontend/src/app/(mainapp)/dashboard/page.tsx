@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import api from "@/lib/axios";
 
 export default function DashboardPage() {
   type Event = {
@@ -26,66 +27,36 @@ export default function DashboardPage() {
     paid: boolean;
   };
 
-  const availableEvents: Event[] = [
-    {
-      id: "1",
-      name: "Big Weekend 2026",
-      brief:
-        "UAEYFC's annual 3-day weekend youth retreat for teens and leaders across the UAE.",
-      startDate: new Date(),
-      endDate: new Date(),
-      signedUp: 100,
-      maxSignUps: 300,
-      location: "Ras Al Khaimah",
-      price: 530,
-    },
-    {
-      id: "2",
-      name: "Big Weekend 2026",
-      brief:
-        "UAEYFC's annual 3-day weekend youth retreat for teens and leaders across the UAE.",
-      startDate: new Date(),
-      endDate: new Date(),
-      signedUp: 100,
-      maxSignUps: 300,
-      location: "Ras Al Khaimah",
-      price: 530,
-    },
-  ];
-
-  const usersEvents: UsersEvent[] = [
-    {
-      id: "1",
-      name: "Big Weekend 2026",
-      brief:
-        "UAEYFC's annual 3-day weekend youth retreat for teens and leaders across the UAE.",
-      startDate: new Date(),
-      endDate: new Date(),
-      signedUp: 100,
-      maxSignUps: 300,
-      location: "Ras Al Khaimah",
-      price: 530,
-      paid: false,
-    },
-    {
-      id: "2",
-      name: "Big Weekend 2026",
-      brief:
-        "UAEYFC's annual 3-day weekend youth retreat for teens and leaders across the UAE.",
-      startDate: new Date(),
-      endDate: new Date(),
-      signedUp: 100,
-      maxSignUps: 300,
-      location: "Ras Al Khaimah",
-      price: 530,
-      paid: true,
-    },
-  ];
-
+  const [availableEvents, setAvailableEvents] = useState<Event[]>([]);
+  const [usersEvents, setUsersEvents] = useState<UsersEvent[]>([]);
   const [name, setName] = useState("User");
 
   useEffect(() => {
     setName(localStorage.getItem("name") ?? "User");
+
+    const fetchData = async () => {
+      const [eventsRes, meEventsRes] = await Promise.all([
+        api.get("/events"),
+        api.get("/me/events"),
+      ]);
+
+      setAvailableEvents(
+        (eventsRes.data.data || []).map((e: Record<string, unknown>) => ({
+          ...e,
+          startDate: new Date(e.startDate as string),
+          endDate: new Date(e.endDate as string),
+        })),
+      );
+      setUsersEvents(
+        (meEventsRes.data.data || []).map((e: Record<string, unknown>) => ({
+          ...e,
+          startDate: new Date(e.startDate as string),
+          endDate: new Date(e.endDate as string),
+        })),
+      );
+    };
+
+    fetchData();
   }, []);
 
   return (

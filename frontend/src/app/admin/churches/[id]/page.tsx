@@ -12,15 +12,32 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { churches } from "../../data";
+import { type ChurchRecord } from "../../data";
+import api from "@/lib/axios";
 
 export default function AdminChurchPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const church = churches.find((item) => item.id === params.id);
+  const [church, setChurch] = useState<ChurchRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/admin/churches/${params.id}`)
+      .then((res) => setChurch(res.data.data))
+      .catch(() => setChurch(null))
+      .finally(() => setLoading(false));
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-4 sm:px-6">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   if (!church) {
     notFound();

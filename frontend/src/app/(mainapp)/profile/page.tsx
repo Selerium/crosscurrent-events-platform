@@ -1,44 +1,74 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
+import api from "@/lib/axios";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type ProfileData = {
+  createdAt: string;
+  user: { name: string; email: string };
+  role: string;
+  firstTime: boolean;
+  gender: string | null;
+  dob: string | null;
+  nationality: string | null;
+  phone: string | null;
+  parentOneName: string | null;
+  parentOneEmail: string | null;
+  parentOnePhone: string | null;
+  church: { id: string; name: string; country: string; state: string };
+  churchId: string;
+  primaryForChurch: boolean;
+};
 
 export default function Profile() {
-  const sampleInfo = {
-    createdAt: Date.now(),
-    user: {
-      name: "Test Name",
-    },
-    role: "STUDENT",
-    firstTime: false,
-    gender: "MALE",
-    dob: Date.now(),
-    nationality: "Human",
-    phone: "+971500000000",
-    parentOneName: "Test Parent",
-    parentOneEmail: "test@test.com",
-    parentOnePhone: "+971500000000",
-    church: {
-      name: "Church Name",
-      country: "Country",
-    },
-    primaryForChurch: false,
-    // registrations: {
-
-    // }
-  };
-
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [selectedOption, setSelectedOption] = useState(0);
   const [editMode, setEditMode] = useState(false);
+  const [form, setForm] = useState({
+    phone: "",
+    nationality: "",
+    parentOneName: "",
+    parentOneEmail: "",
+    parentOnePhone: "",
+  });
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const res = await api.get("/profile");
+      setProfile(res.data.data);
+      const p = res.data.data;
+      setForm({
+        phone: p.phone || "",
+        nationality: p.nationality || "",
+        parentOneName: p.parentOneName || "",
+        parentOneEmail: p.parentOneEmail || "",
+        parentOnePhone: p.parentOnePhone || "",
+      });
+    };
+
+    fetchProfile();
+  }, []);
 
   const editDetails = async () => {
-    if (!editMode) setEditMode(true);
-    else {
-      // submit PUT request for profile data
+    if (!editMode) {
+      setEditMode(true);
+    } else {
+      await api.put("/profile", form);
+      const res = await api.get("/profile");
+      setProfile(res.data.data);
       setEditMode(false);
     }
   };
+
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center p-4 sm:px-6">
+        <div className="w-full max-w-6xl min-w-72 p-4">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center p-4 sm:px-6">
@@ -72,9 +102,9 @@ export default function Profile() {
                 <div className="flex items-center gap-2 rounded-lg w-full">
                   <p className="w-72">Role: </p>
                   <Input
-                    disabled={!editMode}
+                    disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border capitalize"
-                    value={sampleInfo.role.toLowerCase()}
+                    value={profile.role.toLowerCase()}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -82,39 +112,40 @@ export default function Profile() {
                   <Input
                     disabled={!editMode}
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={sampleInfo.phone}
+                    value={editMode ? form.phone : (profile.phone || "")}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
                   <p className="w-72">Church: </p>
                   <Input
-                    disabled={!editMode}
+                    disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={sampleInfo.church.country}
+                    value={profile.church.name}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
                   <p className="w-72">Country: </p>
                   <Input
-                    disabled={!editMode}
+                    disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={sampleInfo.church.country}
+                    value={profile.church.country}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
                   <p className="w-72">Date of Birth: </p>
                   <Input
-                    disabled={!editMode}
+                    disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={new Date(sampleInfo.dob).toLocaleDateString()}
+                    value={profile.dob ? new Date(profile.dob).toLocaleDateString() : ""}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
                   <p className="w-72">Gender: </p>
                   <Input
-                    disabled={!editMode}
+                    disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border capitalize"
-                    value={sampleInfo.gender.toLowerCase()}
+                    value={profile.gender ? profile.gender.toLowerCase() : ""}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -122,7 +153,8 @@ export default function Profile() {
                   <Input
                     disabled={!editMode}
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={sampleInfo.nationality}
+                    value={editMode ? form.nationality : (profile.nationality || "")}
+                    onChange={(e) => setForm({ ...form, nationality: e.target.value })}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -130,7 +162,8 @@ export default function Profile() {
                   <Input
                     disabled={!editMode}
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={sampleInfo.parentOneName}
+                    value={editMode ? form.parentOneName : (profile.parentOneName || "")}
+                    onChange={(e) => setForm({ ...form, parentOneName: e.target.value })}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -138,7 +171,8 @@ export default function Profile() {
                   <Input
                     disabled={!editMode}
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={sampleInfo.parentOneEmail}
+                    value={editMode ? form.parentOneEmail : (profile.parentOneEmail || "")}
+                    onChange={(e) => setForm({ ...form, parentOneEmail: e.target.value })}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -146,7 +180,8 @@ export default function Profile() {
                   <Input
                     disabled={!editMode}
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={sampleInfo.parentOnePhone}
+                    value={editMode ? form.parentOnePhone : (profile.parentOnePhone || "")}
+                    onChange={(e) => setForm({ ...form, parentOnePhone: e.target.value })}
                   />
                 </div>
               </div>
@@ -171,22 +206,6 @@ export default function Profile() {
                       Reset Email
                     </Button>
                   </div>
-                  {/* <hr className="my-4" />
-                  <p className="font-bold">Delete Account</p>
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-72 w-1/2">
-                      This option deletes all your identity data from
-                      CrossCurrent's events platform. Some information is
-                      retained to keep records of registrations and previous
-                      events, but all identifying data is removed.{" "}
-                      <span className="font-bold">
-                        This choice cannot be reversed - be completely sure!
-                      </span>
-                    </p>
-                    <Button className="justify-center text-white min-w-72 w-1/2 bg-red-700">
-                      Delete Account
-                    </Button>
-                  </div> */}
                 </div>
               </div>
             </div>

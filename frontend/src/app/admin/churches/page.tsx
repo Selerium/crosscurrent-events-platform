@@ -2,18 +2,28 @@
 
 import { Church, Contact, Edit3, MapPin, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { churches } from "../data";
+import { type ChurchRecord } from "../data";
+import api from "@/lib/axios";
 
 type EmirateFilter = "all" | string;
-
-const emirates = Array.from(new Set(churches.map((church) => church.emirate)));
 
 export default function AdminChurchesPage() {
   const [search, setSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState<EmirateFilter>("all");
+  const [churches, setChurches] = useState<ChurchRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/admin/churches")
+      .then((res) => setChurches(res.data.data))
+      .catch((err) => console.error("Failed to load churches", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const emirates = Array.from(new Set(churches.map((church) => church.emirate)));
 
   const filteredChurches = useMemo(() => {
     return churches.filter((church) => {
@@ -31,7 +41,7 @@ export default function AdminChurchesPage() {
 
       return matchesSearch && matchesEmirate;
     });
-  }, [emirateFilter, search]);
+  }, [emirateFilter, search, churches]);
 
   return (
     <main className="min-h-full bg-background px-4 py-8 sm:px-6 lg:px-8">
@@ -82,46 +92,50 @@ export default function AdminChurchesPage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">
-          {filteredChurches.map((church) => (
-            <div className="rounded-lg border bg-card p-4 shadow-sm" key={church.id}>
-              <Link
-                className="flex items-start gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                href={`/admin/churches/${church.id}`}
-              >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  <Church className="size-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="font-semibold text-foreground">{church.name}</h2>
-                  <div className="mt-2 grid gap-1 text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <MapPin className="size-4" />
-                      {church.emirate}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Users className="size-4" />
-                      {church.members} members
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Contact className="size-4" />
-                      {church.primaryContact}
-                    </span>
+          {loading ? (
+            <p className="text-muted-foreground">Loading...</p>
+          ) : (
+            filteredChurches.map((church) => (
+              <div className="rounded-lg border bg-card p-4 shadow-sm" key={church.id}>
+                <Link
+                  className="flex items-start gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  href={`/admin/churches/${church.id}`}
+                >
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Church className="size-5" />
                   </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-semibold text-foreground">{church.name}</h2>
+                    <div className="mt-2 grid gap-1 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <MapPin className="size-4" />
+                        {church.emirate}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Users className="size-4" />
+                        {church.members} members
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Contact className="size-4" />
+                        {church.primaryContact}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <span className="break-all text-sm text-muted-foreground">
+                    {church.contactEmail}
+                  </span>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/admin/churches/${church.id}/edit`}>
+                      <Edit3 />
+                      Edit church
+                    </Link>
+                  </Button>
                 </div>
-              </Link>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <span className="break-all text-sm text-muted-foreground">
-                  {church.contactEmail}
-                </span>
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/admin/churches/${church.id}/edit`}>
-                    <Edit3 />
-                    Edit church
-                  </Link>
-                </Button>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </section>
       </div>
     </main>

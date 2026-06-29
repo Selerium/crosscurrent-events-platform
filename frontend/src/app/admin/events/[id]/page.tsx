@@ -11,16 +11,33 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { adminEvents, currencyFormatter, formatEventDate } from "../../data";
+import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data";
+import api from "@/lib/axios";
 
 export default function AdminEventPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const eventInfo = adminEvents.find((event) => event.id === params.id);
+  const [eventInfo, setEventInfo] = useState<AdminEvent | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(0);
+
+  useEffect(() => {
+    api.get(`/admin/events/${params.id}`)
+      .then((res) => setEventInfo(res.data.data))
+      .catch(() => setEventInfo(null))
+      .finally(() => setLoading(false));
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-4 sm:px-6">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   if (!eventInfo) {
     notFound();

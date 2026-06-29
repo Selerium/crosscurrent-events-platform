@@ -4,9 +4,9 @@ import Link from "next/link";
 import api from "@/lib/axios";
 import { AuthDivider } from "@/components/auth/AuthDivider";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -87,10 +87,9 @@ export function LoginForm() {
         </div>
 
         <Button
-          className="justify-center text-primary-foreground"
+          className="w-full justify-center text-primary-foreground"
           type="submit"
-          variant="primary"
-          fullWidth
+          variant="default"
         >
           Sign in
         </Button>

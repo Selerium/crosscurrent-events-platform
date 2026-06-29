@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 type OAuthProvider = {
   id: string;
@@ -65,8 +65,8 @@ export function OAuthButtons() {
           <Button
             key={provider.id}
             type="button"
-            variant="oauth"
-            fullWidth
+            variant="outline"
+            className="w-full"
             disabled
             title={`${provider.label} sign-in coming soon`}
             aria-label={`Continue with ${provider.label} (coming soon)`}

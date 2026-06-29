@@ -3,9 +3,9 @@
 import { useActionState, useEffect } from "react";
 import { AuthDivider } from "@/components/auth/AuthDivider";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
+import { Label } from "@/components/ui/label";
 import { submitRegisterForm } from "@/actions/registerForm";
 import { toast } from "sonner"
 import { useRouter } from "next/navigation";
@@ -102,7 +102,7 @@ export function RegisterForm() {
           policy.
         </p>
 
-        <Button className="justify-center text-primary-foreground" type="submit" variant="primary" fullWidth>
+        <Button className="w-full justify-center text-primary-foreground" type="submit" variant="default">
           Create account
         </Button>
       </form>

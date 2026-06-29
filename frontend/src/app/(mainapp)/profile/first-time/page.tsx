@@ -1,6 +1,7 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
+import api from "@/lib/axios";
+import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Field,
@@ -9,7 +10,7 @@ import {
   FieldGroup,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -28,13 +29,24 @@ import CountrySelect from "@/components/utils/countrySelect";
 import { CalendarIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
+
+type ChurchOption = {
+  id: string;
+  name: string;
+  country: string;
+  state: string;
+};
 
 export default function FirstTime() {
+  const router = useRouter();
+  const [churches, setChurches] = useState<ChurchOption[]>([]);
+  const [leader, setLeader] = useState(false);
+
   type FirstTimeFormData = {
     gender: "MALE" | "FEMALE";
     dob: Date;
     nationality: string;
-    // idDocument: FileList;
     phone: string;
     parentOneName: string | undefined;
     parentOneEmail: string | undefined;
@@ -43,15 +55,19 @@ export default function FirstTime() {
     primaryForChurch: boolean;
   };
 
-  const [leader, setLeader] = useState(false);
-
   useEffect(() => {
-    // if role is leader
-    // setLeader(true)
+    const fetchChurches = async () => {
+      const res = await api.get("/churches");
+      setChurches(res.data.data || []);
+    };
+
+    fetchChurches();
   }, []);
 
   async function submitForm(formData: FirstTimeFormData) {
-    console.log(formData);
+    await api.post("/profile/first-time", formData);
+    localStorage.setItem("firstTime", "false");
+    router.push("/dashboard");
   }
 
   const { register, handleSubmit, formState, control } =
@@ -63,6 +79,16 @@ export default function FirstTime() {
         primaryForChurch: false,
       },
     });
+
+  const groupedChurches = churches.reduce<Record<string, ChurchOption[]>>(
+    (acc, church) => {
+      const key = church.state || church.country;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(church);
+      return acc;
+    },
+    {},
+  );
 
   function ErrorText({ error }: { error?: string }) {
     if (!error) return null;
@@ -156,18 +182,6 @@ export default function FirstTime() {
               )}
             />
           </div>
-          {/* <div>
-            <Label htmlFor="idDocument">
-              ID Document (Passport / Emirates ID){" "}
-              <ErrorText error={formState.errors.idDocument?.message} />
-            </Label>
-            <Input
-              {...register("idDocument", { required: true })}
-              id="idDocument"
-              type="file"
-              required
-            />
-          </div> */}
           <div>
             <Label htmlFor="phone">
               Phone Number / WhatsApp{" "}
@@ -247,17 +261,16 @@ export default function FirstTime() {
                     <SelectValue placeholder="Select church" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Abu Dhabi</SelectLabel>
-                      <SelectItem value="AUH001">
-                        St. Andrew's Church
-                      </SelectItem>
-                      <SelectItem value="AUH002">Cornerstone</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Dubai</SelectLabel>
-                      <SelectItem value="DXB001">Fellowship</SelectItem>
-                    </SelectGroup>
+                    {Object.entries(groupedChurches).map(([state, list]) => (
+                      <SelectGroup key={state}>
+                        <SelectLabel>{state}</SelectLabel>
+                        {list.map((church) => (
+                          <SelectItem key={church.id} value={church.id}>
+                            {church.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
                   </SelectContent>
                 </Select>
               )}

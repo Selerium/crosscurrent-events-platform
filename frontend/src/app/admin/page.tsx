@@ -10,28 +10,54 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
-  adminEvents,
-  churches,
   currencyFormatter,
   formatEventDate,
+  type AdminEvent,
+  type ChurchRecord,
 } from "./data";
+import api from "@/lib/axios";
 
 type RevenuePeriod = "All time" | "Monthly" | "Yearly";
 const revenueByPeriod: Record<RevenuePeriod, number> = {
-  "All time": 182450,
+  "All time": 0,
   Monthly: 28340,
   Yearly: 96780,
 };
 
-const activeEvents = adminEvents.filter((event) => event.status === "active");
-
 export default function AdminDashboard() {
   const [selectedRevenuePeriod, setSelectedRevenuePeriod] =
     useState<RevenuePeriod>("All time");
+  const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [churches, setChurches] = useState<ChurchRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [eventsRes, churchesRes] = await Promise.all([
+          api.get("/admin/events"),
+          api.get("/admin/churches"),
+        ]);
+        const eventsData: AdminEvent[] = eventsRes.data.data;
+        const churchesData: ChurchRecord[] = churchesRes.data.data;
+        setEvents(eventsData);
+        setChurches(churchesData);
+        const totalRevenue = eventsData.reduce((sum, e) => sum + e.revenue, 0);
+        revenueByPeriod["All time"] = totalRevenue;
+      } catch (err) {
+        console.error("Failed to load dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const activeEvents = events.filter((event) => event.status === "active");
   const totalSignUps = activeEvents.reduce(
     (total, event) => total + event.signUps,
     0,
@@ -48,189 +74,195 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-lg border bg-card p-5 shadow-sm md:col-span-2">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Banknote className="size-4" />
-                  Total money earned
+        {loading ? (
+          <p className="text-muted-foreground">Loading...</p>
+        ) : (
+          <>
+            <section className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-lg border bg-card p-5 shadow-sm md:col-span-2">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Banknote className="size-4" />
+                      Total money earned
+                    </div>
+                    <p className="mt-3 text-4xl font-semibold tracking-normal text-foreground">
+                      {currencyFormatter.format(
+                        revenueByPeriod[selectedRevenuePeriod],
+                      )}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
+                    {(Object.keys(revenueByPeriod) as RevenuePeriod[]).map(
+                      (period) => (
+                        <button
+                          key={period}
+                          className={`h-8 rounded-md px-3 text-sm font-medium transition-colors ${
+                            period === selectedRevenuePeriod
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          }`}
+                          onClick={() => setSelectedRevenuePeriod(period)}
+                          type="button"
+                        >
+                          {period}
+                        </button>
+                      ),
+                    )}
+                  </div>
                 </div>
-                <p className="mt-3 text-4xl font-semibold tracking-normal text-foreground">
-                  {currencyFormatter.format(
-                    revenueByPeriod[selectedRevenuePeriod],
-                  )}
-                </p>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <Metric
+                    label="Average event revenue"
+                    value={currencyFormatter.format(
+                      revenueByPeriod["All time"] / (activeEvents.length || 1),
+                    )}
+                  />
+                  <Metric
+                    label="Monthly"
+                    value={currencyFormatter.format(revenueByPeriod.Monthly)}
+                  />
+                  <Metric
+                    label="Yearly"
+                    value={currencyFormatter.format(revenueByPeriod.Yearly)}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
-                {(Object.keys(revenueByPeriod) as RevenuePeriod[]).map(
-                  (period) => (
-                    <button
-                      key={period}
-                      className={`h-8 rounded-md px-3 text-sm font-medium transition-colors ${
-                        period === selectedRevenuePeriod
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      }`}
-                      onClick={() => setSelectedRevenuePeriod(period)}
-                      type="button"
+
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
+                <MetricCard
+                  icon={<CalendarDays className="size-4" />}
+                  label="Active events"
+                  value={activeEvents.length.toString()}
+                />
+                <MetricCard
+                  icon={<Users className="size-4" />}
+                  label="Total sign ups"
+                  value={totalSignUps.toString()}
+                />
+              </div>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+              <div className="rounded-lg border bg-card shadow-sm">
+                <SectionHeader
+                  title="Active events"
+                  action={
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href="/admin/events">View all</Link>
+                      </Button>
+                      <Button asChild size="sm">
+                        <Link href="/admin/events/new">
+                          <Plus />
+                          Create event
+                        </Link>
+                      </Button>
+                    </div>
+                  }
+                />
+                <div className="divide-y">
+                  {activeEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center"
                     >
-                      {period}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <Metric
-                label="Average event revenue"
-                value={currencyFormatter.format(
-                  revenueByPeriod["All time"] / activeEvents.length,
-                )}
-              />
-              <Metric
-                label="Monthly"
-                value={currencyFormatter.format(revenueByPeriod.Monthly)}
-              />
-              <Metric
-                label="Yearly"
-                value={currencyFormatter.format(revenueByPeriod.Yearly)}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
-            <MetricCard
-              icon={<CalendarDays className="size-4" />}
-              label="Active events"
-              value={activeEvents.length.toString()}
-            />
-            <MetricCard
-              icon={<Users className="size-4" />}
-              label="Total sign ups"
-              value={totalSignUps.toString()}
-            />
-          </div>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-          <div className="rounded-lg border bg-card shadow-sm">
-            <SectionHeader
-              title="Active events"
-              action={
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="/admin/events">View all</Link>
-                  </Button>
-                  <Button asChild size="sm">
-                    <Link href="/admin/events/new">
-                      <Plus />
-                      Create event
-                    </Link>
-                  </Button>
-                </div>
-              }
-            />
-            <div className="divide-y">
-              {activeEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center"
-                >
-                  <div className="min-w-0">
-                    <h2 className="font-semibold text-foreground">
-                      {event.name}
-                    </h2>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5">
-                        <CalendarDays className="size-4" />
-                        {formatEventDate(event.startDate, event.endDate)}
-                      </span>
-                      <span>{event.location}</span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Users className="size-4" />
-                        {event.signUps}/{event.capacity} sign ups
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-                    <span className="text-sm font-semibold text-foreground">
-                      {currencyFormatter.format(event.revenue)}
-                    </span>
-                    <Button asChild size="sm" variant="ghost">
-                      <Link href={`/admin/events/${event.id}`}>View</Link>
-                    </Button>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/admin/events/${event.id}/edit`}>
-                        <Edit3 />
-                        Edit
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-lg border bg-card shadow-sm">
-            <SectionHeader
-              title="Churches"
-              action={
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm font-medium text-muted-foreground">
-                    <Church className="size-4" />
-                    {churches.length} churches
-                  </span>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="/admin/churches">View all</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="/admin/churches/new">
-                      <Plus />
-                      Add church
-                    </Link>
-                  </Button>
-                </div>
-              }
-            />
-            <div className="divide-y">
-              {churches.map((church) => (
-                <div key={church.id} className="flex flex-col gap-4 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                      <Church className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="font-semibold text-foreground">
-                        {church.name}
-                      </h2>
-                      <div className="mt-2 grid gap-1 text-sm text-muted-foreground">
-                        <span className="inline-flex items-center gap-1.5">
-                          <Users className="size-4" />
-                          {church.members} members
+                      <div className="min-w-0">
+                        <h2 className="font-semibold text-foreground">
+                          {event.name}
+                        </h2>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarDays className="size-4" />
+                            {formatEventDate(event.startDate, event.endDate)}
+                          </span>
+                          <span>{event.location}</span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Users className="size-4" />
+                            {event.signUps}/{event.capacity} sign ups
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                        <span className="text-sm font-semibold text-foreground">
+                          {currencyFormatter.format(event.revenue)}
                         </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <Contact className="size-4" />
-                          {church.primaryContact}
-                        </span>
-                        <span className="break-all">{church.contactEmail}</span>
+                        <Button asChild size="sm" variant="ghost">
+                          <Link href={`/admin/events/${event.id}`}>View</Link>
+                        </Button>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/events/${event.id}/edit`}>
+                            <Edit3 />
+                            Edit
+                          </Link>
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/churches/${church.id}`}>View church</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/churches/${church.id}/edit`}>
-                      <Edit3 />
-                      Edit church
-                    </Link>
-                  </Button>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
+              </div>
+
+              <div className="rounded-lg border bg-card shadow-sm">
+                <SectionHeader
+                  title="Churches"
+                  action={
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm font-medium text-muted-foreground">
+                        <Church className="size-4" />
+                        {churches.length} churches
+                      </span>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href="/admin/churches">View all</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href="/admin/churches/new">
+                          <Plus />
+                          Add church
+                        </Link>
+                      </Button>
+                    </div>
+                  }
+                />
+                <div className="divide-y">
+                  {churches.map((church) => (
+                    <div key={church.id} className="flex flex-col gap-4 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <Church className="size-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h2 className="font-semibold text-foreground">
+                            {church.name}
+                          </h2>
+                          <div className="mt-2 grid gap-1 text-sm text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5">
+                              <Users className="size-4" />
+                              {church.members} members
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <Contact className="size-4" />
+                              {church.primaryContact}
+                            </span>
+                            <span className="break-all">{church.contactEmail}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/churches/${church.id}`}>View church</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/churches/${church.id}/edit`}>
+                          <Edit3 />
+                          Edit church
+                        </Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </main>
   );

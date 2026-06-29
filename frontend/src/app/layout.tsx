@@ -33,6 +33,19 @@ export const metadata: Metadata = {
   },
 };
 
+function decodeUserFromCookie(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  const token = cookieStore.get("access_token")?.value;
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64").toString(),
+    );
+    return { name: payload.name, role: payload.role };
+  } catch {
+    return null;
+  }
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -40,6 +53,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const theme = parseTheme(cookieStore.get(THEME_COOKIE)?.value);
+  const user = decodeUserFromCookie(cookieStore);
 
   return (
     <html
@@ -52,7 +66,7 @@ export default async function RootLayout({
         {/* <ThemeScript /> */}
         <ThemeProvider initialTheme={theme}>
           <main>
-            <SiteHeader />
+            <SiteHeader user={user} />
             {children}
           </main>
           <Toaster position="top-center" duration={5000} />
