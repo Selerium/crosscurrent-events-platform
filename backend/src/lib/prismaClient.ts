@@ -1,8 +1,8 @@
-import { PrismaClient, Role } from "../../generated/prisma/client.ts";
+import { PrismaClient, Role, EventStatus } from "../../generated/prisma/client.ts";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const connectionString = process.env.DATABASE_URL;
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
-export { prisma, Role };
+export { prisma, Role, EventStatus };

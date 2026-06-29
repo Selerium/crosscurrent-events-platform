@@ -5,8 +5,6 @@ import cookieParser from "cookie-parser"
 import registerHandler from "./controllers/register.ts";
 import loginHandler from "./controllers/login.ts";
 import errorHandler from "./middleware/errorHandler.ts";
-import meHandler from "./controllers/me.ts";
-import checkTokens from "./middleware/checkTokens.ts";
 import protectedRouter from "./controllers/routeGuard.ts";
 
 const app = express();
@@ -28,6 +26,11 @@ app.get("/api/test", (req, res) => {
 
 app.use("/api/register", registerHandler);
 app.use("/api/login", loginHandler);
+app.post("/api/logout", (req, res) => {
+  res.clearCookie("access_token", { path: "/" });
+  res.clearCookie("refresh_token", { path: "/" });
+  res.json({ data: {}, message: "Logged out", error: false });
+});
 app.use("/api", protectedRouter)
 app.use(errorHandler);
 

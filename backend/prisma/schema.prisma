@@ -56,9 +56,9 @@ model Profile {
   parentOneEmail String?
   parentOnePhone String?
 
-  churchId         String
-  church           Church  @relation("ChurchProfiles", fields: [churchId], references: [id])
-  primaryForChurch Boolean
+  churchId         String?
+  church           Church? @relation("ChurchProfiles", fields: [churchId], references: [id])
+  primaryForChurch Boolean @default(false)
 
   registrations Registration[]
 }
@@ -109,6 +109,7 @@ model Event {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  eventStatus     EventStatus @default(OPEN)
   startDate      DateTime
   endDate        DateTime
   name           String
@@ -142,4 +143,10 @@ enum Role {
   STUDENT
   LEADER
   ADMIN
+}
+
+enum EventStatus {
+  OPEN
+  CLOSED
+  COMPLETED
 }

@@ -29,7 +29,8 @@ registerHandler.post("", async (req, res) => {
         profile: {
           create: {
             name: fullName,
-            role: Role.CUSTOMER,
+            role: Role.STUDENT,
+            primaryForChurch: false,
           },
         },
       },
@@ -45,7 +46,7 @@ registerHandler.post("", async (req, res) => {
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError)
-      if ((e.code = "P2002")) throw new AppError("Email already in use", 409);
+      if (e.code === "P2002") throw new AppError("Email already in use", 409);
     throw new AppError("Failed to create user", 400);
   }
 });
