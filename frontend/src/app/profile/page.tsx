@@ -78,13 +78,17 @@ export default function Profile() {
           <div className="flex flex-col gap-4 p-4 rounded-lg border col-span-1 h-fit">
             <button
               onClick={() => setSelectedOption(0)}
-              className={`w-full text-left hover:text-primary cursor-pointer ${selectedOption === 0 ? "font-bold" : ""}`}
+              className={`w-full text-left hover:text-primary cursor-pointer ${
+                selectedOption === 0 ? "font-bold" : ""
+              }`}
             >
               Profile
             </button>
             <button
               onClick={() => setSelectedOption(1)}
-              className={`w-full text-left hover:text-primary cursor-pointer ${selectedOption === 1 ? "font-bold" : ""}`}
+              className={`w-full text-left hover:text-primary cursor-pointer ${
+                selectedOption === 1 ? "font-bold" : ""
+              }`}
             >
               Settings
             </button>
@@ -94,7 +98,10 @@ export default function Profile() {
               <div className="flex flex-col gap-4 w-full">
                 <div className="flex w-full justify-between items-center">
                   <h2 className="text-xl font-bold">Profile</h2>
-                  <Button onClick={editDetails} className="text-primary-foreground">
+                  <Button
+                    onClick={editDetails}
+                    className="text-primary-foreground"
+                  >
                     {editMode ? "Save" : "Edit"}
                   </Button>
                 </div>
@@ -112,8 +119,10 @@ export default function Profile() {
                   <Input
                     disabled={!editMode}
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={editMode ? form.phone : (profile.phone || "")}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    value={editMode ? form.phone : profile.phone || ""}
+                    onChange={(e) =>
+                      setForm({ ...form, phone: e.target.value })
+                    }
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -121,7 +130,7 @@ export default function Profile() {
                   <Input
                     disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={profile.church.name}
+                    value={profile.church ? profile.church.name : "-"}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -129,7 +138,7 @@ export default function Profile() {
                   <Input
                     disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={profile.church.country}
+                    value={profile.church ? profile.church.country : "-"}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -137,7 +146,11 @@ export default function Profile() {
                   <Input
                     disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={profile.dob ? new Date(profile.dob).toLocaleDateString() : ""}
+                    value={
+                      profile.dob
+                        ? new Date(profile.dob).toLocaleDateString()
+                        : "-"
+                    }
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -145,7 +158,7 @@ export default function Profile() {
                   <Input
                     disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border capitalize"
-                    value={profile.gender ? profile.gender.toLowerCase() : ""}
+                    value={profile.gender ? profile.gender.toLowerCase() : "-"}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -153,37 +166,63 @@ export default function Profile() {
                   <Input
                     disabled={!editMode}
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={editMode ? form.nationality : (profile.nationality || "")}
-                    onChange={(e) => setForm({ ...form, nationality: e.target.value })}
+                    value={
+                      editMode ? form.nationality : profile.nationality || "-"
+                    }
+                    onChange={(e) =>
+                      setForm({ ...form, nationality: e.target.value })
+                    }
                   />
                 </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Parent Name: </p>
-                  <Input
-                    disabled={!editMode}
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={editMode ? form.parentOneName : (profile.parentOneName || "")}
-                    onChange={(e) => setForm({ ...form, parentOneName: e.target.value })}
-                  />
-                </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Parent Email: </p>
-                  <Input
-                    disabled={!editMode}
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={editMode ? form.parentOneEmail : (profile.parentOneEmail || "")}
-                    onChange={(e) => setForm({ ...form, parentOneEmail: e.target.value })}
-                  />
-                </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Parent Phone: </p>
-                  <Input
-                    disabled={!editMode}
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={editMode ? form.parentOnePhone : (profile.parentOnePhone || "")}
-                    onChange={(e) => setForm({ ...form, parentOnePhone: e.target.value })}
-                  />
-                </div>
+                {localStorage.getItem('role') !== "ADMIN" &&
+                  <>
+                    <div className="flex items-center gap-2 rounded-lg w-full">
+                      <p className="w-72">Parent Name: </p>
+                      <Input
+                        disabled={!editMode}
+                        className="min-w-72 grow px-4 py-2 rounded-lg border"
+                        value={
+                          editMode
+                            ? form.parentOneName
+                            : profile.parentOneName || "-"
+                        }
+                        onChange={(e) =>
+                          setForm({ ...form, parentOneName: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 rounded-lg w-full">
+                      <p className="w-72">Parent Email: </p>
+                      <Input
+                        disabled={!editMode}
+                        className="min-w-72 grow px-4 py-2 rounded-lg border"
+                        value={
+                          editMode
+                            ? form.parentOneEmail
+                            : profile.parentOneEmail || "-"
+                        }
+                        onChange={(e) =>
+                          setForm({ ...form, parentOneEmail: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 rounded-lg w-full">
+                      <p className="w-72">Parent Phone: </p>
+                      <Input
+                        disabled={!editMode}
+                        className="min-w-72 grow px-4 py-2 rounded-lg border"
+                        value={
+                          editMode
+                            ? form.parentOnePhone
+                            : profile.parentOnePhone || "-"
+                        }
+                        onChange={(e) =>
+                          setForm({ ...form, parentOnePhone: e.target.value })
+                        }
+                      />
+                    </div>
+                  </>
+                }
               </div>
             </div>
           )}

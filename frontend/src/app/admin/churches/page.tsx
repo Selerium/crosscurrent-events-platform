@@ -60,7 +60,7 @@ export default function AdminChurchesPage() {
             </h1>
           </div>
           <Button asChild>
-            <Link href="/admin/churches/new">
+            <Link href="/admin/churches/create">
               <Plus />
               Add church
             </Link>
@@ -99,7 +99,9 @@ export default function AdminChurchesPage() {
           {loading ? (
             <p className="text-muted-foreground">Loading...</p>
           ) : fetchError ? (
-            <p className="text-muted-foreground">couldn&apos;t load data</p>
+            <p className="text-muted-foreground">No data available</p>
+          ) : filteredChurches.length === 0 ? (
+            <p className="text-muted-foreground">No churches found</p>
           ) : (
             filteredChurches.map((church) => (
               <div className="rounded-lg border bg-card p-4 shadow-sm" key={church.id}>
@@ -133,9 +135,8 @@ export default function AdminChurchesPage() {
                     {church.contactEmail}
                   </span>
                   <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/churches/${church.id}/edit`}>
-                      <Edit3 />
-                      Edit church
+                    <Link href={`/admin/churches/${church.id}`}>
+                      View church
                     </Link>
                   </Button>
                 </div>

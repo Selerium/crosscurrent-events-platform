@@ -10,6 +10,71 @@ const statusMap: Record<string, string> = {
 
 const adminEventsHandler = express.Router();
 
+adminEventsHandler.post("", async (req, res) => {
+  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, schedule } = req.body;
+
+  if (!name || !brief || !startDate || !endDate || !maxSignUps || !location || price === undefined) {
+    throw new AppError("Missing required fields", 400);
+  }
+
+  if (new Date(endDate) <= new Date(startDate)) {
+    throw new AppError("End date must be after start date", 400);
+  }
+
+  const event = await prisma.event.create({
+    data: {
+      name,
+      brief,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      maxSignUps: Number(maxSignUps),
+      location,
+      price: Number(price),
+      earlyBirdPrice: earlyBirdPrice ? Number(earlyBirdPrice) : null,
+      earlyBirdDate: earlyBirdDate ? new Date(earlyBirdDate) : null,
+      schedule: schedule ?? [],
+    },
+  });
+
+  res.status(201).json({ data: event, error: false, message: "Event created" });
+});
+
+adminEventsHandler.patch("/:id", async (req, res) => {
+  const event = await prisma.event.findUnique({ where: { id: req.params.id } });
+
+  if (!event) {
+    throw new AppError("Event not found", 404);
+  }
+
+  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, schedule, eventStatus } = req.body;
+
+  const data: Record<string, unknown> = {};
+  if (name !== undefined) data.name = name;
+  if (brief !== undefined) data.brief = brief;
+  if (startDate !== undefined) data.startDate = new Date(startDate);
+  if (endDate !== undefined) data.endDate = new Date(endDate);
+  if (maxSignUps !== undefined) data.maxSignUps = Number(maxSignUps);
+  if (location !== undefined) data.location = location;
+  if (price !== undefined) data.price = Number(price);
+  if (earlyBirdPrice !== undefined) data.earlyBirdPrice = earlyBirdPrice ? Number(earlyBirdPrice) : null;
+  if (earlyBirdDate !== undefined) data.earlyBirdDate = earlyBirdDate ? new Date(earlyBirdDate) : null;
+  if (schedule !== undefined) data.schedule = schedule;
+  if (eventStatus !== undefined) data.eventStatus = eventStatus;
+
+  const finalStart = data.startDate ? new Date(data.startDate as string) : event.startDate;
+  const finalEnd = data.endDate ? new Date(data.endDate as string) : event.endDate;
+  if (finalEnd <= finalStart) {
+    throw new AppError("End date must be after start date", 400);
+  }
+
+  const updated = await prisma.event.update({
+    where: { id: req.params.id },
+    data,
+  });
+
+  res.status(200).json({ data: updated, error: false, message: "Event updated" });
+});
+
 adminEventsHandler.get("", async (req, res) => {
   const events = await prisma.event.findMany({
     include: {

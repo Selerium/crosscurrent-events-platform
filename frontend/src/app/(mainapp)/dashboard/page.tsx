@@ -76,7 +76,11 @@ export default function DashboardPage() {
               </h2>
               {availableEventsError ? (
                 <div className="p-4 rounded-lg border text-muted-foreground">
-                  couldn&apos;t load data
+                  No data available
+                </div>
+              ) : availableEvents.length === 0 ? (
+                <div className="p-4 rounded-lg border text-muted-foreground">
+                  No events available
                 </div>
               ) : availableEvents.map((event) => (
                 <div
@@ -130,7 +134,11 @@ export default function DashboardPage() {
               <h2 className="font-semibold text-foreground">My Calendar</h2>
               {usersEventsError ? (
                 <div className="p-4 rounded-lg border text-muted-foreground">
-                  couldn&apos;t load data
+                  No data available
+                </div>
+              ) : usersEvents.length === 0 ? (
+                <div className="p-4 rounded-lg border text-muted-foreground">
+                  No upcoming events
                 </div>
               ) : usersEvents.map((event) => (
                 <div

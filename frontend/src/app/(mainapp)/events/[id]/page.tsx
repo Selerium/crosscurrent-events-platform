@@ -147,6 +147,7 @@ export default function EventPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const [eventData, setEventData] = useState<EventData | null>(null);
+  const [eventError, setEventError] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   const [expandID, setExpandID] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
@@ -189,53 +190,7 @@ export default function EventPage() {
         setShowRegister(true);
       }
     } catch {
-      setEventData({
-        id: params.id,
-        name: "Sample Event",
-        brief:
-          "This is placeholder event data shown because the API request failed.",
-        startDate: new Date("2026-08-01"),
-        endDate: new Date("2026-08-03"),
-        signedUp: 12,
-        maxSignUps: 30,
-        location: "Main Hall",
-        price: 50,
-        schedule: [
-          [
-            {
-              item: "Registration",
-              description: "Check-in and welcome",
-              startTime: "09:00",
-              endTime: "09:30",
-              location: "Lobby",
-            },
-            {
-              item: "Opening Ceremony",
-              description: "Keynote speech",
-              startTime: "10:00",
-              endTime: "11:00",
-              location: "Main Stage",
-            },
-          ],
-          [
-            {
-              item: "Workshop",
-              description: "Hands-on session",
-              startTime: "10:00",
-              endTime: "12:00",
-              location: "Room A",
-            },
-            {
-              item: "Closing",
-              description: "Wrap-up and farewells",
-              startTime: "16:00",
-              endTime: "17:00",
-              location: "Main Stage",
-            },
-          ],
-        ],
-        user: null,
-      });
+      setEventError(true);
     }
   };
 
@@ -265,6 +220,16 @@ export default function EventPage() {
       toast.error("Could not unregister");
     }
   };
+
+  if (eventError) {
+    return (
+      <div className="flex items-center justify-center p-4 sm:px-6">
+        <div className="w-full max-w-6xl p-4 flex flex-col gap-4 rounded-lg border text-muted-foreground">
+          No data available
+        </div>
+      </div>
+    );
+  }
 
   if (!eventData) {
     return (

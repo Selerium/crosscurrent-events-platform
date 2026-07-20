@@ -4,11 +4,17 @@ import api from "@/lib/axios";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, CalendarIcon, Plus, Trash2 } from "lucide-react";
 
 type ScheduleItem = {
   item: string;
@@ -21,24 +27,30 @@ type ScheduleItem = {
 type EventForm = {
   name: string;
   brief: string;
-  startDate: string;
-  endDate: string;
+  startDate: Date | undefined;
+  endDate: Date | undefined;
   maxSignUps: number;
   location: string;
   price: number;
   earlyBirdPrice: number | undefined;
-  earlyBirdDate: string | undefined;
+  earlyBirdDate: Date | undefined;
 };
 
 export default function CreateEventPage() {
   const router = useRouter();
-  const { register, handleSubmit, formState } = useForm<EventForm>({
+  const { register, handleSubmit, formState, control, watch } = useForm<EventForm>({
     defaultValues: {
       earlyBirdPrice: undefined,
       earlyBirdDate: undefined,
+      startDate: undefined,
+      endDate: undefined,
     },
   });
   const [schedule, setSchedule] = useState<ScheduleItem[][]>([[]]);
+  const [startOpen, setStartOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  const [earlyBirdOpen, setEarlyBirdOpen] = useState(false);
+  const watchStartDate = watch("startDate");
 
   function addDay() {
     setSchedule([...schedule, []]);
@@ -76,14 +88,27 @@ export default function CreateEventPage() {
   }
 
   async function onSubmit(data: EventForm) {
+    if (!data.startDate || !data.endDate) {
+      toast.error("Start and end dates are required");
+      return;
+    }
+    if (data.endDate <= data.startDate) {
+      toast.error("End date must be after start date");
+      return;
+    }
     try {
-      await api.post("/events", {
-        ...data,
+      await api.post("/admin/events", {
+        name: data.name,
+        brief: data.brief,
+        startDate: data.startDate.toISOString(),
+        endDate: data.endDate.toISOString(),
         maxSignUps: Number(data.maxSignUps),
+        location: data.location,
         price: Number(data.price),
         earlyBirdPrice: data.earlyBirdPrice
           ? Number(data.earlyBirdPrice)
           : undefined,
+        earlyBirdDate: data.earlyBirdDate?.toISOString(),
         schedule,
       });
       toast.success("Event created");
@@ -96,6 +121,12 @@ export default function CreateEventPage() {
   return (
     <div className="flex items-center justify-center p-4 sm:px-6">
       <div className="w-full max-w-2xl min-w-72 p-4 flex flex-col gap-4 rounded-lg border shadow-md">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center cursor-pointer w-fit"
+        >
+          <ChevronLeft width={20} height={20} /> Back
+        </button>
         <h1 className="font-bold text-2xl">Create Event</h1>
         <form
           onSubmit={handleSubmit(onSubmit)}
@@ -133,29 +164,76 @@ export default function CreateEventPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="startDate">
+              <Label>
                 Start Date{" "}
                 {formState.errors.startDate && (
                   <span className="text-sm text-red-500">Required</span>
                 )}
               </Label>
-              <Input
-                {...register("startDate", { required: true })}
-                id="startDate"
-                type="date"
+              <Controller
+                name="startDate"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <Popover open={startOpen} onOpenChange={setStartOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer justify-start text-left font-normal"
+                      >
+                        <CalendarIcon width={14} height={14} />
+                        {field.value ? field.value.toLocaleDateString() : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date);
+                          setStartOpen(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="endDate">
+              <Label>
                 End Date{" "}
                 {formState.errors.endDate && (
                   <span className="text-sm text-red-500">Required</span>
                 )}
               </Label>
-              <Input
-                {...register("endDate", { required: true })}
-                id="endDate"
-                type="date"
+              <Controller
+                name="endDate"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <Popover open={endOpen} onOpenChange={setEndOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer justify-start text-left font-normal"
+                      >
+                        <CalendarIcon width={14} height={14} />
+                        {field.value ? field.value.toLocaleDateString() : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date);
+                          setEndOpen(false);
+                        }}
+                        disabled={(date) => watchStartDate ? date < watchStartDate : false}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
               />
             </div>
           </div>
@@ -220,11 +298,33 @@ export default function CreateEventPage() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="earlyBirdDate">Early Bird Deadline</Label>
-              <Input
-                {...register("earlyBirdDate")}
-                id="earlyBirdDate"
-                type="date"
+              <Label>Early Bird Deadline</Label>
+              <Controller
+                name="earlyBirdDate"
+                control={control}
+                render={({ field }) => (
+                  <Popover open={earlyBirdOpen} onOpenChange={setEarlyBirdOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer justify-start text-left font-normal"
+                      >
+                        <CalendarIcon width={14} height={14} />
+                        {field.value ? field.value.toLocaleDateString() : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={field.value ?? undefined}
+                        onSelect={(date) => {
+                          field.onChange(date ?? null);
+                          setEarlyBirdOpen(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
               />
             </div>
           </div>

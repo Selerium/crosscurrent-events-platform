@@ -13,15 +13,21 @@ export default async function MainAppLayout({
   }
 
   let role: string | null = null;
+  let firstTime: boolean | null = null;
   try {
     const payload = JSON.parse(
       Buffer.from(token.split(".")[1], "base64").toString(),
     );
     role = payload.role;
+    firstTime = payload.firstTime;
   } catch {}
 
   if (role === "ADMIN") {
     redirect("/admin");
+  }
+
+  if (firstTime === true) {
+    redirect("/profile/first-time");
   }
 
   return <>{children}</>;

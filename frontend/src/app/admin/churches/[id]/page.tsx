@@ -8,14 +8,17 @@ import {
   Mail,
   MapPin,
   Phone,
+  Save,
   Users,
   XIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type ChurchRecord } from "../../data";
 import api from "@/lib/axios";
 import { toast } from "sonner";
@@ -26,6 +29,7 @@ type Member = {
   email: string;
   phone: string;
   primary: boolean;
+  role: string;
 };
 
 export default function AdminChurchPage() {
@@ -39,12 +43,51 @@ export default function AdminChurchPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [editing, setEditing] = useState(false);
+  const [editCountry, setEditCountry] = useState("");
+  const [editState, setEditState] = useState("");
+
   useEffect(() => {
     api.get(`/admin/churches/${params.id}`)
       .then((res) => setChurch(res.data.data))
       .catch(() => setChurch(null))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  function startEditing() {
+    if (!church) return;
+    setEditCountry(church.country);
+    setEditState(church.state);
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    setEditing(false);
+  }
+
+  async function saveEdits() {
+    if (!church) return;
+    setSaving(true);
+    try {
+      await api.patch(`/admin/churches/${params.id}`, {
+        country: editCountry,
+        state: editState,
+      });
+      setChurch({
+        ...church,
+        country: editCountry,
+        state: editState,
+        emirate: editState,
+        address: `${editState}, ${editCountry}`,
+      });
+      setEditing(false);
+      toast.success("Church updated");
+    } catch {
+      toast.error("Could not update church");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function openPrimaryModal() {
     setShowPrimary(true);
@@ -66,8 +109,8 @@ export default function AdminChurchPage() {
     if (!selectedId) return;
     setSaving(true);
     try {
-      await api.patch(`/admin/churches/${params.id}/primary`, {
-        profileId: selectedId,
+      await api.patch(`/admin/churches/${params.id}`, {
+        primaryProfileId: selectedId,
       });
       toast.success("Primary contact updated");
       setShowPrimary(false);
@@ -108,37 +151,30 @@ export default function AdminChurchPage() {
             </div>
             {membersLoading ? (
               <p className="text-muted-foreground">Loading members...</p>
-            ) : members.length === 0 ? (
-              <p className="text-muted-foreground">No members found for this church.</p>
             ) : (
               <>
-                <div className="flex flex-col gap-2">
-                  {members.map((m) => (
-                    <label
-                      key={m.id}
-                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
-                        selectedId === m.id
-                          ? "border-primary bg-primary/5"
-                          : "hover:bg-muted/50"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="primaryContact"
-                        checked={selectedId === m.id}
-                        onChange={() => setSelectedId(m.id)}
-                        className="accent-neutral-600"
-                      />
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-medium">{m.name}</span>
-                        <span className="text-sm text-muted-foreground truncate">{m.email}</span>
-                        {m.phone && (
-                          <span className="text-sm text-muted-foreground">{m.phone}</span>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                <Select
+                  onValueChange={(val) => setSelectedId(val)}
+                  value={selectedId ?? ""}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a leader" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {members
+                        .filter((m) => m.role === "LEADER")
+                        .map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name}
+                          </SelectItem>
+                        ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                {members.filter((m) => m.role === "LEADER").length === 0 && (
+                  <p className="text-sm text-muted-foreground">No leaders found for this church.</p>
+                )}
                 <Button
                   onClick={savePrimary}
                   disabled={!selectedId || saving}
@@ -177,12 +213,23 @@ export default function AdminChurchPage() {
               <Contact />
               Choose Primary Contact
             </Button>
-            <Button asChild>
-              <Link href={`/admin/churches/${church.id}/edit`}>
+            {editing ? (
+              <>
+                <Button variant="outline" onClick={cancelEditing}>
+                  <XIcon />
+                  Cancel
+                </Button>
+                <Button onClick={saveEdits} disabled={saving} className="text-white">
+                  <Save />
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </>
+            ) : (
+              <Button onClick={startEditing}>
                 <Edit3 />
                 Edit church
-              </Link>
-            </Button>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -197,16 +244,34 @@ export default function AdminChurchPage() {
                 label="Members"
                 value={`${church.members} members`}
               />
-              <InfoBlock
-                icon={<MapPin className="size-4" />}
-                label="Emirate"
-                value={church.emirate}
-              />
-              <InfoBlock
-                icon={<Church className="size-4" />}
-                label="Address"
-                value={church.address}
-              />
+              {editing ? (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="edit-country">Country</Label>
+                    <Input
+                      id="edit-country"
+                      value={editCountry}
+                      onChange={(e) => setEditCountry(e.target.value)}
+                      placeholder="Country"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="edit-state">State / Emirate</Label>
+                    <Input
+                      id="edit-state"
+                      value={editState}
+                      onChange={(e) => setEditState(e.target.value)}
+                      placeholder="State or emirate"
+                    />
+                  </div>
+                </>
+              ) : (
+                <InfoBlock
+                  icon={<Church className="size-4" />}
+                  label="Address"
+                  value={church.address}
+                />
+              )}
             </div>
           </section>
 

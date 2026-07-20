@@ -40,7 +40,8 @@ function decodeUserFromCookie(cookieStore: Awaited<ReturnType<typeof cookies>>) 
     const payload = JSON.parse(
       Buffer.from(token.split(".")[1], "base64").toString(),
     );
-    return { name: payload.name, role: payload.role };
+    if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+    return { name: payload.name, role: payload.role, firstTime: payload.firstTime };
   } catch {
     return null;
   }

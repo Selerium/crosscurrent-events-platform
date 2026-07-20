@@ -24,6 +24,8 @@ export type AdminEvent = {
 export type ChurchRecord = {
   id: string;
   name: string;
+  country: string;
+  state: string;
   emirate: string;
   members: number;
   primaryContact: string;

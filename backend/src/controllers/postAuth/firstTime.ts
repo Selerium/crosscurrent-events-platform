@@ -1,19 +1,33 @@
 import express from "express";
 import AppError from "../../lib/appError.ts";
+import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prismaClient.ts";
 
 const firstTimeHandler = express.Router();
 
 firstTimeHandler.post("", async (req, res) => {
-  const { gender, dob, nationality, phone, parentOneName, parentOneEmail, parentOnePhone, churchId, primaryForChurch } = req.body;
+  const {
+    gender,
+    dob,
+    nationality,
+    phone,
+    parentOneName,
+    parentOneEmail,
+    parentOnePhone,
+    churchId,
+    primaryForChurch,
+    role,
+  } = req.body;
 
-  if (!gender || !dob || !nationality || !phone || !churchId) {
-    throw new AppError("Missing required fields: gender, dob, nationality, phone, churchId", 400);
+  if (!gender || !dob || !nationality || !phone || !role) {
+    throw new AppError("Missing required fields", 400);
   }
 
-  const church = await prisma.church.findUnique({ where: { id: churchId } });
-  if (!church) {
-    throw new AppError("Church not found", 404);
+  if (churchId) {
+    const church = await prisma.church.findUnique({ where: { id: churchId } });
+    if (!church) {
+      throw new AppError("Church not found", 404);
+    }
   }
 
   const data: Record<string, unknown> = {
@@ -21,6 +35,7 @@ firstTimeHandler.post("", async (req, res) => {
     dob: new Date(dob),
     nationality,
     phone,
+    role,
     churchId,
     primaryForChurch: primaryForChurch ?? false,
     firstTime: false,
@@ -34,9 +49,29 @@ firstTimeHandler.post("", async (req, res) => {
     where: { id: req.user.id },
     data,
     include: {
-      user: { select: { name: true, email: true } },
+      user: { select: { email: true } },
       church: true,
     },
+  });
+
+  const jwtsecret = process.env.JWT_SECRET || "";
+  const accessToken = jwt.sign(
+    {
+      id: profile.id,
+      name: profile.user.name,
+      role: profile.role,
+      firstTime: false,
+    },
+    jwtsecret,
+    { expiresIn: "15m", subject: profile.id }
+  );
+
+  res.cookie("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 15 * 60 * 1000,
   });
 
   const response = {

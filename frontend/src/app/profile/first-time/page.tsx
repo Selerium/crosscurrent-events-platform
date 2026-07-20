@@ -71,14 +71,7 @@ export default function FirstTime() {
   }
 
   const { register, handleSubmit, formState, control } =
-    useForm<FirstTimeFormData>({
-      defaultValues: {
-        gender: undefined,
-        nationality: "",
-        churchId: "",
-        role: "STUDENT",
-      },
-    });
+    useForm<FirstTimeFormData>();
 
   const groupedChurches = churches.reduce<Record<string, ChurchOption[]>>(
     (acc, church) => {
@@ -235,7 +228,7 @@ export default function FirstTime() {
             <Controller
               name="role"
               control={control}
-              rules={{ required: leader }}
+              rules={{ required: true }}
               render={({ field }) => (
                 <div className="space-y-2">
                   <Label className="flex">

@@ -25,7 +25,22 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
   const [user, setUser] = useState(serverUser);
 
   useEffect(() => {
-    setUser(getUserFromStorage());
+    const stored = getUserFromStorage();
+    setUser(stored);
+
+    if (!stored) return;
+
+    api.get("/me")
+      .then((res) => {
+        const { name, role } = res.data.data;
+        setUser({ name, role });
+      })
+      .catch(() => {
+        localStorage.removeItem("id");
+        localStorage.removeItem("name");
+        localStorage.removeItem("role");
+        setUser(null);
+      });
   }, [pathname]);
 
   async function handleLogout() {

@@ -22,11 +22,6 @@ import {
 import api from "@/lib/axios";
 
 type RevenuePeriod = "All time" | "Monthly" | "Yearly";
-const revenueByPeriod: Record<RevenuePeriod, number> = {
-  "All time": 0,
-  Monthly: 28340,
-  Yearly: 96780,
-};
 
 export default function AdminDashboard() {
   const [selectedRevenuePeriod, setSelectedRevenuePeriod] =
@@ -36,6 +31,29 @@ export default function AdminDashboard() {
   const [eventsError, setEventsError] = useState(false);
   const [churchesError, setChurchesError] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const revenueByPeriod: Record<RevenuePeriod, number> = {
+    "All time": events
+      ? events.reduce((sum, e) => sum + e.revenue, 0)
+      : 0,
+    Monthly: events
+      ? events
+          .filter((e) => {
+            const d = new Date(e.startDate);
+            const now = new Date();
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          })
+          .reduce((sum, e) => sum + e.revenue, 0)
+      : 0,
+    Yearly: events
+      ? events
+          .filter((e) => {
+            const d = new Date(e.startDate);
+            return d.getFullYear() === new Date().getFullYear();
+          })
+          .reduce((sum, e) => sum + e.revenue, 0)
+      : 0,
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -48,10 +66,6 @@ export default function AdminDashboard() {
         const eventsData: AdminEvent[] = eventsRes.value.data.data;
         setEvents(eventsData);
         if (typeof eventsData === "undefined") setEventsError(true);
-        const totalRevenue = eventsData
-          ? eventsData.reduce((sum, e) => sum + e.revenue, 0)
-          : 0;
-        revenueByPeriod["All time"] = totalRevenue;
       } else {
         setEventsError(true);
       }
@@ -165,7 +179,7 @@ export default function AdminDashboard() {
                         <Link href="/admin/events">View all</Link>
                       </Button>
                       <Button asChild size="sm">
-                        <Link href="/admin/events/new">
+                        <Link href="/admin/events/create">
                           <Plus />
                           Create event
                         </Link>
@@ -175,7 +189,11 @@ export default function AdminDashboard() {
                 />
                 {eventsError ? (
                   <div className="p-4 text-muted-foreground">
-                    couldn&apos;t load data
+                    No data available
+                  </div>
+                ) : activeEvents.length === 0 ? (
+                  <div className="p-4 text-muted-foreground">
+                    No active events
                   </div>
                 ) : (
                   <div className="divide-y">
@@ -233,7 +251,7 @@ export default function AdminDashboard() {
                         <Link href="/admin/churches">View all</Link>
                       </Button>
                       <Button asChild size="sm" variant="outline">
-                        <Link href="/admin/churches/new">
+                        <Link href="/admin/churches/create">
                           <Plus />
                           Add church
                         </Link>
@@ -243,7 +261,11 @@ export default function AdminDashboard() {
                 />
                 {churchesError ? (
                   <div className="p-4 text-muted-foreground">
-                    couldn&apos;t load data
+                    No data available
+                  </div>
+                ) : churches.length === 0 ? (
+                  <div className="p-4 text-muted-foreground">
+                    No churches
                   </div>
                 ) : (
                   <div className="divide-y">

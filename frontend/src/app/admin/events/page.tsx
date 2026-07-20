@@ -69,7 +69,7 @@ export default function AdminEventsPage() {
             </h1>
           </div>
           <Button asChild>
-            <Link href="/admin/events/new">
+            <Link href="/admin/events/create">
               <Plus />
               Create event
             </Link>
@@ -123,7 +123,9 @@ export default function AdminEventsPage() {
           {loading ? (
             <p className="p-4 text-muted-foreground">Loading...</p>
           ) : fetchError ? (
-            <p className="p-4 text-muted-foreground">couldn&apos;t load data</p>
+            <p className="p-4 text-muted-foreground">No data available</p>
+          ) : filteredEvents.length === 0 ? (
+            <p className="p-4 text-muted-foreground">No events found</p>
           ) : (
             <div className="divide-y">
               {filteredEvents.map((event) => (
@@ -170,9 +172,8 @@ export default function AdminEventsPage() {
                       {currencyFormatter.format(event.revenue)}
                     </span>
                     <Button asChild size="sm" variant="outline">
-                      <Link href={`/admin/events/${event.id}/edit`}>
-                        <Edit3 />
-                        Edit
+                      <Link href={`/admin/events/${event.id}`}>
+                        View Event
                       </Link>
                     </Button>
                   </div>
