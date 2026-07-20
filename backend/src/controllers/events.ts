@@ -5,7 +5,16 @@ import { prisma } from "../lib/prismaClient.ts";
 const eventsHandler = express.Router();
 
 eventsHandler.get("", async (req, res) => {
+  const isAdmin = req.user?.role === "ADMIN";
+
   const events = await prisma.event.findMany({
+    where: isAdmin
+      ? undefined
+      : {
+          registrations: {
+            none: { profileId: req.user!.id },
+          },
+        },
     include: {
       _count: { select: { registrations: true } },
     },
@@ -25,6 +34,59 @@ eventsHandler.get("", async (req, res) => {
   }));
 
   res.status(200).json({ data, error: false, message: "" });
+});
+
+eventsHandler.post("/:id/register", async (req, res) => {
+  const event = await prisma.event.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!event) {
+    throw new AppError("Event not found", 404);
+  }
+
+  const existing = await prisma.registration.findFirst({
+    where: { eventId: event.id, profileId: req.user!.id },
+  });
+
+  if (existing) {
+    throw new AppError("Already registered for this event", 409);
+  }
+
+  const { shirtSize, swimming, selfPay, medications, allergies } = req.body;
+
+  const registration = await prisma.registration.create({
+    data: {
+      eventId: event.id,
+      profileId: req.user!.id,
+      shirtSize,
+      swimming: swimming === true,
+      selfPay: selfPay === true,
+      medications: medications ?? [],
+      allergies: allergies ?? [],
+      paid: false,
+    },
+  });
+
+  res.status(201).json({ data: registration, error: false, message: "" });
+});
+
+eventsHandler.delete("/:id/register", async (req, res) => {
+  const registration = await prisma.registration.findFirst({
+    where: { eventId: req.params.id, profileId: req.user!.id },
+  });
+
+  if (!registration) {
+    throw new AppError("Registration not found", 404);
+  }
+
+  if (registration.paid) {
+    throw new AppError("Cannot unregister after payment has been made", 403);
+  }
+
+  await prisma.registration.delete({ where: { id: registration.id } });
+
+  res.status(200).json({ data: null, error: false, message: "" });
 });
 
 eventsHandler.get("/:id", async (req, res) => {
