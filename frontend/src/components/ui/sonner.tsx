@@ -31,9 +31,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       style={
         {
           "--normal-bg": "white",
-          "--normal-text": "var(--primary-foreground)",
-          "--normal-text-secondary": "var(--primary-foreground)",
-          "--normal-border": "var(--primary-foreground)",
+          "--normal-text": "black",
+          "--normal-text-secondary": "black",
+          "--normal-border": "black",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }

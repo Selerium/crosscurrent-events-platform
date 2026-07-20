@@ -11,8 +11,7 @@ import {
   XIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { useParams } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
@@ -146,10 +145,12 @@ function EditableListItem({
 export default function EventPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [selectedDay, setSelectedDay] = useState(0);
   const [expandID, setExpandID] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [showUnregister, setShowUnregister] = useState(false);
   const [medDraft, setMedDraft] = useState("");
   const [allergyDraft, setAllergyDraft] = useState("");
   const { control, handleSubmit, reset } = useForm<RegistrationForm>({
@@ -162,88 +163,106 @@ export default function EventPage() {
     },
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await api.get(`/events/${params.id}`);
-        const data = res.data.data;
+  const fetchEvent = async () => {
+    try {
+      const res = await api.get(`/events/${params.id}`);
+      const data = res.data.data;
 
-        setEventData({
-          ...data,
-          startDate: new Date(data.startDate),
-          endDate: new Date(data.endDate),
-          schedule: (data.schedule || []).map((day: ScheduleItem[]) =>
-            day.map((item: ScheduleItem) => ({
-              ...item,
-              startTime: item.startTime,
-              endTime: item.endTime,
-            })),
-          ),
-          user: data.user || null,
-        });
-      } catch {
-        setEventData({
-          id: params.id,
-          name: "Sample Event",
-          brief:
-            "This is placeholder event data shown because the API request failed.",
-          startDate: new Date("2026-08-01"),
-          endDate: new Date("2026-08-03"),
-          signedUp: 12,
-          maxSignUps: 30,
-          location: "Main Hall",
-          price: 50,
-          schedule: [
-            [
-              {
-                item: "Registration",
-                description: "Check-in and welcome",
-                startTime: "09:00",
-                endTime: "09:30",
-                location: "Lobby",
-              },
-              {
-                item: "Opening Ceremony",
-                description: "Keynote speech",
-                startTime: "10:00",
-                endTime: "11:00",
-                location: "Main Stage",
-              },
-            ],
-            [
-              {
-                item: "Workshop",
-                description: "Hands-on session",
-                startTime: "10:00",
-                endTime: "12:00",
-                location: "Room A",
-              },
-              {
-                item: "Closing",
-                description: "Wrap-up and farewells",
-                startTime: "16:00",
-                endTime: "17:00",
-                location: "Main Stage",
-              },
-            ],
-          ],
-          user: null,
-        });
+      setEventData({
+        ...data,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        schedule: (data.schedule || []).map((day: ScheduleItem[]) =>
+          day.map((item: ScheduleItem) => ({
+            ...item,
+            startTime: item.startTime,
+            endTime: item.endTime,
+          })),
+        ),
+        user: data.user || null,
+      });
+
+      if (searchParams.get("register") === "true" && !data.user) {
+        reset();
+        setMedDraft("");
+        setAllergyDraft("");
+        setShowRegister(true);
       }
-    };
+    } catch {
+      setEventData({
+        id: params.id,
+        name: "Sample Event",
+        brief:
+          "This is placeholder event data shown because the API request failed.",
+        startDate: new Date("2026-08-01"),
+        endDate: new Date("2026-08-03"),
+        signedUp: 12,
+        maxSignUps: 30,
+        location: "Main Hall",
+        price: 50,
+        schedule: [
+          [
+            {
+              item: "Registration",
+              description: "Check-in and welcome",
+              startTime: "09:00",
+              endTime: "09:30",
+              location: "Lobby",
+            },
+            {
+              item: "Opening Ceremony",
+              description: "Keynote speech",
+              startTime: "10:00",
+              endTime: "11:00",
+              location: "Main Stage",
+            },
+          ],
+          [
+            {
+              item: "Workshop",
+              description: "Hands-on session",
+              startTime: "10:00",
+              endTime: "12:00",
+              location: "Room A",
+            },
+            {
+              item: "Closing",
+              description: "Wrap-up and farewells",
+              startTime: "16:00",
+              endTime: "17:00",
+              location: "Main Stage",
+            },
+          ],
+        ],
+        user: null,
+      });
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    fetchEvent();
   }, [params.id]);
 
   const onRegisterSubmit = async (data: RegistrationForm) => {
-    console.log(data);
     try {
       await api.post(`/events/${params.id}/register`, data);
       toast.success("Registration submitted");
       setShowRegister(false);
       reset();
+      await fetchEvent();
     } catch {
       toast.error("Could not submit registration");
+    }
+  };
+
+  const onUnregister = async () => {
+    try {
+      await api.delete(`/events/${params.id}/register`);
+      toast.success("Unregistered successfully");
+      setShowUnregister(false);
+      await fetchEvent();
+    } catch {
+      toast.error("Could not unregister");
     }
   };
 
@@ -489,6 +508,36 @@ export default function EventPage() {
           </div>
         </div>
       )}
+      {showUnregister && (
+        <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
+          <div className="flex flex-col p-6 m-4 relative border rounded-lg bg-white gap-4 w-full max-w-md">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-lg">Unregister</span>
+              <button
+                onClick={() => setShowUnregister(false)}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <p>Are you sure you want to unregister from {eventData.name}?</p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowUnregister(false)}
+                className="cursor-pointer p-3 rounded-lg w-full border font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onUnregister}
+                className="cursor-pointer p-3 rounded-lg w-full bg-red-800 text-white font-bold"
+              >
+                Unregister
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-center p-4 sm:px-6">
         <div className="w-full max-w-6xl p-4 flex flex-col gap-4 rounded-lg border">
           <div className="flex flex-col gap-2 md:flex-row md:justify-between md:items-center">
@@ -555,11 +604,11 @@ export default function EventPage() {
                     <span>{item.description}</span>
                   </div>
                   <div className="flex flex-col md:flex-row gap-2">
-                    <p className="w-full md:w-fit uppercase rounded-lg p-4 border flex gap-2 items-center">
+                    <p className="w-full md:w-30 uppercase rounded-lg p-4 border flex gap-2 items-center">
                       <Clock width={16} height={16} />
                       {item.startTime} - {item.endTime}
                     </p>
-                    <p className="w-full md:w-fit rounded-lg p-4 border flex gap-2 items-center">
+                    <p className="w-full md:w-34 rounded-lg p-4 border flex gap-2 items-center">
                       <MapPin width={16} height={16} /> {item.location}
                     </p>
                   </div>
@@ -585,12 +634,20 @@ export default function EventPage() {
                   PAY FOR EVENT
                 </button>
               )}
-              {eventData.user && (
+              {eventData.user && !eventData.user.paid && (
+                <button
+                  onClick={() => setShowUnregister(true)}
+                  className="cursor-pointer p-4 rounded-lg w-full border border-red-800 text-red-800 hover:bg-red-800 hover:text-white font-bold"
+                >
+                  UNREGISTER
+                </button>
+              )}
+              {eventData.user && eventData.user.paid && (
                 <button
                   onClick={() => {
                     toast.info("This feature is not available yet");
                   }}
-                  className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 font-bold"
+                  className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 hover:bg-white hover:text-primary font-bold"
                 >
                   BUY MERCHANDISE
                 </button>

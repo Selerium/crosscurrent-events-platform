@@ -25,11 +25,13 @@ export function LoginForm() {
       const loginData = await api.post("/login", data);
       const userData = await api.get("/me");
 
-      localStorage.setItem("id", userData["data"]["id"]);
-      localStorage.setItem("name", userData["data"]["name"]);
-      localStorage.setItem("role", userData["data"]["role"]);
+      console.log(userData);
 
-      if (userData["data"]["admin"]) router.push("/admin");
+      localStorage.setItem("id", userData["data"]["data"]["id"]);
+      localStorage.setItem("name", userData["data"]["data"]["name"]);
+      localStorage.setItem("role", userData["data"]["data"]["role"]);
+
+      if (userData["data"]["data"]["role"] === "ADMIN") router.push("/admin");
       else {
         toast.success("Logged in successfully", {
           description: "Redirecting to app...",

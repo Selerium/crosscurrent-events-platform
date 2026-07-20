@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import api from "@/lib/axios";
 
@@ -11,10 +12,26 @@ type SiteHeaderUser = {
   role: string;
 };
 
-export function SiteHeader({ user }: { user?: SiteHeaderUser | null }) {
+function getUserFromStorage(): SiteHeaderUser | null {
+  const name = localStorage.getItem("name");
+  const role = localStorage.getItem("role");
+  if (name && role) return { name, role };
+  return null;
+}
+
+export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState(serverUser);
+
+  useEffect(() => {
+    setUser(getUserFromStorage());
+  }, [pathname]);
 
   async function handleLogout() {
+    localStorage.removeItem("id");
+    localStorage.removeItem("name");
+    localStorage.removeItem("role");
     try {
       await api.post("/logout");
     } catch {

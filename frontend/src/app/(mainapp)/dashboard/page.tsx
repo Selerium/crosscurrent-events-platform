@@ -116,9 +116,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex gap-4">
-                    <button className="w-1/2 p-2 text-center rounded-lg border bg-primary hover:bg-primary/50 cursor-pointer font-bold text-primary-foreground">
+                    <Link href={`/events/${event.id}?register=true`} className="w-1/2 p-2 text-center rounded-lg border bg-primary hover:bg-primary/50 cursor-pointer font-bold text-primary-foreground">
                       Register
-                    </button>
+                    </Link>
                     <Link href={`/events/${event.id}`} className="flex justify-center items-center gap-1 w-1/2 p-2 text-center rounded-lg border bg-neutral-200 hover:bg-neutral-200/50 cursor-pointer font-bold text-black">
                       View Event <ChevronRight width={20} height={20} />
                     </Link>
