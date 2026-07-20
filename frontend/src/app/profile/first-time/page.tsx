@@ -65,13 +65,22 @@ export default function FirstTime() {
   }, []);
 
   async function submitForm(formData: FirstTimeFormData) {
-    await api.post("/profile/first-time", formData);
+    const data = await api.post("/profile/first-time", formData);
     localStorage.setItem("firstTime", "false");
+    localStorage.setItem("role", data.data.data.role)
+    console.log(data.data.data.role);
     router.push("/dashboard");
   }
 
   const { register, handleSubmit, formState, control } =
-    useForm<FirstTimeFormData>();
+    useForm<FirstTimeFormData>({
+      defaultValues: {
+        gender: "MALE",
+        nationality: "",
+        churchId: "",
+        role: "STUDENT",
+      },
+    });
 
   const groupedChurches = churches.reduce<Record<string, ChurchOption[]>>(
     (acc, church) => {

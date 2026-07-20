@@ -174,7 +174,7 @@ export default function Profile() {
                     }
                   />
                 </div>
-                {localStorage.getItem('role') !== "ADMIN" &&
+                {localStorage.getItem('role') === "STUDENT" &&
                   <>
                     <div className="flex items-center gap-2 rounded-lg w-full">
                       <p className="w-72">Parent Name: </p>
