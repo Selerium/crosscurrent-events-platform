@@ -11,10 +11,12 @@ import {
   XIcon,
 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type ScheduleItem = {
   item: string;
@@ -45,35 +47,205 @@ type EventData = {
   } | null;
 };
 
+type RegistrationForm = {
+  shirtSize: string;
+  swimming: boolean;
+  selfPay: boolean;
+  medications: string[];
+  allergies: string[];
+};
+
+type EditableListItemProps = {
+  value: string;
+  onChange: (val: string) => void;
+  onDelete: () => void;
+};
+
+function EditableListItem({
+  value,
+  onChange,
+  onDelete,
+}: EditableListItemProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(value);
+    }
+  }, [value, editing]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (draft.trim()) {
+                onChange(draft.trim());
+                setEditing(false);
+              }
+            }
+            if (e.key === "Escape") {
+              setDraft(value);
+              setEditing(false);
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) {
+              onChange(draft.trim());
+            } else {
+              onDelete();
+            }
+            setEditing(false);
+          }}
+          className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
+        />
+        <button
+          onClick={() => {
+            onDelete();
+            setEditing(false);
+          }}
+          className="cursor-pointer text-muted-foreground hover:text-foreground"
+        >
+          <XIcon width={16} height={16} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="text-left flex-1 px-3.5 py-2.5 text-sm border border-transparent rounded-lg hover:bg-neutral-100 cursor-pointer"
+      >
+        {value}
+      </button>
+      <button
+        onClick={onDelete}
+        className="cursor-pointer text-muted-foreground hover:text-foreground"
+      >
+        <XIcon width={16} height={16} />
+      </button>
+    </div>
+  );
+}
+
 export default function EventPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [selectedDay, setSelectedDay] = useState(0);
   const [expandID, setExpandID] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [medDraft, setMedDraft] = useState("");
+  const [allergyDraft, setAllergyDraft] = useState("");
+  const { control, handleSubmit, reset } = useForm<RegistrationForm>({
+    defaultValues: {
+      shirtSize: "",
+      swimming: false,
+      selfPay: false,
+      medications: [],
+      allergies: [],
+    },
+  });
 
   useEffect(() => {
     const fetchData = async () => {
-      const res = await api.get(`/events/${params.id}`);
-      const data = res.data.data;
+      try {
+        const res = await api.get(`/events/${params.id}`);
+        const data = res.data.data;
 
-      setEventData({
-        ...data,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        schedule: (data.schedule || []).map((day: ScheduleItem[]) =>
-          day.map((item: ScheduleItem) => ({
-            ...item,
-            startTime: item.startTime,
-            endTime: item.endTime,
-          })),
-        ),
-        user: data.user || null,
-      });
+        setEventData({
+          ...data,
+          startDate: new Date(data.startDate),
+          endDate: new Date(data.endDate),
+          schedule: (data.schedule || []).map((day: ScheduleItem[]) =>
+            day.map((item: ScheduleItem) => ({
+              ...item,
+              startTime: item.startTime,
+              endTime: item.endTime,
+            })),
+          ),
+          user: data.user || null,
+        });
+      } catch {
+        setEventData({
+          id: params.id,
+          name: "Sample Event",
+          brief:
+            "This is placeholder event data shown because the API request failed.",
+          startDate: new Date("2026-08-01"),
+          endDate: new Date("2026-08-03"),
+          signedUp: 12,
+          maxSignUps: 30,
+          location: "Main Hall",
+          price: 50,
+          schedule: [
+            [
+              {
+                item: "Registration",
+                description: "Check-in and welcome",
+                startTime: "09:00",
+                endTime: "09:30",
+                location: "Lobby",
+              },
+              {
+                item: "Opening Ceremony",
+                description: "Keynote speech",
+                startTime: "10:00",
+                endTime: "11:00",
+                location: "Main Stage",
+              },
+            ],
+            [
+              {
+                item: "Workshop",
+                description: "Hands-on session",
+                startTime: "10:00",
+                endTime: "12:00",
+                location: "Room A",
+              },
+              {
+                item: "Closing",
+                description: "Wrap-up and farewells",
+                startTime: "16:00",
+                endTime: "17:00",
+                location: "Main Stage",
+              },
+            ],
+          ],
+          user: null,
+        });
+      }
     };
 
     fetchData();
   }, [params.id]);
+
+  const onRegisterSubmit = async (data: RegistrationForm) => {
+    console.log(data);
+    try {
+      await api.post(`/events/${params.id}/register`, data);
+      toast.success("Registration submitted");
+      setShowRegister(false);
+      reset();
+    } catch {
+      toast.error("Could not submit registration");
+    }
+  };
 
   if (!eventData) {
     return (
@@ -100,12 +272,220 @@ export default function EventPage() {
               </button>
             </div>
             <div className="w-full aspect-video relative rounded-lg border">
-              <Image
-                src="/file.svg"
-                fill
-                alt="ID document image"
-              />
+              <Image src="/file.svg" fill alt="ID document image" />
             </div>
+          </div>
+        </div>
+      )}
+      {showRegister && (
+        <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
+          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-white gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-lg">
+                Register for {eventData.name}
+              </span>
+              <button
+                onClick={() => {
+                  setShowRegister(false);
+                  reset();
+                }}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSubmit(onRegisterSubmit)}
+              className="flex flex-col gap-4"
+            >
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">Shirt Size</span>
+                <Controller
+                  name="shirtSize"
+                  rules={{ required: "Shirt size is required" }}
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex flex-wrap gap-2">
+                      {["XS", "S", "M", "L", "XL", "XXL", "XXXL"].map(
+                        (size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => field.onChange(size)}
+                            className={cn(
+                              "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
+                              field.value === size
+                                ? "bg-neutral-600 text-white"
+                                : "bg-neutral-100 hover:bg-neutral-200",
+                            )}
+                          >
+                            {size}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">
+                  Swimming{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    (only select if you can participate in swimming activities)
+                  </span>
+                </span>
+                <Controller
+                  name="swimming"
+                  control={control}
+                  render={({ field }) => (
+                    <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        className="w-4 h-4 accent-neutral-600"
+                      />
+                      <span>I am proficient in swimming</span>
+                    </label>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">
+                  Self payment/scholarship{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    (only select if you require payment support from your
+                    church)
+                  </span>{" "}
+                </span>
+                <Controller
+                  name="selfPay"
+                  control={control}
+                  render={({ field }) => (
+                    <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        className="w-4 h-4 accent-neutral-600"
+                      />
+                      <span>I will be requesting a scholarship</span>
+                    </label>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">
+                  Medications{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    (press Enter to add)
+                  </span>
+                </span>
+                <Controller
+                  name="medications"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex flex-col gap-2 p-4 border rounded-lg">
+                      {field.value.map((med, idx) => (
+                        <EditableListItem
+                          key={idx}
+                          value={med}
+                          onChange={(val) => {
+                            const next = [...field.value];
+                            next[idx] = val;
+                            field.onChange(next);
+                          }}
+                          onDelete={() => {
+                            field.onChange(
+                              field.value.filter((_, i) => i !== idx),
+                            );
+                          }}
+                        />
+                      ))}
+                      <input
+                        type="text"
+                        value={medDraft}
+                        onChange={(e) => setMedDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (medDraft.trim()) {
+                              field.onChange([...field.value, medDraft.trim()]);
+                              setMedDraft("");
+                            }
+                          }
+                        }}
+                        placeholder="Type and press Enter to add..."
+                        className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                      />
+                    </div>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">
+                  Allergies{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    (press Enter to add)
+                  </span>
+                </span>
+                <Controller
+                  name="allergies"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex flex-col gap-2 p-4 border rounded-lg">
+                      {field.value.map((allergy, idx) => (
+                        <EditableListItem
+                          key={idx}
+                          value={allergy}
+                          onChange={(val) => {
+                            const next = [...field.value];
+                            next[idx] = val;
+                            field.onChange(next);
+                          }}
+                          onDelete={() => {
+                            field.onChange(
+                              field.value.filter((_, i) => i !== idx),
+                            );
+                          }}
+                        />
+                      ))}
+                      <input
+                        type="text"
+                        value={allergyDraft}
+                        onChange={(e) => setAllergyDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (allergyDraft.trim()) {
+                              field.onChange([
+                                ...field.value,
+                                allergyDraft.trim(),
+                              ]);
+                              setAllergyDraft("");
+                            }
+                          }
+                        }}
+                        placeholder="Type and press Enter to add..."
+                        className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                      />
+                    </div>
+                  )}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 hover:bg-neutral-300 font-bold"
+              >
+                SUBMIT REGISTRATION
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -188,13 +568,31 @@ export default function EventPage() {
             </div>
             <div className="col-span-1 order-1 lg:order-2 flex flex-col gap-2 h-fit">
               {!eventData.user && (
-                <button className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 font-bold">
+                <button
+                  onClick={() => {
+                    reset();
+                    setMedDraft("");
+                    setAllergyDraft("");
+                    setShowRegister(true);
+                  }}
+                  className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 font-bold"
+                >
                   REGISTER
                 </button>
               )}
               {eventData.user && !eventData.user.paid && (
                 <button className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 hover:bg-white hover:text-primary font-bold">
                   PAY FOR EVENT
+                </button>
+              )}
+              {eventData.user && (
+                <button
+                  onClick={() => {
+                    toast.info("This feature is not available yet");
+                  }}
+                  className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 font-bold"
+                >
+                  BUY MERCHANDISE
                 </button>
               )}
               {eventData.user && (

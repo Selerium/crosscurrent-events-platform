@@ -34,6 +34,52 @@ adminChurchesHandler.get("", async (req, res) => {
   res.status(200).json({ data, error: false, message: "" });
 });
 
+adminChurchesHandler.get("/:id/members", async (req, res) => {
+  const members = await prisma.profile.findMany({
+    where: { churchId: req.params.id },
+    include: { user: { select: { email: true } } },
+    orderBy: { name: "asc" },
+  });
+
+  const data = members.map((m) => ({
+    id: m.id,
+    name: m.name,
+    email: m.user.email,
+    phone: m.phone || "",
+    primary: m.primaryForChurch,
+  }));
+
+  res.status(200).json({ data, error: false, message: "" });
+});
+
+adminChurchesHandler.patch("/:id/primary", async (req, res) => {
+  const { profileId } = req.body;
+
+  if (!profileId) {
+    throw new AppError("profileId is required", 400);
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: profileId },
+  });
+
+  if (!profile || profile.churchId !== req.params.id) {
+    throw new AppError("Profile not found for this church", 404);
+  }
+
+  await prisma.profile.updateMany({
+    where: { churchId: req.params.id, primaryForChurch: true },
+    data: { primaryForChurch: false },
+  });
+
+  await prisma.profile.update({
+    where: { id: profileId },
+    data: { primaryForChurch: true },
+  });
+
+  res.status(200).json({ data: {}, error: false, message: "Primary contact updated" });
+});
+
 adminChurchesHandler.get("/:id", async (req, res) => {
   const church = await prisma.church.findUnique({
     where: { id: req.params.id },

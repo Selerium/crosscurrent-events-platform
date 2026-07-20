@@ -22,15 +22,19 @@ export default function AdminEventsPage() {
   const [dateSort, setDateSort] = useState<DateSort>("soonest");
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     api.get("/admin/events")
       .then((res) => setEvents(res.data.data))
-      .catch((err) => console.error("Failed to load events", err))
+      .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
+
+    if (typeof events === "undefined") setFetchError(true);
   }, []);
 
   const filteredEvents = useMemo(() => {
+    if (typeof events === "undefined") return [];
     return events
       .filter((event) => {
         const matchesSearch = [event.name, event.brief, event.location]
@@ -118,6 +122,8 @@ export default function AdminEventsPage() {
         <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
           {loading ? (
             <p className="p-4 text-muted-foreground">Loading...</p>
+          ) : fetchError ? (
+            <p className="p-4 text-muted-foreground">couldn&apos;t load data</p>
           ) : (
             <div className="divide-y">
               {filteredEvents.map((event) => (

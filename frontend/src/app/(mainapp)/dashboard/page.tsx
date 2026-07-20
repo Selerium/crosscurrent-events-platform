@@ -29,34 +29,36 @@ export default function DashboardPage() {
 
   const [availableEvents, setAvailableEvents] = useState<Event[]>([]);
   const [usersEvents, setUsersEvents] = useState<UsersEvent[]>([]);
+  const [availableEventsError, setAvailableEventsError] = useState(false);
+  const [usersEventsError, setUsersEventsError] = useState(false);
   const [name, setName] = useState("User");
 
   useEffect(() => {
     setName(localStorage.getItem("name") ?? "User");
 
-    const fetchData = async () => {
-      const [eventsRes, meEventsRes] = await Promise.all([
-        api.get("/events"),
-        api.get("/me/events"),
-      ]);
+    api.get("/events")
+      .then((res) =>
+        setAvailableEvents(
+          (res.data.data || []).map((e: Record<string, unknown>) => ({
+            ...e,
+            startDate: new Date(e.startDate as string),
+            endDate: new Date(e.endDate as string),
+          })),
+        ),
+      )
+      .catch(() => setAvailableEventsError(true));
 
-      setAvailableEvents(
-        (eventsRes.data.data || []).map((e: Record<string, unknown>) => ({
-          ...e,
-          startDate: new Date(e.startDate as string),
-          endDate: new Date(e.endDate as string),
-        })),
-      );
-      setUsersEvents(
-        (meEventsRes.data.data || []).map((e: Record<string, unknown>) => ({
-          ...e,
-          startDate: new Date(e.startDate as string),
-          endDate: new Date(e.endDate as string),
-        })),
-      );
-    };
-
-    fetchData();
+    api.get("/me/events")
+      .then((res) =>
+        setUsersEvents(
+          (res.data.data || []).map((e: Record<string, unknown>) => ({
+            ...e,
+            startDate: new Date(e.startDate as string),
+            endDate: new Date(e.endDate as string),
+          })),
+        ),
+      )
+      .catch(() => setUsersEventsError(true));
   }, []);
 
   return (
@@ -72,7 +74,11 @@ export default function DashboardPage() {
               <h2 className="font-semibold text-foreground">
                 Available Events
               </h2>
-              {availableEvents.map((event) => (
+              {availableEventsError ? (
+                <div className="p-4 rounded-lg border text-muted-foreground">
+                  couldn&apos;t load data
+                </div>
+              ) : availableEvents.map((event) => (
                 <div
                   key={event.id}
                   className="p-4 rounded-lg border flex flex-col gap-4"
@@ -122,7 +128,11 @@ export default function DashboardPage() {
             </div>
             <div className="flex flex-col gap-4 col-span-2">
               <h2 className="font-semibold text-foreground">My Calendar</h2>
-              {usersEvents.map((event) => (
+              {usersEventsError ? (
+                <div className="p-4 rounded-lg border text-muted-foreground">
+                  couldn&apos;t load data
+                </div>
+              ) : usersEvents.map((event) => (
                 <div
                   key={event.id}
                   className="p-4 rounded-lg border flex flex-col gap-4"

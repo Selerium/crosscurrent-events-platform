@@ -48,11 +48,11 @@ export default function FirstTime() {
     dob: Date;
     nationality: string;
     phone: string;
+    role: "LEADER" | "STUDENT";
     parentOneName: string | undefined;
     parentOneEmail: string | undefined;
     parentOnePhone: string | undefined;
     churchId: string;
-    primaryForChurch: boolean;
   };
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export default function FirstTime() {
         gender: undefined,
         nationality: "",
         churchId: "",
-        primaryForChurch: false,
+        role: "STUDENT",
       },
     });
 
@@ -104,7 +104,7 @@ export default function FirstTime() {
           onSubmit={handleSubmit(submitForm)}
           className="flex flex-col gap-4"
         >
-          <div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="gender">
               Gender <ErrorText error={formState.errors.gender?.message} />
             </Label>
@@ -163,7 +163,7 @@ export default function FirstTime() {
               />
             </FieldGroup>
           </div>
-          <div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="nationality">
               Nationality{" "}
               <ErrorText error={formState.errors.nationality?.message} />
@@ -182,7 +182,7 @@ export default function FirstTime() {
               )}
             />
           </div>
-          <div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="phone">
               Phone Number / WhatsApp{" "}
               <ErrorText error={formState.errors.phone?.message} />
@@ -202,52 +202,7 @@ export default function FirstTime() {
               required
             />
           </div>
-          <div>
-            <Label htmlFor="parentOneName">
-              Parent/Guardian 1{" "}
-              <ErrorText error={formState.errors.parentOneName?.message} />
-            </Label>
-            <Input
-              {...register("parentOneName", { required: !leader })}
-              id="parentOneName"
-              type="text"
-              autoComplete="name"
-              placeholder="Enter name"
-            />
-          </div>
-          <div>
-            <Label htmlFor="parentOneEmail">
-              Parent/Guardian 1 Email{" "}
-              <ErrorText error={formState.errors.parentOneEmail?.message} />
-            </Label>
-            <Input
-              {...register("parentOneEmail", { required: !leader })}
-              id="parentOneEmail"
-              type="email"
-              autoComplete="email"
-              placeholder="parentemail@example.com"
-            />
-          </div>
-          <div>
-            <Label htmlFor="parentOnePhone">
-              Parent/Guardian 1 Phone{" "}
-              <ErrorText error={formState.errors.parentOnePhone?.message} />
-            </Label>
-            <Input
-              {...register("parentOnePhone", {
-                required: !leader,
-                pattern: {
-                  value: /^\+?[1-9]\d{7,14}$/,
-                  message: "Please enter a valid phone number",
-                },
-              })}
-              id="parentOnePhone"
-              type="tel"
-              autoComplete="tel"
-              placeholder="+971500000000"
-            />
-          </div>
-          <div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="churchId">
               Church <ErrorText error={formState.errors.churchId?.message} />
             </Label>
@@ -278,46 +233,104 @@ export default function FirstTime() {
           </div>
           <div>
             <Controller
-              name="primaryForChurch"
+              name="role"
               control={control}
               rules={{ required: leader }}
               render={({ field }) => (
                 <div className="space-y-2">
-                  <Label>
-                    Are you the primary contact/pastor/youth leader at your
-                    church?{" "}
-                    <ErrorText
-                      error={formState.errors.primaryForChurch?.message}
-                    />
+                  <Label className="flex">
+                    Role at youth group?{" "}
+                    <ErrorText error={formState.errors.role?.message} />
                   </Label>
 
                   <div className="flex items-center gap-2">
                     <div className="w-4">
                       <Input
                         type="radio"
-                        id="primaryForChurch-yes"
-                        checked={field.value === true}
-                        onChange={() => field.onChange(true)}
+                        id="role-student"
+                        checked={field.value === "STUDENT"}
+                        onChange={() => {
+                          field.onChange("STUDENT");
+                          setLeader(false);
+                        }}
                       />
                     </div>
-                    <Label htmlFor="primaryForChurch-yes">Yes</Label>
+                    <Label htmlFor="role-student">Student</Label>
                   </div>
-
                   <div className="flex items-center gap-2">
                     <div className="w-4">
                       <Input
                         type="radio"
-                        id="primaryForChurch-no"
-                        checked={field.value === false}
-                        onChange={() => field.onChange(false)}
+                        id="role-leader"
+                        checked={field.value === "LEADER"}
+                        onChange={() => {
+                          field.onChange("LEADER");
+                          setLeader(true);
+                        }}
                       />
                     </div>
-                    <Label htmlFor="primaryForChurch-no">No</Label>
+                    <Label htmlFor="role-leader">Leader</Label>
                   </div>
+
+                  <span className="italic text-neutral-500 text-sm inline">
+                    Pick "Student" if you're a teen in your youth group, or
+                    "Leader" if you're a volunteer/the youth pastor at your
+                    church.
+                  </span>
                 </div>
               )}
             />
           </div>
+          {!leader && (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="parentOneName">
+                  Parent/Guardian 1{" "}
+                  <ErrorText error={formState.errors.parentOneName?.message} />
+                </Label>
+                <Input
+                  {...register("parentOneName", { required: !leader })}
+                  id="parentOneName"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Enter name"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="parentOneEmail">
+                  Parent/Guardian 1 Email{" "}
+                  <ErrorText error={formState.errors.parentOneEmail?.message} />
+                </Label>
+                <Input
+                  {...register("parentOneEmail", { required: !leader })}
+                  id="parentOneEmail"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="parentemail@example.com"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="parentOnePhone">
+                  Parent/Guardian 1 Phone{" "}
+                  <ErrorText error={formState.errors.parentOnePhone?.message} />
+                </Label>
+                <Input
+                  {...register("parentOnePhone", {
+                    required: !leader,
+                    pattern: {
+                      value: /^\+?[1-9]\d{7,14}$/,
+                      message: "Please enter a valid phone number",
+                    },
+                  })}
+                  id="parentOnePhone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="+971500000000"
+                />
+              </div>
+            </>
+          )}
+
           <Button type="submit" className="justify-center text-white">
             Submit
           </Button>

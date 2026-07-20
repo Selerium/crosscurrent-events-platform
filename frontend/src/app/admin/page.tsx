@@ -33,35 +33,47 @@ export default function AdminDashboard() {
     useState<RevenuePeriod>("All time");
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [churches, setChurches] = useState<ChurchRecord[]>([]);
+  const [eventsError, setEventsError] = useState(false);
+  const [churchesError, setChurchesError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
-      try {
-        const [eventsRes, churchesRes] = await Promise.all([
-          api.get("/admin/events"),
-          api.get("/admin/churches"),
-        ]);
-        const eventsData: AdminEvent[] = eventsRes.data.data;
-        const churchesData: ChurchRecord[] = churchesRes.data.data;
+      const [eventsRes, churchesRes] = await Promise.allSettled([
+        api.get("/admin/events"),
+        api.get("/admin/churches"),
+      ]);
+
+      if (eventsRes.status === "fulfilled") {
+        const eventsData: AdminEvent[] = eventsRes.value.data.data;
         setEvents(eventsData);
-        setChurches(churchesData);
-        const totalRevenue = eventsData.reduce((sum, e) => sum + e.revenue, 0);
+        if (typeof eventsData === "undefined") setEventsError(true);
+        const totalRevenue = eventsData
+          ? eventsData.reduce((sum, e) => sum + e.revenue, 0)
+          : 0;
         revenueByPeriod["All time"] = totalRevenue;
-      } catch (err) {
-        console.error("Failed to load dashboard data", err);
-      } finally {
-        setLoading(false);
+      } else {
+        setEventsError(true);
       }
+
+      if (churchesRes.status === "fulfilled") {
+        setChurches(churchesRes.value.data.data);
+        if (typeof churchesRes.value.data.data === "undefined") setChurchesError(true);
+      } else {
+        setChurchesError(true);
+      }
+
+      setLoading(false);
     }
     fetchData();
   }, []);
 
-  const activeEvents = events.filter((event) => event.status === "active");
-  const totalSignUps = activeEvents.reduce(
-    (total, event) => total + event.signUps,
-    0,
-  );
+  const activeEvents = events
+    ? events.filter((event) => event.status === "active")
+    : [];
+  const totalSignUps = activeEvents
+    ? activeEvents.reduce((total, event) => total + event.signUps, 0)
+    : 0;
 
   return (
     <main className="min-h-full bg-background px-4 py-8 sm:px-6 lg:px-8">
@@ -161,45 +173,51 @@ export default function AdminDashboard() {
                     </div>
                   }
                 />
-                <div className="divide-y">
-                  {activeEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center"
-                    >
-                      <div className="min-w-0">
-                        <h2 className="font-semibold text-foreground">
-                          {event.name}
-                        </h2>
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                          <span className="inline-flex items-center gap-1.5">
-                            <CalendarDays className="size-4" />
-                            {formatEventDate(event.startDate, event.endDate)}
+                {eventsError ? (
+                  <div className="p-4 text-muted-foreground">
+                    couldn&apos;t load data
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {activeEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center"
+                      >
+                        <div className="min-w-0">
+                          <h2 className="font-semibold text-foreground">
+                            {event.name}
+                          </h2>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5">
+                              <CalendarDays className="size-4" />
+                              {formatEventDate(event.startDate, event.endDate)}
+                            </span>
+                            <span>{event.location}</span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <Users className="size-4" />
+                              {event.signUps}/{event.capacity} sign ups
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                          <span className="text-sm font-semibold text-foreground">
+                            {currencyFormatter.format(event.revenue)}
                           </span>
-                          <span>{event.location}</span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <Users className="size-4" />
-                            {event.signUps}/{event.capacity} sign ups
-                          </span>
+                          <Button asChild size="sm" variant="ghost">
+                            <Link href={`/admin/events/${event.id}`}>View</Link>
+                          </Button>
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/admin/events/${event.id}/edit`}>
+                              <Edit3 />
+                              Edit
+                            </Link>
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-                        <span className="text-sm font-semibold text-foreground">
-                          {currencyFormatter.format(event.revenue)}
-                        </span>
-                        <Button asChild size="sm" variant="ghost">
-                          <Link href={`/admin/events/${event.id}`}>View</Link>
-                        </Button>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/admin/events/${event.id}/edit`}>
-                            <Edit3 />
-                            Edit
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-lg border bg-card shadow-sm">
@@ -209,7 +227,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-3">
                       <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm font-medium text-muted-foreground">
                         <Church className="size-4" />
-                        {churches.length} churches
+                        {churches ? churches.length : 0} churches
                       </span>
                       <Button asChild size="sm" variant="outline">
                         <Link href="/admin/churches">View all</Link>
@@ -223,42 +241,52 @@ export default function AdminDashboard() {
                     </div>
                   }
                 />
-                <div className="divide-y">
-                  {churches.map((church) => (
-                    <div key={church.id} className="flex flex-col gap-4 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                          <Church className="size-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h2 className="font-semibold text-foreground">
-                            {church.name}
-                          </h2>
-                          <div className="mt-2 grid gap-1 text-sm text-muted-foreground">
-                            <span className="inline-flex items-center gap-1.5">
-                              <Users className="size-4" />
-                              {church.members} members
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <Contact className="size-4" />
-                              {church.primaryContact}
-                            </span>
-                            <span className="break-all">{church.contactEmail}</span>
+                {churchesError ? (
+                  <div className="p-4 text-muted-foreground">
+                    couldn&apos;t load data
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {churches.map((church) => (
+                      <div key={church.id} className="flex flex-col gap-4 p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                            <Church className="size-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h2 className="font-semibold text-foreground">
+                              {church.name}
+                            </h2>
+                            <div className="mt-2 grid gap-1 text-sm text-muted-foreground">
+                              <span className="inline-flex items-center gap-1.5">
+                                <Users className="size-4" />
+                                {church.members} members
+                              </span>
+                              <span className="inline-flex items-center gap-1.5">
+                                <Contact className="size-4" />
+                                {church.primaryContact}
+                              </span>
+                              <span className="break-all">
+                                {church.contactEmail}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/churches/${church.id}`}>
+                            View church
+                          </Link>
+                        </Button>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/churches/${church.id}/edit`}>
+                            <Edit3 />
+                            Edit church
+                          </Link>
+                        </Button>
                       </div>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/admin/churches/${church.id}`}>View church</Link>
-                      </Button>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/admin/churches/${church.id}/edit`}>
-                          <Edit3 />
-                          Edit church
-                        </Link>
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
           </>

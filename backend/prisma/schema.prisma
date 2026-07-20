@@ -43,9 +43,9 @@ model Profile {
   user   User   @relation(fields: [userId], references: [id])
 
   name      String
-  role      Role    @default(STUDENT)
   firstTime Boolean @default(true)
 
+  role        Role?    @default(STUDENT)
   gender      Gender?
   dob         DateTime?
   nationality String?

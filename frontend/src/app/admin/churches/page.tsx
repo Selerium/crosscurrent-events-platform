@@ -15,17 +15,21 @@ export default function AdminChurchesPage() {
   const [emirateFilter, setEmirateFilter] = useState<EmirateFilter>("all");
   const [churches, setChurches] = useState<ChurchRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     api.get("/admin/churches")
       .then((res) => setChurches(res.data.data))
-      .catch((err) => console.error("Failed to load churches", err))
+      .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
+
+    if (typeof churches === "undefined") setFetchError(true);
   }, []);
 
-  const emirates = Array.from(new Set(churches.map((church) => church.emirate)));
+  const emirates = churches ? Array.from(new Set(churches.map((church) => church.emirate))) : [];
 
   const filteredChurches = useMemo(() => {
+    if (typeof churches === "undefined") return [];
     return churches.filter((church) => {
       const matchesSearch = [
         church.name,
@@ -94,6 +98,8 @@ export default function AdminChurchesPage() {
         <section className="grid gap-4 md:grid-cols-2">
           {loading ? (
             <p className="text-muted-foreground">Loading...</p>
+          ) : fetchError ? (
+            <p className="text-muted-foreground">couldn&apos;t load data</p>
           ) : (
             filteredChurches.map((church) => (
               <div className="rounded-lg border bg-card p-4 shadow-sm" key={church.id}>
