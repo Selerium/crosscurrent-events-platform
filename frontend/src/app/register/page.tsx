@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { RegisterForm } from "@/components/auth/RegisterForm";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Create account",
@@ -8,6 +9,10 @@ export const metadata = {
 };
 
 export default function RegisterPage() {
+  if (process.env.NEXT_PUBLIC_DISABLE_APP === "true") {
+    redirect("/");
+  }
+
   return (
     <AuthShell
       title="Create your account"

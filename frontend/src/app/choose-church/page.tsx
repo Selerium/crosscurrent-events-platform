@@ -1,7 +1,7 @@
 "use client";
 
 import { Church } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,10 @@ type ChurchOption = {
 };
 
 export default function ChooseChurchPage() {
+  if (process.env.NEXT_PUBLIC_DISABLE_APP === "true") {
+    redirect("/");
+  }
+
   const router = useRouter();
   const [churches, setChurches] = useState<ChurchOption[]>([]);
   const [loading, setLoading] = useState(true);

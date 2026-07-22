@@ -4,6 +4,7 @@ import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { useEffect, useState } from "react";
+import { redirect } from "next/navigation";
 
 type ProfileData = {
   createdAt: string;
@@ -23,6 +24,10 @@ type ProfileData = {
 };
 
 export default function Profile() {
+  if (process.env.NEXT_PUBLIC_DISABLE_APP === "true") {
+    redirect("/");
+  }
+
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [selectedOption, setSelectedOption] = useState(0);
   const [editMode, setEditMode] = useState(false);

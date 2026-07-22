@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Sign in",
@@ -8,6 +9,10 @@ export const metadata = {
 };
 
 export default function LoginPage() {
+  if (process.env.NEXT_PUBLIC_DISABLE_APP === "true") {
+    redirect("/");
+  }
+
   return (
     <AuthShell
       title="Welcome back"
