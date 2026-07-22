@@ -61,6 +61,8 @@ firstTimeHandler.post("", async (req, res) => {
       name: profile.user.name,
       role: profile.role,
       firstTime: false,
+      approved: profile.approved,
+      churchId: profile.churchId ?? null,
     },
     jwtsecret,
     { expiresIn: "15m", subject: profile.id }

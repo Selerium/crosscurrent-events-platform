@@ -30,6 +30,7 @@ import { CalendarIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 type ChurchOption = {
   id: string;
@@ -66,9 +67,8 @@ export default function FirstTime() {
 
   async function submitForm(formData: FirstTimeFormData) {
     const data = await api.post("/profile/first-time", formData);
-    localStorage.setItem("firstTime", "false");
+    localStorage.setItem("firstTime", data.data.data.firstTime);
     localStorage.setItem("role", data.data.data.role)
-    console.log(data.data.data.role);
     router.push("/dashboard");
   }
 
@@ -103,7 +103,7 @@ export default function FirstTime() {
       <div className="w-full max-w-2xl min-w-72 p-4 flex flex-col gap-4 rounded-lg border shadow-md">
         <h1 className="font-bold text-2xl">Fill up your profile</h1>
         <form
-          onSubmit={handleSubmit(submitForm)}
+          onSubmit={handleSubmit(submitForm, () => toast.warning("Please fill out all fields"))}
           className="flex flex-col gap-4"
         >
           <div className="flex flex-col gap-2">
@@ -333,7 +333,7 @@ export default function FirstTime() {
             </>
           )}
 
-          <Button type="submit" className="justify-center text-white">
+          <Button type="submit" className="justify-center">
             Submit
           </Button>
         </form>

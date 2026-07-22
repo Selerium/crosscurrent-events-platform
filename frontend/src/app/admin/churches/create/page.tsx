@@ -140,7 +140,7 @@ export default function CreateChurchPage() {
               />
             </div>
           )}
-          <Button type="submit" className="justify-center text-white">
+          <Button type="submit" className="justify-center">
             Create Church
           </Button>
         </form>

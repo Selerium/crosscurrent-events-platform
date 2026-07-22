@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
@@ -25,12 +26,11 @@ export default function NotFound() {
         <p className="text-xl text-muted-foreground">
           Page not found
         </p>
-        <Link
-          href="/"
-          className="rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary-hover"
-        >
-          Go home
-        </Link>
+        <Button asChild>
+          <Link href="/">
+            Go home
+          </Link>
+        </Button>
       </div>
     </div>
   );

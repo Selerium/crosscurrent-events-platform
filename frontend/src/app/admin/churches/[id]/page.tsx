@@ -13,7 +13,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -46,12 +46,19 @@ export default function AdminChurchPage() {
   const [editing, setEditing] = useState(false);
   const [editCountry, setEditCountry] = useState("");
   const [editState, setEditState] = useState("");
+  const [memberFilter, setMemberFilter] = useState<"all" | "LEADER" | "STUDENT">("all");
 
   useEffect(() => {
     api.get(`/admin/churches/${params.id}`)
       .then((res) => setChurch(res.data.data))
       .catch(() => setChurch(null))
       .finally(() => setLoading(false));
+
+    setMembersLoading(true);
+    api.get(`/admin/churches/${params.id}/members`)
+      .then((res) => setMembers(res.data.data || []))
+      .catch(() => {})
+      .finally(() => setMembersLoading(false));
   }, [params.id]);
 
   function startEditing() {
@@ -123,6 +130,11 @@ export default function AdminChurchPage() {
     }
   }
 
+  const filteredMembers = useMemo(() => {
+    if (memberFilter === "all") return members;
+    return members.filter((m) => m.role === memberFilter);
+  }, [members, memberFilter]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-4 sm:px-6">
@@ -178,7 +190,7 @@ export default function AdminChurchPage() {
                 <Button
                   onClick={savePrimary}
                   disabled={!selectedId || saving}
-                  className="justify-center text-white"
+                  className="justify-center"
                 >
                   {saving ? "Saving..." : "Set as Primary Contact"}
                 </Button>
@@ -209,7 +221,7 @@ export default function AdminChurchPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={openPrimaryModal}>
+            <Button onClick={openPrimaryModal}>
               <Contact />
               Choose Primary Contact
             </Button>
@@ -219,7 +231,7 @@ export default function AdminChurchPage() {
                   <XIcon />
                   Cancel
                 </Button>
-                <Button onClick={saveEdits} disabled={saving} className="text-white">
+                <Button onClick={saveEdits} disabled={saving}>
                   <Save />
                   {saving ? "Saving..." : "Save"}
                 </Button>
@@ -296,6 +308,70 @@ export default function AdminChurchPage() {
             </div>
           </section>
         </div>
+
+        <hr />
+
+        <section className="rounded-lg border p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="font-bold">Members</h2>
+            <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
+              {(["all", "LEADER", "STUDENT"] as const).map((role) => (
+                <button
+                  className={`h-8 rounded-md px-3 text-sm font-medium capitalize transition-colors ${
+                    memberFilter === role
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  key={role}
+                  onClick={() => setMemberFilter(role)}
+                  type="button"
+                >
+                  {role === "all" ? "All" : role === "LEADER" ? "Leaders" : "Students"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {membersLoading ? (
+            <p className="mt-4 text-muted-foreground">Loading members...</p>
+          ) : members.length === 0 ? (
+            <p className="mt-4 text-muted-foreground">No members found</p>
+          ) : filteredMembers.length === 0 ? (
+            <p className="mt-4 text-muted-foreground">No members match this filter</p>
+          ) : (
+            <div className="mt-4 divide-y rounded-lg border">
+              {filteredMembers.map((member) => (
+                <div className="flex items-center gap-3 p-3" key={member.id}>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Users className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{member.name}</span>
+                      {member.primary && (
+                        <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                          Primary
+                        </span>
+                      )}
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                        {member.role.toLowerCase()}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Mail className="size-3.5" />
+                        {member.email}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Phone className="size-3.5" />
+                        {member.phone}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
     </>

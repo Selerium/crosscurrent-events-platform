@@ -334,7 +334,6 @@ export default function CreateEventPage() {
               <Label>Schedule</Label>
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
                 onClick={addDay}
               >
@@ -441,7 +440,6 @@ export default function CreateEventPage() {
                 ))}
                 <Button
                   type="button"
-                  variant="ghost"
                   size="sm"
                   onClick={() => addItem(dayIdx)}
                 >
@@ -451,7 +449,7 @@ export default function CreateEventPage() {
             ))}
           </div>
 
-          <Button type="submit" className="justify-center text-white">
+          <Button type="submit" className="justify-center">
             Create Event
           </Button>
         </form>

@@ -89,8 +89,8 @@ export default function AdminEventsPage() {
               />
             </label>
 
-            <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
-              {(["all", "active", "closed"] as StatusFilter[]).map(
+            <div className="grid grid-cols-4 rounded-lg border bg-background p-1">
+              {(["all", "active", "closed", "completed"] as StatusFilter[]).map(
                 (status) => (
                   <button
                     className={`h-8 rounded-md px-3 text-sm font-medium capitalize transition-colors ${
@@ -145,6 +145,8 @@ export default function AdminEventsPage() {
                         className={`rounded-md px-2 py-1 text-xs font-semibold capitalize ${
                           event.status === "active"
                             ? "bg-green-800 text-white"
+                            : event.status === "completed"
+                            ? "bg-blue-800 text-white"
                             : "bg-muted text-muted-foreground"
                         }`}
                       >
@@ -163,6 +165,8 @@ export default function AdminEventsPage() {
                       <span className="inline-flex items-center gap-1.5">
                         <Users className="size-4" />
                         {event.signUps}/{event.capacity}
+                        <span className="text-green-700">({event.paidSignUps}p</span>
+                        <span className="text-red-700">/{event.unpaidSignUps}u)</span>
                       </span>
                     </div>
                   </Link>
@@ -171,7 +175,7 @@ export default function AdminEventsPage() {
                     <span className="text-sm font-semibold text-foreground">
                       {currencyFormatter.format(event.revenue)}
                     </span>
-                    <Button asChild size="sm" variant="outline">
+                    <Button asChild size="sm">
                       <Link href={`/admin/events/${event.id}`}>
                         View Event
                       </Link>

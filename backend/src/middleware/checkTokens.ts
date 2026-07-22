@@ -63,6 +63,8 @@ const checkTokens = async (req, res, next) => {
             name: user.profile.name,
             role: user.profile.role,
             firstTime: user.profile.firstTime,
+            approved: user.profile.approved,
+            churchId: user.profile.churchId,
         },
         jwtsecret,
         { expiresIn: "15m", subject: user.profile.id },

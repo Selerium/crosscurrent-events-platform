@@ -16,16 +16,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
           <CircleCheckIcon className="size-4 text-green-900" />
         ),
         info: (
-          <InfoIcon className="size-4" />
+          <InfoIcon className="size-4 text-gray-500" />
         ),
         warning: (
-          <TriangleAlertIcon className="size-4" />
+          <TriangleAlertIcon className="size-4 text-yellow-500" />
         ),
         error: (
           <OctagonXIcon className="size-4 text-red-900" />
         ),
         loading: (
-          <Loader2Icon className="size-4 animate-spin" />
+          <Loader2Icon className="size-4 text-primary animate-spin" />
         ),
       }}
       style={

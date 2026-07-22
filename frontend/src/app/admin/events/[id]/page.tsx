@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/popover";
 import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data";
 import api from "@/lib/axios";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type ScheduleItem = {
@@ -36,6 +37,19 @@ type ScheduleItem = {
   startTime: string;
   endTime: string;
   location: string;
+};
+
+type Participant = {
+  id: string;
+  name: string;
+  phone: string;
+  church: string;
+  paid: boolean;
+  shirtSize: string;
+  swimming: boolean;
+  selfPay: boolean;
+  medications: string[];
+  allergies: string[];
 };
 
 export default function AdminEventPage() {
@@ -56,12 +70,20 @@ export default function AdminEventPage() {
   const [saving, setSaving] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
 
   useEffect(() => {
     api.get(`/admin/events/${params.id}`)
       .then((res) => setEventInfo(res.data.data))
       .catch(() => setEventInfo(null))
       .finally(() => setLoading(false));
+
+    setParticipantsLoading(true);
+    api.get(`/admin/events/${params.id}/participants`)
+      .then((res) => setParticipants(res.data.data || []))
+      .catch(() => {})
+      .finally(() => setParticipantsLoading(false));
   }, [params.id]);
 
   function startEditing() {
@@ -236,7 +258,7 @@ export default function AdminEventPage() {
                   <XIcon />
                   Cancel
                 </Button>
-                <Button onClick={saveEdits} disabled={saving} className="text-white">
+                <Button onClick={saveEdits} disabled={saving}>
                   <Save />
                   {saving ? "Saving..." : "Save"}
                 </Button>
@@ -263,7 +285,6 @@ export default function AdminEventPage() {
                   </span>
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     onClick={addDay}
                   >
@@ -350,7 +371,6 @@ export default function AdminEventPage() {
                     ))}
                     <Button
                       type="button"
-                      variant="ghost"
                       size="sm"
                       onClick={() => addItem(dayIdx)}
                     >
@@ -364,9 +384,7 @@ export default function AdminEventPage() {
                 <div className="flex flex-wrap gap-2">
                   {eventInfo.schedule.map((day, idx) => (
                     <button
-                      className={`w-fit cursor-pointer rounded-lg border px-4 py-2 transition-all ${
-                        selectedDay === idx ? "bg-neutral-600 font-bold text-white" : ""
-                      }`}
+                      className={cn("w-fit cursor-pointer rounded-lg border px-4 py-2 transition-all font-bold", selectedDay === idx ? "bg-primary text-primary-foreground" : "")}
                       key={idx}
                       onClick={() => setSelectedDay(idx)}
                       type="button"
@@ -486,7 +504,12 @@ export default function AdminEventPage() {
                 <InfoBlock
                   icon={<Users width={20} height={20} />}
                   label="Sign ups"
-                  value={`${eventInfo.signUps} / ${eventInfo.capacity}`}
+                  value={`${eventInfo.paidSignUps} / ${eventInfo.capacity}`}
+                />
+                <InfoBlock
+                  icon={<Users width={20} height={20} />}
+                  label="Unpaid Registrants"
+                  value={`${eventInfo.unpaidSignUps}`}
                 />
                 <InfoBlock
                   icon={<Banknote width={20} height={20} />}
@@ -502,6 +525,62 @@ export default function AdminEventPage() {
             )}
           </div>
         </div>
+
+        <hr />
+
+        <section className="rounded-lg border p-4">
+          <h2 className="font-bold">Registered Participants</h2>
+          {participantsLoading ? (
+            <p className="mt-4 text-muted-foreground">Loading participants...</p>
+          ) : participants.length === 0 ? (
+            <p className="mt-4 text-muted-foreground">No participants registered</p>
+          ) : (
+            <div className="mt-4 divide-y rounded-lg border">
+              {participants.map((p) => (
+                <div className="flex items-center gap-3 p-3" key={p.id}>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Users className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{p.name}</span>
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                          p.paid
+                            ? "bg-green-800 text-white"
+                            : "bg-red-800 text-white"
+                        }`}
+                      >
+                        {p.paid ? "PAID" : "UNPAID"}
+                      </span>
+                      {p.selfPay && (
+                        <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                          Scholarship
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      {p.church && <span>{p.church}</span>}
+                      {p.phone && <span>{p.phone}</span>}
+                      <span>Shirt: {p.shirtSize}</span>
+                      <span>Swimming: {p.swimming ? "Yes" : "No"}</span>
+                    </div>
+                    {(p.medications.length > 0 || p.allergies.length > 0) && (
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {p.medications.length > 0 && (
+                          <span>Medications: {p.medications.join(", ")}</span>
+                        )}
+                        {p.allergies.length > 0 && (
+                          <span>Allergies: {p.allergies.join(", ")}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

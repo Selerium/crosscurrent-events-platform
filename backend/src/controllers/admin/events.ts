@@ -5,7 +5,7 @@ import { prisma } from "../../lib/prismaClient.ts";
 const statusMap: Record<string, string> = {
   OPEN: "active",
   CLOSED: "closed",
-  COMPLETED: "closed",
+  COMPLETED: "completed",
 };
 
 const adminEventsHandler = express.Router();
@@ -80,27 +80,31 @@ adminEventsHandler.get("", async (req, res) => {
     include: {
       _count: { select: { registrations: true } },
       registrations: {
-        where: { paid: true },
-        select: { id: true },
+        select: { paid: true },
       },
     },
     orderBy: { startDate: "asc" },
   });
 
-  const data = events.map((e) => ({
-    id: e.id,
-    name: e.name,
-    brief: e.brief,
-    startDate: e.startDate,
-    endDate: e.endDate,
-    location: e.location,
-    status: statusMap[e.eventStatus] || "closed",
-    signUps: e._count.registrations,
-    capacity: e.maxSignUps,
-    price: e.price,
-    revenue: e.registrations.length * e.price,
-    schedule: e.schedule,
-  }));
+  const data = events.map((e) => {
+    const paidCount = e.registrations.filter((r) => r.paid).length;
+    return {
+      id: e.id,
+      name: e.name,
+      brief: e.brief,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      location: e.location,
+      status: statusMap[e.eventStatus] || "closed",
+      signUps: e._count.registrations,
+      paidSignUps: paidCount,
+      unpaidSignUps: e._count.registrations - paidCount,
+      capacity: e.maxSignUps,
+      price: e.price,
+      revenue: paidCount * e.price,
+      schedule: e.schedule,
+    };
+  });
 
   res.status(200).json({ data, error: false, message: "" });
 });
@@ -111,8 +115,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
     include: {
       _count: { select: { registrations: true } },
       registrations: {
-        where: { paid: true },
-        select: { id: true },
+        select: { paid: true },
       },
     },
   });
@@ -121,6 +124,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
+  const paidCount = event.registrations.filter((r) => r.paid).length;
   const data = {
     id: event.id,
     name: event.name,
@@ -130,11 +134,53 @@ adminEventsHandler.get("/:id", async (req, res) => {
     location: event.location,
     status: statusMap[event.eventStatus] || "closed",
     signUps: event._count.registrations,
+    paidSignUps: paidCount,
+    unpaidSignUps: event._count.registrations - paidCount,
     capacity: event.maxSignUps,
     price: event.price,
-    revenue: event.registrations.length * event.price,
+    revenue: paidCount * event.price,
     schedule: event.schedule,
   };
+
+  res.status(200).json({ data, error: false, message: "" });
+});
+
+adminEventsHandler.get("/:id/participants", async (req, res) => {
+  const event = await prisma.event.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!event) {
+    throw new AppError("Event not found", 404);
+  }
+
+  const registrations = await prisma.registration.findMany({
+    where: { eventId: req.params.id },
+    include: {
+      profile: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          church: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const data = registrations.map((r) => ({
+    id: r.id,
+    name: r.profile.name,
+    phone: r.profile.phone || "",
+    church: r.profile.church?.name || "",
+    paid: r.paid,
+    shirtSize: r.shirtSize,
+    swimming: r.swimming,
+    selfPay: r.selfPay,
+    medications: r.medications,
+    allergies: r.allergies,
+  }));
 
   res.status(200).json({ data, error: false, message: "" });
 });

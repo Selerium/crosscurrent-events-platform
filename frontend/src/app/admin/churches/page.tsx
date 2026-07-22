@@ -134,7 +134,7 @@ export default function AdminChurchesPage() {
                   <span className="break-all text-sm text-muted-foreground">
                     {church.contactEmail}
                   </span>
-                  <Button asChild size="sm" variant="outline">
+                  <Button asChild size="sm">
                     <Link href={`/admin/churches/${church.id}`}>
                       View church
                     </Link>

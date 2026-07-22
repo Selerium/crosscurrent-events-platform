@@ -88,6 +88,11 @@ export default function AdminDashboard() {
   const totalSignUps = activeEvents
     ? activeEvents.reduce((total, event) => total + event.signUps, 0)
     : 0;
+  const totalPaidSignUps = activeEvents
+    ? activeEvents.reduce((total, event) => total + event.paidSignUps, 0)
+    : 0;
+  const totalUnpaidSignUps = totalSignUps - totalPaidSignUps;
+  console.log(events);
 
   return (
     <main className="min-h-full bg-background px-4 py-8 sm:px-6 lg:px-8">
@@ -163,8 +168,13 @@ export default function AdminDashboard() {
                 />
                 <MetricCard
                   icon={<Users className="size-4" />}
-                  label="Total sign ups"
-                  value={totalSignUps.toString()}
+                  label="Paid sign ups"
+                  value={totalPaidSignUps.toString()}
+                />
+                <MetricCard
+                  icon={<Users className="size-4" />}
+                  label="Unpaid sign ups"
+                  value={totalUnpaidSignUps.toString()}
                 />
               </div>
             </section>
@@ -175,7 +185,7 @@ export default function AdminDashboard() {
                   title="Active events"
                   action={
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button asChild size="sm" variant="outline">
+                      <Button asChild size="sm">
                         <Link href="/admin/events">View all</Link>
                       </Button>
                       <Button asChild size="sm">
@@ -215,6 +225,8 @@ export default function AdminDashboard() {
                             <span className="inline-flex items-center gap-1.5">
                               <Users className="size-4" />
                               {event.signUps}/{event.capacity} sign ups
+                              <span className="text-green-700">({event.paidSignUps} paid)</span>
+                              <span className="text-red-700">({event.unpaidSignUps} unpaid)</span>
                             </span>
                           </div>
                         </div>
@@ -222,10 +234,10 @@ export default function AdminDashboard() {
                           <span className="text-sm font-semibold text-foreground">
                             {currencyFormatter.format(event.revenue)}
                           </span>
-                          <Button asChild size="sm" variant="ghost">
+                          <Button asChild size="sm">
                             <Link href={`/admin/events/${event.id}`}>View</Link>
                           </Button>
-                          <Button asChild size="sm" variant="outline">
+                          <Button asChild size="sm">
                             <Link href={`/admin/events/${event.id}/edit`}>
                               <Edit3 />
                               Edit
@@ -247,10 +259,10 @@ export default function AdminDashboard() {
                         <Church className="size-4" />
                         {churches ? churches.length : 0} churches
                       </span>
-                      <Button asChild size="sm" variant="outline">
+                      <Button asChild size="sm">
                         <Link href="/admin/churches">View all</Link>
                       </Button>
-                      <Button asChild size="sm" variant="outline">
+                      <Button asChild size="sm">
                         <Link href="/admin/churches/create">
                           <Plus />
                           Add church
@@ -294,17 +306,19 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         </div>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/admin/churches/${church.id}`}>
-                            View church
-                          </Link>
-                        </Button>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/admin/churches/${church.id}/edit`}>
-                            <Edit3 />
-                            Edit church
-                          </Link>
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button asChild size="sm">
+                            <Link href={`/admin/churches/${church.id}`}>
+                              View church
+                            </Link>
+                          </Button>
+                          <Button asChild size="sm">
+                            <Link href={`/admin/churches/${church.id}/edit`}>
+                              <Edit3 />
+                              Edit church
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

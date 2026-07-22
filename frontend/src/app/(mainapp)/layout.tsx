@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { ApprovalGuard } from "@/components/layout/ApprovalGuard";
 
 export default async function MainAppLayout({
   children,
@@ -14,12 +15,16 @@ export default async function MainAppLayout({
 
   let role: string | null = null;
   let firstTime: boolean | null = null;
+  let approved = false;
+  let churchId: string | null = null;
   try {
     const payload = JSON.parse(
       Buffer.from(token.split(".")[1], "base64").toString(),
     );
     role = payload.role;
     firstTime = payload.firstTime;
+    approved = payload.approved ?? false;
+    churchId = payload.churchId ?? null;
   } catch {}
 
   if (role === "ADMIN") {
@@ -30,5 +35,13 @@ export default async function MainAppLayout({
     redirect("/profile/first-time");
   }
 
-  return <>{children}</>;
+  if (!approved && !churchId) {
+    redirect("/choose-church");
+  }
+
+  return (
+    <ApprovalGuard approved={approved}>
+      {children}
+    </ApprovalGuard>
+  );
 }

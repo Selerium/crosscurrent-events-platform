@@ -30,16 +30,16 @@ export function LoginForm() {
       localStorage.setItem("id", userData["data"]["data"]["id"]);
       localStorage.setItem("name", userData["data"]["data"]["name"]);
       localStorage.setItem("role", userData["data"]["data"]["role"]);
+      localStorage.setItem("firstTime", userData["data"]["data"]["firstTime"]);
+      localStorage.setItem("approved", userData["data"]["data"]["approved"]);
 
+      toast.success("Logged in successfully", {
+        description: "Redirecting to app...",
+      });
       if (userData["data"]["data"]["role"] === "ADMIN") router.push("/admin");
       else {
-        toast.success("Logged in successfully", {
-          description: "Redirecting to app...",
-        });
-        setTimeout(() => {
-          if (userData["data"]["firstTime"]) router.push("/profile/first-time");
-          else router.push("/dashboard");
-        }, 2000);
+        if (userData["data"]["firstTime"]) router.push("/profile/first-time");
+        else router.push("/dashboard");
       }
     } catch (e: any) {
       toast.error("Could not log in", {
@@ -89,7 +89,7 @@ export function LoginForm() {
         </div>
 
         <Button
-          className="w-full justify-center text-primary-foreground"
+          className="w-full justify-center"
           type="submit"
           variant="default"
         >

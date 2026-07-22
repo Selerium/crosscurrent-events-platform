@@ -41,7 +41,7 @@ function decodeUserFromCookie(cookieStore: Awaited<ReturnType<typeof cookies>>) 
       Buffer.from(token.split(".")[1], "base64").toString(),
     );
     if (payload.exp && payload.exp * 1000 < Date.now()) return null;
-    return { name: payload.name, role: payload.role, firstTime: payload.firstTime };
+    return { name: payload.name, role: payload.role, firstTime: payload.firstTime, approved: payload.approved ?? false };
   } catch {
     return null;
   }

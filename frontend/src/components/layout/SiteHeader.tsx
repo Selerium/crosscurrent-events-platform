@@ -4,18 +4,21 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { toast } from "sonner";
 import api from "@/lib/axios";
 
 type SiteHeaderUser = {
   name: string;
   role: string;
+  approved: boolean;
 };
 
 function getUserFromStorage(): SiteHeaderUser | null {
   const name = localStorage.getItem("name");
   const role = localStorage.getItem("role");
-  if (name && role) return { name, role };
+  if (name && role) return { name, role, approved: true };
   return null;
 }
 
@@ -32,8 +35,8 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
 
     api.get("/me")
       .then((res) => {
-        const { name, role } = res.data.data;
-        setUser({ name, role });
+        const { name, role, approved } = res.data.data;
+        setUser({ name, role, approved: approved ?? false });
       })
       .catch(() => {
         localStorage.removeItem("id");
@@ -47,6 +50,8 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
     localStorage.removeItem("id");
     localStorage.removeItem("name");
     localStorage.removeItem("role");
+    localStorage.removeItem("firstTime");
+    localStorage.removeItem("approved");
     try {
       await api.post("/logout");
     } catch {
@@ -54,6 +59,14 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
     }
     router.push("/");
     router.refresh();
+  }
+
+  function handleMyChurchClick(e: React.MouseEvent) {
+    if (user && !user.approved) {
+      e.preventDefault();
+      toast.warning("Your account needs to be approved before you can access this page.");
+      return;
+    }
   }
 
   return (
@@ -91,49 +104,47 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
               >
                 Dashboard
               </Link>
-              {user.role === "ADMIN" && (
+              {user.role === "ADMIN" ? (
                 <>
-                  <Link
-                    href="/admin/events"
-                    className="rounded-lg px-3 py-2 font-medium text-foreground hover:bg-foreground/5"
-                  >
-                    Events
-                  </Link>
-                  <Link
-                    href="/admin/churches"
-                    className="rounded-lg px-3 py-2 font-medium text-foreground hover:bg-foreground/5"
-                  >
-                    Churches
-                  </Link>
+                  <Button asChild variant="ghost">
+                    <Link href="/admin/events">
+                      Events
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost">
+                    <Link href="/admin/churches">
+                      Churches
+                    </Link>
+                  </Button>
                 </>
+              ) : (
+                <Button asChild variant="ghost">
+                  <Link href="/my-church" onClick={handleMyChurchClick}>
+                    My Church
+                  </Link>
+                </Button>
               )}
-              <Link
-                href="/profile"
-                className="rounded-lg px-3 py-2 font-medium text-foreground hover:bg-foreground/5"
-              >
-                My account
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="rounded-lg px-3 py-2 font-medium text-foreground hover:bg-foreground/5 cursor-pointer"
-              >
+              <Button asChild variant="ghost">
+                <Link href="/profile">
+                  My account
+                </Link>
+              </Button>
+              <Button variant="ghost" onClick={handleLogout}>
                 Log out
-              </button>
+              </Button>
             </nav>
           ) : (
             <nav className="flex items-center gap-2 text-sm sm:gap-3">
-              <Link
-                href="/login"
-                className="rounded-lg px-3 py-2 font-medium text-foreground hover:bg-foreground/5"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/register"
-                className="rounded-lg bg-primary px-3 py-2 font-bold text-primary-foreground hover:bg-primary-hover"
-              >
-                Get started
-              </Link>
+              <Button asChild variant="ghost">
+                <Link href="/login">
+                  Sign in
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/register">
+                  Get started
+                </Link>
+              </Button>
             </nav>
           )}
           <ThemeToggle />

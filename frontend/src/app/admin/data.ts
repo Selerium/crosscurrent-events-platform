@@ -1,4 +1,4 @@
-export type EventStatus = "active" | "closed";
+export type EventStatus = "active" | "closed" | "completed";
 
 export type AdminEvent = {
   id: string;
@@ -9,6 +9,8 @@ export type AdminEvent = {
   location: string;
   status: EventStatus;
   signUps: number;
+  paidSignUps: number;
+  unpaidSignUps: number;
   capacity: number;
   price: number;
   revenue: number;

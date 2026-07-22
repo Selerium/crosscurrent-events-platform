@@ -100,7 +100,6 @@ export default function Profile() {
                   <h2 className="text-xl font-bold">Profile</h2>
                   <Button
                     onClick={editDetails}
-                    className="text-primary-foreground"
                   >
                     {editMode ? "Save" : "Edit"}
                   </Button>
@@ -130,7 +129,7 @@ export default function Profile() {
                   <Input
                     disabled
                     className="min-w-72 grow px-4 py-2 rounded-lg border"
-                    value={profile.church ? profile.church.name : "-"}
+                    value={profile.church ? `${profile.church.name} ${localStorage.getItem("approved") === "false" ? "(pending approval)" : "" }` : "-"}
                   />
                 </div>
                 <div className="flex items-center gap-2 rounded-lg w-full">
@@ -235,13 +234,13 @@ export default function Profile() {
                   <p className="font-bold">Account Settings</p>
                   <div className="flex items-center gap-2">
                     <p className="min-w-72 w-1/2">Change your password</p>
-                    <Button className="justify-center text-primary-foreground min-w-72 w-1/2">
+                    <Button className="justify-center min-w-72 w-1/2">
                       Reset Password
                     </Button>
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="min-w-72 w-1/2">Change your email</p>
-                    <Button className="justify-center text-primary-foreground min-w-72 w-1/2">
+                    <Button className="justify-center min-w-72 w-1/2">
                       Reset Email
                     </Button>
                   </div>

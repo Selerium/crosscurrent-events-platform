@@ -50,7 +50,7 @@ adminChurchesHandler.patch("/:id", async (req, res) => {
 
     await prisma.profile.update({
       where: { id: primaryProfileId },
-      data: { primaryForChurch: true },
+      data: { primaryForChurch: true, approved: true, approvedById: req.user.id },
     });
   }
 

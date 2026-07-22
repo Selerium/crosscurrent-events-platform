@@ -1,6 +1,7 @@
 "use client";
 
 import api from "@/lib/axios";
+import { Button } from "@/components/ui/button";
 import {
   CalendarDays,
   ChevronLeft,
@@ -36,6 +37,7 @@ type EventData = {
   location: string;
   price: number;
   schedule: ScheduleItem[][];
+  status: string;
   user: {
     paid: boolean;
     room: { name: string; members: { name: string; mobile: string }[] } | null;
@@ -44,6 +46,10 @@ type EventData = {
     allergies: string[];
     medication: string[];
   } | null;
+};
+
+type UserData = {
+  approved: boolean;
 };
 
 type RegistrationForm = {
@@ -154,6 +160,7 @@ export default function EventPage() {
   const [showUnregister, setShowUnregister] = useState(false);
   const [medDraft, setMedDraft] = useState("");
   const [allergyDraft, setAllergyDraft] = useState("");
+  const [userApproved, setUserApproved] = useState(true);
   const { control, handleSubmit, reset } = useForm<RegistrationForm>({
     defaultValues: {
       shirtSize: "",
@@ -178,24 +185,45 @@ export default function EventPage() {
             ...item,
             startTime: item.startTime,
             endTime: item.endTime,
-          })),
+          }))
         ),
         user: data.user || null,
       });
 
-      if (searchParams.get("register") === "true" && !data.user) {
+      return data;
+    } catch {
+      setEventError(true);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const [meRes, eventData] = await Promise.all([
+        api.get("/me").catch(() => null),
+        fetchEvent(),
+      ]);
+      if (cancelled) return;
+      const approved = meRes?.data?.data?.approved ?? false;
+      setUserApproved(approved);
+      if (
+        approved &&
+        searchParams.get("register") === "true" &&
+        eventData &&
+        !eventData.user &&
+        eventData.signedUp < eventData.maxSignUps
+      ) {
         reset();
         setMedDraft("");
         setAllergyDraft("");
         setShowRegister(true);
       }
-    } catch {
-      setEventError(true);
-    }
-  };
-
-  useEffect(() => {
-    fetchEvent();
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [params.id]);
 
   const onRegisterSubmit = async (data: RegistrationForm) => {
@@ -280,7 +308,7 @@ export default function EventPage() {
             </div>
 
             <form
-              onSubmit={handleSubmit(onRegisterSubmit)}
+              onSubmit={handleSubmit(onRegisterSubmit, () => toast.warning("Please fill out all fields"))}
               className="flex flex-col gap-4"
             >
               <div className="flex flex-col gap-2">
@@ -301,12 +329,12 @@ export default function EventPage() {
                               "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
                               field.value === size
                                 ? "bg-neutral-600 text-white"
-                                : "bg-neutral-100 hover:bg-neutral-200",
+                                : "bg-neutral-100 hover:bg-neutral-200"
                             )}
                           >
                             {size}
                           </button>
-                        ),
+                        )
                       )}
                     </div>
                   )}
@@ -385,7 +413,7 @@ export default function EventPage() {
                           }}
                           onDelete={() => {
                             field.onChange(
-                              field.value.filter((_, i) => i !== idx),
+                              field.value.filter((_, i) => i !== idx)
                             );
                           }}
                         />
@@ -434,7 +462,7 @@ export default function EventPage() {
                           }}
                           onDelete={() => {
                             field.onChange(
-                              field.value.filter((_, i) => i !== idx),
+                              field.value.filter((_, i) => i !== idx)
                             );
                           }}
                         />
@@ -463,12 +491,15 @@ export default function EventPage() {
                 />
               </div>
 
-              <button
-                type="submit"
-                className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 hover:bg-neutral-300 font-bold"
-              >
+              <p className="font-bold">NOTE: {" "}
+                <span className="italic font-medium">
+                  By submitting you acknowledge that your registration will not
+                  be confirmed until payment is made.
+                </span>
+              </p>
+              <Button type="submit" className="w-full p-4 justify-center">
                 SUBMIT REGISTRATION
-              </button>
+              </Button>
             </form>
           </div>
         </div>
@@ -486,19 +517,21 @@ export default function EventPage() {
               </button>
             </div>
             <p>Are you sure you want to unregister from {eventData.name}?</p>
-            <div className="flex gap-4">
-              <button
+            <div className="flex flex-col gap-4">
+              <Button
                 onClick={() => setShowUnregister(false)}
-                className="cursor-pointer p-3 rounded-lg w-full border font-bold"
+                variant="outline"
+                className="w-full p-3 justify-center"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={onUnregister}
-                className="cursor-pointer p-3 rounded-lg w-full bg-red-800 text-white font-bold"
+                variant="destructive"
+                className="w-full p-3 justify-center"
               >
                 Unregister
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -515,9 +548,24 @@ export default function EventPage() {
               </button>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-2xl">{eventData.name}</h1>
+                <span
+                  className={`rounded-md px-2 py-0.5 text-xs font-semibold capitalize ${
+                    eventData.status === "active"
+                      ? "bg-green-800 text-white"
+                      : eventData.status === "completed"
+                      ? "bg-blue-800 text-white"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {eventData.status}
+                </span>
                 {eventData.user && (
                   <span
-                    className={`py-2 px-4 rounded-lg w-fit ${eventData.user.paid ? "bg-green-800" : "bg-red-800"} text-center text-white font-bold`}
+                    className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                      eventData.user.paid
+                        ? "bg-green-800 text-white"
+                        : "bg-red-800 text-white"
+                    }`}
                   >
                     {eventData.user.paid ? "PAID" : "PAYMENT PENDING"}
                   </span>
@@ -553,7 +601,12 @@ export default function EventPage() {
                   <button
                     key={idx}
                     onClick={() => setSelectedDay(idx)}
-                    className={`py-2 px-4 border w-fit rounded-lg transition-all cursor-pointer ${selectedDay == idx ? "bg-neutral-600 text-white font-bold" : ""}`}
+                    className={cn(
+                      "py-2 px-4 border w-fit rounded-lg transition-all cursor-pointer font-bold",
+                      selectedDay === idx
+                        ? "bg-primary text-primary-foreground"
+                        : ""
+                    )}
                   >
                     Day {idx + 1}
                   </button>
@@ -581,41 +634,79 @@ export default function EventPage() {
               ))}
             </div>
             <div className="col-span-1 order-1 lg:order-2 flex flex-col gap-2 h-fit">
-              {!eventData.user && (
-                <button
+              {!eventData.user && eventData.signedUp >= eventData.maxSignUps ? (
+                <div className="w-full p-4 justify-center rounded-lg border text-center text-muted-foreground font-medium">
+                  All seats filled
+                </div>
+              ) : (
+                !eventData.user && (
+                  <Button
+                    onClick={() => {
+                      if (!userApproved) {
+                        toast.warning(
+                          "Your account needs to be approved before you can register for events."
+                        );
+                        return;
+                      }
+                      reset();
+                      setMedDraft("");
+                      setAllergyDraft("");
+                      setShowRegister(true);
+                    }}
+                    className="w-full p-4 justify-center"
+                  >
+                    REGISTER
+                  </Button>
+                )
+              )}
+              {eventData.user && !eventData.user.paid && (
+                <Button
                   onClick={() => {
-                    reset();
-                    setMedDraft("");
-                    setAllergyDraft("");
-                    setShowRegister(true);
+                    if (!userApproved) {
+                      toast.warning(
+                        "Your account needs to be approved before you can pay for events."
+                      );
+                      return;
+                    }
                   }}
-                  className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 font-bold"
+                  className="w-full p-4 justify-center"
+                  variant="secondary"
                 >
-                  REGISTER
-                </button>
-              )}
-              {eventData.user && !eventData.user.paid && (
-                <button className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 hover:bg-white hover:text-primary font-bold">
                   PAY FOR EVENT
-                </button>
+                </Button>
               )}
               {eventData.user && !eventData.user.paid && (
-                <button
-                  onClick={() => setShowUnregister(true)}
-                  className="cursor-pointer p-4 rounded-lg w-full border border-red-800 text-red-800 hover:bg-red-800 hover:text-white font-bold"
+                <Button
+                  onClick={() => {
+                    if (!userApproved) {
+                      toast.warning(
+                        "Your account needs to be approved before you can unregister from events."
+                      );
+                      return;
+                    }
+                    setShowUnregister(true);
+                  }}
+                  variant="destructive"
+                  className="w-full p-4 justify-center"
                 >
                   UNREGISTER
-                </button>
+                </Button>
               )}
               {eventData.user && eventData.user.paid && (
-                <button
+                <Button
                   onClick={() => {
+                    if (!userApproved) {
+                      toast.warning(
+                        "Your account needs to be approved before you can buy merchandise."
+                      );
+                      return;
+                    }
                     toast.info("This feature is not available yet");
                   }}
-                  className="cursor-pointer p-4 rounded-lg w-full bg-neutral-200 hover:bg-white hover:text-primary font-bold"
+                  className="w-full p-4 justify-center"
                 >
                   BUY MERCHANDISE
-                </button>
+                </Button>
               )}
               {eventData.user && (
                 <div className="flex flex-col gap-2">
@@ -667,7 +758,9 @@ export default function EventPage() {
                   <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
                     <span className="font-bold">Swimming</span>
                     <span
-                      className={`${eventData.user.swimming ? "bg-green-800" : "bg-red-800"} rounded-lg px-4 py-2 text-white font-bold`}
+                      className={`${
+                        eventData.user.swimming ? "bg-green-800" : "bg-red-800"
+                      } rounded-lg px-4 py-2 text-white font-bold`}
                     >
                       {eventData.user.swimming ? "YES" : "NO"}
                     </span>

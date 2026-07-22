@@ -7,7 +7,7 @@
 /* Theme tokens — customize for your project */
 
 [data-description] {
-  color: var(--primary-foreground) !important
+  color: #000000AA !important
 }
 
 html[data-theme="dark"] .brand-logo-light {

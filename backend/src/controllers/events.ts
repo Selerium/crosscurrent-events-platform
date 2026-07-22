@@ -2,6 +2,12 @@ import express from "express";
 import AppError from "../lib/appError.ts";
 import { prisma } from "../lib/prismaClient.ts";
 
+const statusMap: Record<string, string> = {
+  OPEN: "active",
+  CLOSED: "closed",
+  COMPLETED: "completed",
+};
+
 const eventsHandler = express.Router();
 
 eventsHandler.get("", async (req, res) => {
@@ -16,7 +22,7 @@ eventsHandler.get("", async (req, res) => {
           },
         },
     include: {
-      _count: { select: { registrations: true } },
+      _count: { select: { registrations: { where: { paid: true } } } },
     },
     orderBy: { startDate: "asc" },
   });
@@ -31,6 +37,10 @@ eventsHandler.get("", async (req, res) => {
     signedUp: e._count.registrations,
     maxSignUps: e.maxSignUps,
     price: e.price,
+    status:
+      e._count.registrations >= e.maxSignUps
+        ? "closed"
+        : statusMap[e.eventStatus] || "closed",
   }));
 
   res.status(200).json({ data, error: false, message: "" });
@@ -52,6 +62,13 @@ eventsHandler.post("/:id/register", async (req, res) => {
   if (existing) {
     throw new AppError("Already registered for this event", 409);
   }
+
+  const numRegistrations = await prisma.registration.count({
+    where: { eventId: event.id, paid: true },
+  });
+
+  if (numRegistrations >= event.maxSignUps)
+    throw new AppError("This event is full", 403);
 
   const { shirtSize, swimming, selfPay, medications, allergies } = req.body;
 
@@ -93,7 +110,7 @@ eventsHandler.get("/:id", async (req, res) => {
   const event = await prisma.event.findUnique({
     where: { id: req.params.id },
     include: {
-      _count: { select: { registrations: true } },
+      _count: { select: { registrations: { where: { paid: true } } } },
     },
   });
 
@@ -152,6 +169,7 @@ eventsHandler.get("/:id", async (req, res) => {
     location: event.location,
     price: event.price,
     schedule: event.schedule,
+    status: statusMap[event.eventStatus] || "closed",
     user,
   };
 

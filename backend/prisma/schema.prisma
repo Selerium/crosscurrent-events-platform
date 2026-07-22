@@ -44,12 +44,15 @@ model Profile {
 
   name      String
   firstTime Boolean @default(true)
+  // idDocument  String?
+
+  approved Boolean @default(false)
+  approvedById String?
 
   role        Role?    @default(STUDENT)
   gender      Gender?
   dob         DateTime?
   nationality String?
-  // idDocument  String?
   phone       String?
 
   parentOneName  String?
