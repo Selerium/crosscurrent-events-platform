@@ -59,9 +59,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
+  // const cookieStore = await cookies();
   // const theme = parseTheme(cookieStore.get(THEME_COOKIE)?.value);
-  const user = decodeUserFromCookie(cookieStore);
+  // const user = decodeUserFromCookie(cookieStore);
 
   return (
     <html
@@ -74,7 +74,7 @@ export default async function RootLayout({
         {/* <ThemeScript /> */}
         {/* <ThemeProvider initialTheme={theme}> */}
         <main>
-          <SiteHeader user={user} />
+          {/* <SiteHeader user={user} /> */}
           {children}
         </main>
         <Toaster position="top-center" duration={5000} />
