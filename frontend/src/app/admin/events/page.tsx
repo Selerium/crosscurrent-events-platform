@@ -1,60 +1,89 @@
 "use client";
 
-import { CalendarDays, Edit3, Plus, Search, Users } from "lucide-react";
+import { CalendarDays, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import {
   currencyFormatter,
   formatEventDate,
   type AdminEvent,
   type EventStatus,
+  type PaginatedResponse,
 } from "../data";
 import api from "@/lib/axios";
 
 type StatusFilter = "all" | EventStatus;
 type DateSort = "soonest" | "latest";
 
-export default function AdminEventsPage() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [dateSort, setDateSort] = useState<DateSort>("soonest");
-  const [events, setEvents] = useState<AdminEvent[]>([]);
+function EventsContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const page = Number(searchParams.get("page") || "1");
+  const search = searchParams.get("search") || "";
+  const status = searchParams.get("status") || "all";
+  const sort = (searchParams.get("sort") || "soonest") as DateSort;
+
+  const [localSearch, setLocalSearch] = useState(search);
+  const [data, setData] = useState<PaginatedResponse<AdminEvent> | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
-    api.get("/admin/events")
-      .then((res) => setEvents(res.data.data))
+    setLocalSearch(search);
+  }, [search]);
+
+  useEffect(() => {
+    if (localSearch === search) return;
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      if (localSearch) {
+        params.set("search", localSearch);
+      } else {
+        params.delete("search");
+      }
+      params.delete("page");
+      router.replace(`${pathname}?${params.toString()}`);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, search, router, pathname]);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", "15");
+    if (search) params.set("search", search);
+    if (status !== "all") params.set("status", status);
+    params.set("sort", sort);
+
+    api.get(`/admin/events?${params.toString()}`)
+      .then((res) => setData(res.data))
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
+  }, [page, search, status, sort]);
 
-    if (typeof events === "undefined") setFetchError(true);
-  }, []);
+  function setParam(key: string, value: string) {
+    const params = new URLSearchParams(window.location.search);
+    if (value && value !== "all") {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    params.delete("page");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
 
-  const filteredEvents = useMemo(() => {
-    if (typeof events === "undefined") return [];
-    return events
-      .filter((event) => {
-        const matchesSearch = [event.name, event.brief, event.location]
-          .join(" ")
-          .toLowerCase()
-          .includes(search.toLowerCase());
-        const matchesStatus =
-          statusFilter === "all" || event.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-      .sort((first, second) => {
-        const firstDate = new Date(first.startDate).getTime();
-        const secondDate = new Date(second.startDate).getTime();
-
-        return dateSort === "soonest"
-          ? firstDate - secondDate
-          : secondDate - firstDate;
-      });
-  }, [dateSort, search, statusFilter, events]);
+  function setPage(newPage: number) {
+    const params = new URLSearchParams(window.location.search);
+    params.set("page", String(newPage));
+    router.replace(`${pathname}?${params.toString()}`);
+  }
 
   return (
     <main className="min-h-full bg-background px-4 py-8 sm:px-6 lg:px-8">
@@ -82,27 +111,27 @@ export default function AdminEventsPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 className="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(e) => setLocalSearch(e.target.value)}
                 placeholder="Search events"
                 type="search"
-                value={search}
+                value={localSearch}
               />
             </label>
 
             <div className="grid grid-cols-4 rounded-lg border bg-background p-1">
               {(["all", "active", "closed", "completed"] as StatusFilter[]).map(
-                (status) => (
+                (s) => (
                   <button
                     className={`h-8 rounded-md px-3 text-sm font-medium capitalize transition-colors ${
-                      statusFilter === status
+                      status === s
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
+                    key={s}
+                    onClick={() => setParam("status", s)}
                     type="button"
                   >
-                    {status}
+                    {s}
                   </button>
                 ),
               )}
@@ -110,8 +139,8 @@ export default function AdminEventsPage() {
 
             <select
               className="h-10 rounded-lg border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/30"
-              onChange={(event) => setDateSort(event.target.value as DateSort)}
-              value={dateSort}
+              onChange={(e) => setParam("sort", e.target.value)}
+              value={sort}
             >
               <option value="soonest">Date: soonest first</option>
               <option value="latest">Date: latest first</option>
@@ -119,16 +148,24 @@ export default function AdminEventsPage() {
           </div>
         </section>
 
+        {data && data.total > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Showing {((data.page - 1) * data.limit) + 1}
+            &ndash;{Math.min(data.page * data.limit, data.total)} of{" "}
+            {data.total}
+          </p>
+        )}
+
         <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
           {loading ? (
             <p className="p-4 text-muted-foreground">Loading...</p>
           ) : fetchError ? (
             <p className="p-4 text-muted-foreground">No data available</p>
-          ) : filteredEvents.length === 0 ? (
+          ) : !data || data.data.length === 0 ? (
             <p className="p-4 text-muted-foreground">No events found</p>
           ) : (
             <div className="divide-y">
-              {filteredEvents.map((event) => (
+              {data.data.map((event) => (
                 <div
                   className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center"
                   key={event.id}
@@ -186,7 +223,29 @@ export default function AdminEventsPage() {
             </div>
           )}
         </section>
+
+        {data && data.totalPages > 1 && (
+          <Pagination
+            page={data.page}
+            totalPages={data.totalPages}
+            onPageChange={setPage}
+          />
+        )}
       </div>
     </main>
+  );
+}
+
+export default function AdminEventsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-4 sm:px-6">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      }
+    >
+      <EventsContent />
+    </Suspense>
   );
 }

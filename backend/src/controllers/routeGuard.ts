@@ -5,8 +5,10 @@ import profileHandler from "./postAuth/profile.ts";
 import firstTimeHandler from "./postAuth/firstTime.ts";
 import eventsHandler from "./events.ts";
 import churchHandler from "./churches.ts";
+import paymentsHandler from "./postAuth/payments.ts";
 import adminEventsHandler from "./admin/events.ts";
 import adminChurchesHandler from "./admin/churches.ts";
+import adminProfilesHandler from "./admin/profiles.ts";
 import checkTokens from "../middleware/checkTokens.ts";
 import requireAdmin from "../middleware/requireAdmin.ts";
 
@@ -16,6 +18,7 @@ const adminRouter = express.Router();
 adminRouter.use(requireAdmin);
 adminRouter.use('/events', adminEventsHandler);
 adminRouter.use('/churches', adminChurchesHandler);
+adminRouter.use('/profiles', adminProfilesHandler);
 
 protectedRouter.use(checkTokens)
 protectedRouter.use('/me', meHandler)
@@ -24,6 +27,7 @@ protectedRouter.use('/profile', profileHandler)
 protectedRouter.use('/profile/first-time', firstTimeHandler)
 protectedRouter.use('/churches', churchHandler)
 protectedRouter.use('/events', eventsHandler)
+protectedRouter.use('/payments', paymentsHandler)
 protectedRouter.use('/admin', adminRouter)
 
 export default protectedRouter;

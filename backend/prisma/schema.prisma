@@ -46,10 +46,10 @@ model Profile {
   firstTime Boolean @default(true)
   // idDocument  String?
 
-  approved Boolean @default(false)
+  approved     Boolean @default(false)
   approvedById String?
 
-  role        Role?    @default(STUDENT)
+  role        Role?     @default(STUDENT)
   gender      Gender?
   dob         DateTime?
   nationality String?
@@ -103,7 +103,8 @@ model Registration {
   room        String?
   group       String?
 
-  paid Boolean
+  paid           Boolean
+  paymentSession String?
 }
 
 model Event {
@@ -112,7 +113,7 @@ model Event {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  eventStatus     EventStatus @default(OPEN)
+  eventStatus    EventStatus @default(OPEN)
   startDate      DateTime
   endDate        DateTime
   name           String

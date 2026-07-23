@@ -76,17 +76,59 @@ adminEventsHandler.patch("/:id", async (req, res) => {
 });
 
 adminEventsHandler.get("", async (req, res) => {
-  const events = await prisma.event.findMany({
-    include: {
-      _count: { select: { registrations: true } },
-      registrations: {
-        select: { paid: true },
-      },
-    },
-    orderBy: { startDate: "asc" },
-  });
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 15));
+  const search = (req.query.search as string) || "";
+  const status = (req.query.status as string) || "";
+  const sort = (req.query.sort as string) || "soonest";
 
-  const data = events.map((e) => {
+  const where: Record<string, unknown> = {};
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { brief: { contains: search, mode: "insensitive" } },
+      { location: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  if (status && status !== "all") {
+    const statusReverse: Record<string, string> = { active: "OPEN", closed: "CLOSED", completed: "COMPLETED" };
+    where.eventStatus = statusReverse[status] || status;
+  }
+
+  const orderBy = { startDate: sort === "latest" ? "desc" as const : "asc" as const };
+
+  const [total, events] = await Promise.all([
+    prisma.event.count({ where }),
+    prisma.event.findMany({
+      where,
+      skip: (Math.min(page, Math.max(1, Math.ceil(1))) - 1) * limit,
+      take: limit,
+      include: {
+        _count: { select: { registrations: true } },
+        registrations: { select: { paid: true } },
+      },
+      orderBy,
+    }),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const effectivePage = Math.min(page, totalPages);
+  const skipped = (effectivePage - 1) * limit;
+
+  const pagedEvents = effectivePage !== page
+    ? await prisma.event.findMany({
+        where,
+        skip: skipped,
+        take: limit,
+        include: {
+          _count: { select: { registrations: true } },
+          registrations: { select: { paid: true } },
+        },
+        orderBy,
+      })
+    : events;
+
+  const data = pagedEvents.map((e) => {
     const paidCount = e.registrations.filter((r) => r.paid).length;
     return {
       id: e.id,
@@ -106,7 +148,7 @@ adminEventsHandler.get("", async (req, res) => {
     };
   });
 
-  res.status(200).json({ data, error: false, message: "" });
+  res.status(200).json({ data, total, page: effectivePage, limit, totalPages, error: false, message: "" });
 });
 
 adminEventsHandler.get("/:id", async (req, res) => {

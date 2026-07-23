@@ -7,10 +7,12 @@ import registerHandler from "./controllers/register.ts";
 import loginHandler from "./controllers/login.ts";
 import errorHandler from "./middleware/errorHandler.ts";
 import protectedRouter from "./controllers/routeGuard.ts";
+import webhookHandler from "./controllers/webhook.ts";
 import { prisma } from "./lib/prismaClient.ts";
 
 const app = express();
 
+app.use("/api/webhooks", webhookHandler);
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({

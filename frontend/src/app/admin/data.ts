@@ -1,3 +1,11 @@
+export type PaginatedResponse<T> = {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
 export type EventStatus = "active" | "closed" | "completed";
 
 export type AdminEvent = {
@@ -21,6 +29,43 @@ export type AdminEvent = {
     endTime: string;
     location: string;
   }[][];
+};
+
+export type ProfileRecord = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  gender: string;
+  nationality: string;
+  approved: boolean;
+  primaryForChurch: boolean;
+  churchName: string;
+  registrations: number;
+};
+
+export type ProfileDetail = ProfileRecord & {
+  dob: string;
+  firstTime: boolean;
+  church: { id: string; name: string } | null;
+  parentOneName: string;
+  parentOneEmail: string;
+  parentOnePhone: string;
+  registrations: {
+    id: string;
+    paid: boolean;
+    shirtSize: string;
+    swimming: boolean;
+    selfPay: boolean;
+    createdAt: string;
+    event: {
+      id: string;
+      name: string;
+      startDate: string;
+      endDate: string;
+    };
+  }[];
 };
 
 export type ChurchRecord = {

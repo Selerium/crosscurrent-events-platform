@@ -3,8 +3,10 @@
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useEffect, useState } from "react";
 import { redirect } from "next/navigation";
+import { toast } from "sonner";
 
 type ProfileData = {
   createdAt: string;
@@ -39,6 +41,12 @@ export default function Profile() {
     parentOnePhone: "",
   });
 
+  const [passwordModal, setPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: "", newPassword: "", confirm: "" });
+
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailForm, setEmailForm] = useState({ current: "", newEmail: "" });
+
   useEffect(() => {
     const fetchProfile = async () => {
       const res = await api.get("/profile");
@@ -64,6 +72,50 @@ export default function Profile() {
       const res = await api.get("/profile");
       setProfile(res.data.data);
       setEditMode(false);
+    }
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (!passwordForm.current || !passwordForm.newPassword || !passwordForm.confirm) {
+      toast.warning("Please fill out all fields.");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      toast.warning("New password must be at least 8 characters.");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirm) {
+      toast.warning("New passwords do not match.");
+      return;
+    }
+    try {
+      await api.put("/profile/password", {
+        currentPassword: passwordForm.current,
+        newPassword: passwordForm.newPassword,
+      });
+      toast.success("Password updated.");
+      setPasswordModal(false);
+      setPasswordForm({ current: "", newPassword: "", confirm: "" });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update password.");
+    }
+  };
+
+  const handleEmailSubmit = async () => {
+    if (!emailForm.current || !emailForm.newEmail) {
+      toast.warning("Please fill out all fields.");
+      return;
+    }
+    try {
+      await api.put("/profile/email", {
+        currentPassword: emailForm.current,
+        newEmail: emailForm.newEmail,
+      });
+      toast.success("Email updated.");
+      setEmailModal(false);
+      setEmailForm({ current: "", newEmail: "" });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update email.");
     }
   };
 
@@ -239,13 +291,19 @@ export default function Profile() {
                   <p className="font-bold">Account Settings</p>
                   <div className="flex items-center gap-2">
                     <p className="min-w-72 w-1/2">Change your password</p>
-                    <Button className="justify-center min-w-72 w-1/2">
+                    <Button
+                      className="justify-center min-w-72 w-1/2"
+                      onClick={() => setPasswordModal(true)}
+                    >
                       Reset Password
                     </Button>
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="min-w-72 w-1/2">Change your email</p>
-                    <Button className="justify-center min-w-72 w-1/2">
+                    <Button
+                      className="justify-center min-w-72 w-1/2"
+                      onClick={() => setEmailModal(true)}
+                    >
                       Reset Email
                     </Button>
                   </div>
@@ -255,6 +313,76 @@ export default function Profile() {
           )}
         </div>
       </div>
+
+      {passwordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
+            <h3 className="text-lg font-bold mb-4">Reset Password</h3>
+            <div className="flex flex-col gap-3">
+              <PasswordInput
+                placeholder="Current password"
+                value={passwordForm.current}
+                onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+              />
+              <PasswordInput
+                placeholder="New password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+              />
+              <PasswordInput
+                placeholder="Confirm new password"
+                value={passwordForm.confirm}
+                onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPasswordModal(false);
+                  setPasswordForm({ current: "", newPassword: "", confirm: "" });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handlePasswordSubmit}>Save</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {emailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
+            <h3 className="text-lg font-bold mb-4">Reset Email</h3>
+            <div className="flex flex-col gap-3">
+              <PasswordInput
+                placeholder="Current password"
+                value={emailForm.current}
+                onChange={(e) => setEmailForm({ ...emailForm, current: e.target.value })}
+              />
+              <Input
+                type="email"
+                placeholder="New email"
+                value={emailForm.newEmail}
+                onChange={(e) => setEmailForm({ ...emailForm, newEmail: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEmailModal(false);
+                  setEmailForm({ current: "", newEmail: "" });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleEmailSubmit}>Save</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

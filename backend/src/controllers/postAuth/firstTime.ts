@@ -23,6 +23,10 @@ firstTimeHandler.post("", async (req, res) => {
     throw new AppError("Missing required fields", 400);
   }
 
+  if (role !== "STUDENT" && role !== "LEADER") {
+    throw new AppError("Invalid role", 400);
+  }
+
   if (churchId) {
     const church = await prisma.church.findUnique({ where: { id: churchId } });
     if (!church) {

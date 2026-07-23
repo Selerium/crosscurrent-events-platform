@@ -5,6 +5,7 @@ import { AuthDivider } from "@/components/auth/AuthDivider";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { submitRegisterForm } from "@/actions/registerForm";
 import { toast } from "sonner"
@@ -71,11 +72,10 @@ export function RegisterForm() {
 
         <div>
           <Label htmlFor="password">Password</Label>
-          <Input
+          <PasswordInput
             {...register("password", { required: true })}
             id="password"
             name="password"
-            type="password"
             autoComplete="new-password"
             placeholder="At least 8 characters"
             minLength={8}
@@ -85,11 +85,10 @@ export function RegisterForm() {
 
         <div>
           <Label htmlFor="confirmPassword">Confirm password</Label>
-          <Input
+          <PasswordInput
             {...register("confirmPassword", { required: true })}
             id="confirmPassword"
             name="confirmPassword"
-            type="password"
             autoComplete="new-password"
             placeholder="Repeat your password"
             minLength={8}

@@ -12,7 +12,7 @@ import {
   XIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
@@ -151,13 +151,13 @@ function EditableListItem({
 export default function EventPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const searchParams = useSearchParams();
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [eventError, setEventError] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   const [expandID, setExpandID] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showUnregister, setShowUnregister] = useState(false);
+  const [showMerch, setShowMerch] = useState(false);
   const [medDraft, setMedDraft] = useState("");
   const [allergyDraft, setAllergyDraft] = useState("");
   const [userApproved, setUserApproved] = useState(true);
@@ -199,6 +199,9 @@ export default function EventPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let registerModal = new URLSearchParams(window.location.search).get(
+      "register"
+    );
     const load = async () => {
       const [meRes, eventData] = await Promise.all([
         api.get("/me").catch(() => null),
@@ -209,7 +212,7 @@ export default function EventPage() {
       setUserApproved(approved);
       if (
         approved &&
-        searchParams.get("register") === "true" &&
+        registerModal === "true" &&
         eventData &&
         !eventData.user &&
         eventData.signedUp < eventData.maxSignUps
@@ -225,6 +228,18 @@ export default function EventPage() {
       cancelled = true;
     };
   }, [params.id]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get("success");
+    setTimeout(() => {
+      if (success === "true") {
+        toast.success("Payment successful");
+      } else if (success === "false") {
+        toast.error("Payment could not be completed");
+      }
+    }, 0);
+  }, []);
 
   const onRegisterSubmit = async (data: RegistrationForm) => {
     try {
@@ -246,6 +261,23 @@ export default function EventPage() {
       await fetchEvent();
     } catch {
       toast.error("Could not unregister");
+    }
+  };
+
+  const onPay = async () => {
+    if (!userApproved) {
+      toast.warning(
+        "Your account needs to be approved before you can pay for events."
+      );
+      return;
+    }
+    try {
+      const res = await api.post(`/payments/create-session`, {
+        eventId: params.id,
+      });
+      window.location.href = res.data.data.url;
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Could not initiate payment");
     }
   };
 
@@ -308,7 +340,9 @@ export default function EventPage() {
             </div>
 
             <form
-              onSubmit={handleSubmit(onRegisterSubmit, () => toast.warning("Please fill out all fields"))}
+              onSubmit={handleSubmit(onRegisterSubmit, () =>
+                toast.warning("Please fill out all fields")
+              )}
               className="flex flex-col gap-4"
             >
               <div className="flex flex-col gap-2">
@@ -491,7 +525,8 @@ export default function EventPage() {
                 />
               </div>
 
-              <p className="font-bold">NOTE: {" "}
+              <p className="font-bold">
+                NOTE:{" "}
                 <span className="italic font-medium">
                   By submitting you acknowledge that your registration will not
                   be confirmed until payment is made.
@@ -532,6 +567,24 @@ export default function EventPage() {
               >
                 Unregister
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showMerch && (
+        <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
+          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-white gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-lg">Merchandise</span>
+              <button
+                onClick={() => setShowMerch(false)}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <div className="flex items-center justify-center p-8 text-muted-foreground">
+              No merchandise available for this event yet.
             </div>
           </div>
         </div>
@@ -661,16 +714,8 @@ export default function EventPage() {
               )}
               {eventData.user && !eventData.user.paid && (
                 <Button
-                  onClick={() => {
-                    if (!userApproved) {
-                      toast.warning(
-                        "Your account needs to be approved before you can pay for events."
-                      );
-                      return;
-                    }
-                  }}
+                  onClick={onPay}
                   className="w-full p-4 justify-center"
-                  variant="secondary"
                 >
                   PAY FOR EVENT
                 </Button>
@@ -701,7 +746,7 @@ export default function EventPage() {
                       );
                       return;
                     }
-                    toast.info("This feature is not available yet");
+                    setShowMerch(true);
                   }}
                   className="w-full p-4 justify-center"
                 >

@@ -6,6 +6,7 @@ import { AuthDivider } from "@/components/auth/AuthDivider";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -24,8 +25,6 @@ export function LoginForm() {
     try {
       const loginData = await api.post("/login", data);
       const userData = await api.get("/me");
-
-      console.log(userData);
 
       localStorage.setItem("id", userData["data"]["data"]["id"]);
       localStorage.setItem("name", userData["data"]["data"]["name"]);
@@ -78,10 +77,9 @@ export function LoginForm() {
               Forgot password?
             </Link>
           </div>
-          <Input
+          <PasswordInput
             {...register("password", { required: true })}
             id="password"
-            type="password"
             autoComplete="current-password"
             placeholder="Enter your password"
             required

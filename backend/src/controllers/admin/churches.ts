@@ -84,7 +84,37 @@ adminChurchesHandler.patch("/:id", async (req, res) => {
 });
 
 adminChurchesHandler.get("", async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 15));
+  const search = (req.query.search as string) || "";
+  const emirate = (req.query.emirate as string) || "";
+
+  const where: Record<string, unknown> = {};
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { state: { contains: search, mode: "insensitive" } },
+      { country: { contains: search, mode: "insensitive" } },
+      { members: { some: { name: { contains: search, mode: "insensitive" } } } },
+      { members: { some: { user: { email: { contains: search, mode: "insensitive" } } } } },
+    ];
+  }
+  if (emirate && emirate !== "all") {
+    where.state = emirate;
+  }
+
+  const [total, allEmirates] = await Promise.all([
+    prisma.church.count({ where }),
+    prisma.church.findMany({ select: { state: true }, distinct: ["state"], orderBy: { state: "asc" } }),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const effectivePage = Math.min(page, totalPages);
+
   const churches = await prisma.church.findMany({
+    where,
+    skip: (effectivePage - 1) * limit,
+    take: limit,
     include: {
       _count: { select: { members: true } },
       members: {
@@ -112,7 +142,7 @@ adminChurchesHandler.get("", async (req, res) => {
     };
   });
 
-  res.status(200).json({ data, error: false, message: "" });
+  res.status(200).json({ data, emirates: allEmirates.map((e) => e.state), total, page: effectivePage, limit, totalPages, error: false, message: "" });
 });
 
 adminChurchesHandler.get("/:id/members", async (req, res) => {

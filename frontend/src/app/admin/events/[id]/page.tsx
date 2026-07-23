@@ -66,6 +66,7 @@ export default function AdminEventPage() {
   const [editEndDate, setEditEndDate] = useState<Date | null>(null);
   const [editLocation, setEditLocation] = useState("");
   const [editPrice, setEditPrice] = useState(0);
+  const [editMaxSignUps, setEditMaxSignUps] = useState(0);
   const [editSchedule, setEditSchedule] = useState<ScheduleItem[][]>([[]]);
   const [saving, setSaving] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
@@ -94,6 +95,7 @@ export default function AdminEventPage() {
     setEditEndDate(new Date(eventInfo.endDate));
     setEditLocation(eventInfo.location);
     setEditPrice(eventInfo.price);
+    setEditMaxSignUps(eventInfo.capacity);
     setEditSchedule(
       eventInfo.schedule.length > 0
         ? eventInfo.schedule.map((day) =>
@@ -172,6 +174,7 @@ export default function AdminEventPage() {
         endDate: editEndDate.toISOString(),
         location: editLocation,
         price: editPrice,
+        maxSignUps: editMaxSignUps,
         schedule: editSchedule,
       });
       setEventInfo({
@@ -182,6 +185,7 @@ export default function AdminEventPage() {
         endDate: editEndDate.toISOString(),
         location: editLocation,
         price: editPrice,
+        capacity: editMaxSignUps,
         schedule: editSchedule,
       });
       setEditing(false);
@@ -486,6 +490,16 @@ export default function AdminEventPage() {
                     min={0}
                     value={editPrice}
                     onChange={(e) => setEditPrice(Number(e.target.value))}
+                  />
+                </div>
+                <div className="flex flex-col gap-2 rounded-lg border p-4">
+                  <Label htmlFor="edit-max-signups">Max Sign Ups</Label>
+                  <Input
+                    id="edit-max-signups"
+                    type="number"
+                    min={0}
+                    value={editMaxSignUps}
+                    onChange={(e) => setEditMaxSignUps(Number(e.target.value))}
                   />
                 </div>
               </>

@@ -116,6 +116,11 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                       Churches
                     </Link>
                   </Button>
+                  <Button asChild variant="ghost">
+                    <Link href="/admin/profiles">
+                      Profiles
+                    </Link>
+                  </Button>
                 </>
               ) : (
                 <Button asChild variant="ghost">
