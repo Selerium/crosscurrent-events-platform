@@ -5,4 +5,4 @@ WORKDIR /app
 COPY package*.json /app/
 RUN npm install
 
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "npx prisma generate && for i in $(seq 1 30); do npx prisma migrate deploy && break; echo \"Waiting for database... ($i/30)\"; sleep 2; done && (node prisma/main_seed.ts || echo \"Seed already applied, skipping\") && npm run dev"]

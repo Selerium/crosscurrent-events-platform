@@ -31,6 +31,8 @@ webhookHandler.post(
       );
     }
 
+    res.status(200).json({ received: true });
+
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
@@ -45,8 +47,6 @@ webhookHandler.post(
         });
       }
     }
-
-    res.status(200).json({ received: true });
   }
 );
 
