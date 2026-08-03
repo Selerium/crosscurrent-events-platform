@@ -68,7 +68,7 @@ export default function FirstTime() {
   async function submitForm(formData: FirstTimeFormData) {
     const data = await api.post("/profile/first-time", formData);
     localStorage.setItem("firstTime", data.data.data.firstTime);
-    localStorage.setItem("role", data.data.data.role)
+    localStorage.setItem("role", data.data.data.role);
     router.push("/dashboard");
   }
 
@@ -89,7 +89,7 @@ export default function FirstTime() {
       acc[key].push(church);
       return acc;
     },
-    {},
+    {}
   );
 
   function ErrorText({ error }: { error?: string }) {
@@ -103,7 +103,9 @@ export default function FirstTime() {
       <div className="w-full max-w-2xl min-w-72 p-4 flex flex-col gap-4 rounded-lg border shadow-md">
         <h1 className="font-bold text-2xl">Fill up your profile</h1>
         <form
-          onSubmit={handleSubmit(submitForm, () => toast.warning("Please fill out all fields"))}
+          onSubmit={handleSubmit(submitForm, () =>
+            toast.warning("Please fill out all fields")
+          )}
           className="flex flex-col gap-4"
         >
           <div className="flex flex-col gap-2">
@@ -206,7 +208,10 @@ export default function FirstTime() {
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="churchId">
-              Church <ErrorText error={formState.errors.churchId?.message} />
+              {
+                'Church (if yours is unavailable, choose "Other" and we will get in touch with you)'
+              }{" "}
+              <ErrorText error={formState.errors.churchId?.message} />
             </Label>
             <Controller
               name="churchId"
@@ -219,7 +224,12 @@ export default function FirstTime() {
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(groupedChurches).map(([state, list]) => (
-                      <SelectGroup key={state} className={state === "Other" ? 'order-last' : 'order-first'}>
+                      <SelectGroup
+                        key={state}
+                        className={
+                          state === "Other" ? "order-last" : "order-first"
+                        }
+                      >
                         <SelectLabel>{state}</SelectLabel>
                         {list.map((church) => (
                           <SelectItem key={church.id} value={church.id}>
