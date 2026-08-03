@@ -219,7 +219,7 @@ export default function FirstTime() {
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(groupedChurches).map(([state, list]) => (
-                      <SelectGroup key={state}>
+                      <SelectGroup key={state} className={state === "Other" ? 'order-last' : 'order-first'}>
                         <SelectLabel>{state}</SelectLabel>
                         {list.map((church) => (
                           <SelectItem key={church.id} value={church.id}>
