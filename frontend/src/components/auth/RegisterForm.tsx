@@ -1,8 +1,6 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { AuthDivider } from "@/components/auth/AuthDivider";
-import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -28,8 +26,8 @@ export function RegisterForm() {
     try {
       const registerData = await api.post("/register", data);
 
-      toast.success("Registered user successfully", {
-        description: "Redirecting to login...",
+      toast.success("Account created", {
+        description: "Check your email to verify your account",
       });
       setTimeout(() => {
         router.push("/login");
@@ -105,9 +103,6 @@ export function RegisterForm() {
           Create account
         </Button>
       </form>
-
-      <AuthDivider />
-      <OAuthButtons />
     </>
   );
 }

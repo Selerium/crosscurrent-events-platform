@@ -27,6 +27,9 @@ model User {
   deletedAt DateTime?
 
   email         String          @unique
+  emailVerified Boolean         @default(false)
+  emailVerificationToken String?
+  emailVerificationTokenExpiresAt DateTime?
   password      String
   refreshTokens RefreshTokens[]
 
@@ -64,6 +67,7 @@ model Profile {
   primaryForChurch Boolean @default(false)
 
   registrations Registration[]
+  spouseOf      Registration[] @relation("RegistrationSpouse")
 }
 
 model Church {
@@ -102,6 +106,18 @@ model Registration {
   selfPay     Boolean
   room        String?
   group       String?
+
+  spouseId           String?
+  spouse             Profile?            @relation("RegistrationSpouse", fields: [spouseId], references: [id], onDelete: SetNull)
+  primaryLeaderRole  PrimaryLeaderRoles?
+  secondaryLeaderRoles SecondaryLeaderRoles[]
+
+  mediaConsent Boolean @default(false)
+  swimmingPermission Boolean @default(false)
+  emergencyName  String?
+  emergencyPhone String?
+  notes          String?
+  safeguardingDoc String?
 
   paid           Boolean
   paymentSession String?
@@ -153,4 +169,20 @@ enum EventStatus {
   OPEN
   CLOSED
   COMPLETED
+}
+
+enum PrimaryLeaderRoles {
+  SMALL_GROUP_LEADER
+  SECURITY_TEAM
+  TECH_TEAM
+}
+
+enum SecondaryLeaderRoles {
+  FLOOR_LEADER
+  GAME_STATION_LEADER
+  COLOR_TEAM_LEADER
+  MEDIA
+  PRAYER_TEAM
+  REGISTRATION
+  MEDICAL_AND_SAFEGUARDING
 }

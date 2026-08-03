@@ -50,6 +50,14 @@ type Participant = {
   selfPay: boolean;
   medications: string[];
   allergies: string[];
+  spouse: string;
+  mediaConsent: boolean;
+  swimmingPermission: boolean;
+  emergencyName: string;
+  emergencyPhone: string;
+  notes: string;
+  primaryLeaderRole: string;
+  secondaryLeaderRoles: string[];
 };
 
 export default function AdminEventPage() {
@@ -578,7 +586,41 @@ export default function AdminEventPage() {
                       {p.phone && <span>{p.phone}</span>}
                       <span>Shirt: {p.shirtSize}</span>
                       <span>Swimming: {p.swimming ? "Yes" : "No"}</span>
+                      <span>Swim Permit: {p.swimmingPermission ? "Yes" : "No"}</span>
+                      <span>Media: {p.mediaConsent ? "Yes" : "No"}</span>
+                      {p.spouse && <span>Spouse: {p.spouse}</span>}
+                      {p.emergencyName && (
+                        <span>
+                          Emergency: {p.emergencyName}
+                          {p.emergencyPhone && ` (${p.emergencyPhone})`}
+                        </span>
+                      )}
+                      {p.notes && <span>Notes: {p.notes}</span>}
                     </div>
+                    {p.primaryLeaderRole && (
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span>
+                          Primary:{" "}
+                          {p.primaryLeaderRole
+                            .replace(/_/g, " ")
+                            .toLowerCase()
+                            .replace(/\b\w/g, (c) => c.toUpperCase())}
+                        </span>
+                        {p.secondaryLeaderRoles.length > 0 && (
+                          <span>
+                            Secondary:{" "}
+                            {p.secondaryLeaderRoles
+                              .map((r) =>
+                                r
+                                  .replace(/_/g, " ")
+                                  .toLowerCase()
+                                  .replace(/\b\w/g, (c) => c.toUpperCase())
+                              )
+                              .join(", ")}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {(p.medications.length > 0 || p.allergies.length > 0) && (
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                         {p.medications.length > 0 && (

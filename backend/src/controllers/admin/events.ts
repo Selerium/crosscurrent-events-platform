@@ -207,6 +207,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
           church: { select: { name: true } },
         },
       },
+      spouse: { select: { name: true } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -222,6 +223,14 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
     selfPay: r.selfPay,
     medications: r.medications,
     allergies: r.allergies,
+    spouse: r.spouse?.name || "",
+    mediaConsent: r.mediaConsent,
+    swimmingPermission: r.swimmingPermission,
+    emergencyName: r.emergencyName || "",
+    emergencyPhone: r.emergencyPhone || "",
+    notes: r.notes || "",
+    primaryLeaderRole: r.primaryLeaderRole || "",
+    secondaryLeaderRoles: r.secondaryLeaderRoles,
   }));
 
   res.status(200).json({ data, error: false, message: "" });

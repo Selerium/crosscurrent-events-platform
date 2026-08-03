@@ -6,6 +6,7 @@ import firstTimeHandler from "./postAuth/firstTime.ts";
 import eventsHandler from "./events.ts";
 import churchHandler from "./churches.ts";
 import paymentsHandler from "./postAuth/payments.ts";
+import profilesHandler from "./postAuth/profiles.ts";
 import adminEventsHandler from "./admin/events.ts";
 import adminChurchesHandler from "./admin/churches.ts";
 import adminProfilesHandler from "./admin/profiles.ts";
@@ -28,6 +29,7 @@ protectedRouter.use('/profile/first-time', firstTimeHandler)
 protectedRouter.use('/churches', churchHandler)
 protectedRouter.use('/events', eventsHandler)
 protectedRouter.use('/payments', paymentsHandler)
+protectedRouter.use('/profiles', profilesHandler)
 protectedRouter.use('/admin', adminRouter)
 
 export default protectedRouter;

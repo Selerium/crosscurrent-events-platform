@@ -8,6 +8,7 @@ import {
   Clock,
   MapPin,
   Phone,
+  Upload,
   Users,
   XIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ type EventData = {
 
 type UserData = {
   approved: boolean;
+  role?: string;
 };
 
 type RegistrationForm = {
@@ -58,7 +60,31 @@ type RegistrationForm = {
   selfPay: boolean;
   medications: string[];
   allergies: string[];
+  spouseId: string;
+  primaryLeaderRole: string;
+  secondaryLeaderRoles: string[];
+  mediaConsent: boolean;
+  swimmingPermission: boolean;
+  emergencyName: string;
+  emergencyPhone: string;
+  notes: string;
 };
+
+const PRIMARY_LEADER_ROLES = [
+  { value: "SMALL_GROUP_LEADER", label: "Small Group Leader" },
+  { value: "SECURITY_TEAM", label: "Security Team" },
+  { value: "TECH_TEAM", label: "Tech Team" },
+];
+
+const SECONDARY_LEADER_ROLES = [
+  { value: "FLOOR_LEADER", label: "Floor Leader" },
+  { value: "GAME_STATION_LEADER", label: "Game Station Leader" },
+  { value: "COLOR_TEAM_LEADER", label: "Color Team Leader" },
+  { value: "MEDIA", label: "Media" },
+  { value: "PRAYER_TEAM", label: "Prayer Team" },
+  { value: "REGISTRATION", label: "Registration" },
+  { value: "MEDICAL_AND_SAFEGUARDING", label: "Medical & Safeguarding" },
+];
 
 type EditableListItemProps = {
   value: string;
@@ -148,6 +174,108 @@ function EditableListItem({
   );
 }
 
+type SpouseOption = {
+  id: string;
+  name: string;
+  church: string;
+};
+
+type SpousePickerProps = {
+  onChange: (id: string) => void;
+};
+
+function SpousePicker({ onChange }: SpousePickerProps) {
+  const [query, setQuery] = useState("");
+  const [options, setOptions] = useState<SpouseOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<SpouseOption | null>(null);
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setOptions([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await api.get("/profiles/search", {
+          params: { q: query.trim() },
+        });
+        setOptions(res.data.data || []);
+      } catch {
+        setOptions([]);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const select = (opt: SpouseOption) => {
+    setSelected(opt);
+    setQuery(opt.name);
+    setOpen(false);
+    onChange(opt.id);
+  };
+
+  const clear = () => {
+    setSelected(null);
+    setQuery("");
+    setOpen(false);
+    onChange("");
+  };
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-transparent px-3.5 py-2.5">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Search for a name..."
+          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
+        {selected && (
+          <button
+            type="button"
+            onClick={clear}
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+          >
+            <XIcon width={16} height={16} />
+          </button>
+        )}
+      </div>
+      {open && query.trim() && options.length === 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-muted-foreground shadow-lg">
+          No matching profiles
+        </div>
+      )}
+      {open && options.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border bg-white shadow-lg">
+          {options.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => select(opt)}
+              className="w-full cursor-pointer px-3.5 py-2.5 text-left text-sm hover:bg-neutral-100"
+            >
+              <span className="font-semibold">{opt.name}</span>
+              {opt.church && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {opt.church}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EventPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -161,6 +289,8 @@ export default function EventPage() {
   const [medDraft, setMedDraft] = useState("");
   const [allergyDraft, setAllergyDraft] = useState("");
   const [userApproved, setUserApproved] = useState(true);
+  const [userRole, setUserRole] = useState("");
+  const [safeguardingFile, setSafeguardingFile] = useState<File | null>(null);
   const { control, handleSubmit, reset } = useForm<RegistrationForm>({
     defaultValues: {
       shirtSize: "",
@@ -168,6 +298,14 @@ export default function EventPage() {
       selfPay: false,
       medications: [],
       allergies: [],
+      spouseId: "",
+      primaryLeaderRole: "",
+      secondaryLeaderRoles: [],
+      mediaConsent: false,
+      swimmingPermission: false,
+      emergencyName: "",
+      emergencyPhone: "",
+      notes: "",
     },
   });
 
@@ -209,7 +347,9 @@ export default function EventPage() {
       ]);
       if (cancelled) return;
       const approved = meRes?.data?.data?.approved ?? false;
+      const role = meRes?.data?.data?.role ?? "";
       setUserApproved(approved);
+      setUserRole(role);
       if (
         approved &&
         registerModal === "true" &&
@@ -242,14 +382,43 @@ export default function EventPage() {
   }, []);
 
   const onRegisterSubmit = async (data: RegistrationForm) => {
+    if (userRole === "LEADER" && !safeguardingFile) {
+      toast.warning("Please upload your Safeguarding/DBS certificate");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("shirtSize", data.shirtSize);
+    formData.append("swimming", String(data.swimming));
+    formData.append("selfPay", String(data.selfPay));
+    data.medications.forEach((m) => formData.append("medications", m));
+    data.allergies.forEach((a) => formData.append("allergies", a));
+    if (data.spouseId) formData.append("spouseId", data.spouseId);
+    if (data.primaryLeaderRole)
+      formData.append("primaryLeaderRole", data.primaryLeaderRole);
+    data.secondaryLeaderRoles.forEach((r) =>
+      formData.append("secondaryLeaderRoles", r)
+    );
+    formData.append("mediaConsent", String(data.mediaConsent));
+    formData.append("swimmingPermission", String(data.swimmingPermission));
+    if (data.emergencyName) formData.append("emergencyName", data.emergencyName);
+    if (data.emergencyPhone)
+      formData.append("emergencyPhone", data.emergencyPhone);
+    if (data.notes) formData.append("notes", data.notes);
+    if (safeguardingFile)
+      formData.append("safeguardingDoc", safeguardingFile);
     try {
-      await api.post(`/events/${params.id}/register`, data);
+      await api.post(`/events/${params.id}/register`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       toast.success("Registration submitted");
       setShowRegister(false);
       reset();
+      setSafeguardingFile(null);
       await fetchEvent();
-    } catch {
-      toast.error("Could not submit registration");
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message || "Could not submit registration"
+      );
     }
   };
 
@@ -332,6 +501,7 @@ export default function EventPage() {
                 onClick={() => {
                   setShowRegister(false);
                   reset();
+                  setSafeguardingFile(null);
                 }}
                 className="cursor-pointer"
               >
@@ -398,6 +568,34 @@ export default function EventPage() {
                   )}
                 />
               </div>
+
+              {userRole === "STUDENT" && (
+                <div className="flex flex-col gap-2">
+                  <span className="font-bold">
+                    Swimming Permission{" "}
+                    <span className="font-medium text-muted-foreground italic">
+                      (required for students)
+                    </span>
+                  </span>
+                  <Controller
+                    name="swimmingPermission"
+                    control={control}
+                    render={({ field }) => (
+                      <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="w-4 h-4 accent-neutral-600"
+                        />
+                        <span>
+                          I am allowed to participate in swimming activities
+                        </span>
+                      </label>
+                    )}
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <span className="font-bold">
@@ -475,7 +673,7 @@ export default function EventPage() {
 
               <div className="flex flex-col gap-2">
                 <span className="font-bold">
-                  Allergies{" "}
+                  Allergies/Dietary Restrictions{" "}
                   <span className="font-medium text-muted-foreground italic">
                     (press Enter to add)
                   </span>
@@ -521,6 +719,241 @@ export default function EventPage() {
                         className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
                       />
                     </div>
+                  )}
+                />
+              </div>
+
+              {userRole === "LEADER" && (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold">
+                      Spouse{" "}
+                      <span className="font-medium text-muted-foreground italic">
+                        (optional - search and select your spouse if they have
+                        signed up)
+                      </span>
+                    </span>
+                    <Controller
+                      name="spouseId"
+                      control={control}
+                      render={({ field }) => (
+                        <SpousePicker onChange={field.onChange} />
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold">Primary Leader Role</span>
+                    <Controller
+                      name="primaryLeaderRole"
+                      control={control}
+                      rules={{ required: "Please select a primary leader role" }}
+                      render={({ field }) => (
+                        <div className="flex flex-wrap gap-2">
+                          {PRIMARY_LEADER_ROLES.map((role) => (
+                            <button
+                              key={role.value}
+                              type="button"
+                              onClick={() => field.onChange(role.value)}
+                              className={cn(
+                                "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
+                                field.value === role.value
+                                  ? "bg-neutral-600 text-white"
+                                  : "bg-neutral-100 hover:bg-neutral-200"
+                              )}
+                            >
+                              {role.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold">
+                      Secondary Leader Roles{" "}
+                      <span className="font-medium text-muted-foreground italic">
+                        (select exactly 3)
+                      </span>
+                    </span>
+                    <Controller
+                      name="secondaryLeaderRoles"
+                      control={control}
+                      rules={{
+                        validate: (v) =>
+                          v.length === 3 ||
+                          "Please select exactly three secondary leader roles",
+                      }}
+                      render={({ field }) => (
+                        <div className="flex flex-wrap gap-2">
+                          {SECONDARY_LEADER_ROLES.map((role) => {
+                            const selected = field.value.includes(role.value);
+                            const disabled =
+                              field.value.length >= 3 && !selected;
+                            return (
+                              <button
+                                key={role.value}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() => {
+                                  const next = selected
+                                    ? field.value.filter(
+                                        (r) => r !== role.value
+                                      )
+                                    : [...field.value, role.value];
+                                  field.onChange(next);
+                                }}
+                                className={cn(
+                                  "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
+                                  disabled &&
+                                    "opacity-40 cursor-not-allowed",
+                                  selected
+                                    ? "bg-neutral-600 text-white"
+                                    : "bg-neutral-100 hover:bg-neutral-200"
+                                )}
+                              >
+                                {role.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold">
+                      Safeguarding/DBS Certificate{" "}
+                      <span className="font-medium text-muted-foreground italic">
+                        (PDF, required)
+                      </span>
+                    </span>
+                    {safeguardingFile ? (
+                      <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3.5 py-2.5">
+                        <span className="truncate text-sm">
+                          {safeguardingFile.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSafeguardingFile(null)}
+                          className="cursor-pointer text-muted-foreground hover:text-foreground"
+                        >
+                          <XIcon width={16} height={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border px-3.5 py-3 text-sm hover:bg-neutral-50">
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.type !== "application/pdf") {
+                              toast.error("Only PDF files are allowed");
+                              e.target.value = "";
+                              return;
+                            }
+                            if (file.size > 5 * 1024 * 1024) {
+                              toast.error("File is too large (max 5MB)");
+                              e.target.value = "";
+                              return;
+                            }
+                            setSafeguardingFile(file);
+                          }}
+                        />
+                        <Upload width={16} height={16} />
+                        <span className="text-muted-foreground">
+                          Upload PDF (Safeguarding/DBS certificate)
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">
+                  Media Consent{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    (optional)
+                  </span>
+                </span>
+                <Controller
+                  name="mediaConsent"
+                  control={control}
+                  render={({ field }) => (
+                    <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        className="w-4 h-4 accent-neutral-600"
+                      />
+                      <span>
+                        I consent to being recorded and photographed at the
+                        event
+                      </span>
+                    </label>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">
+                  Emergency Contact{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    (optional)
+                  </span>
+                </span>
+                <Controller
+                  name="emergencyName"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      type="text"
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Emergency contact name"
+                      className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                    />
+                  )}
+                />
+                <Controller
+                  name="emergencyPhone"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      type="text"
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Emergency contact number"
+                      className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="font-bold">
+                  Any Other Notes{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    (optional)
+                  </span>
+                </span>
+                <Controller
+                  name="notes"
+                  control={control}
+                  render={({ field }) => (
+                    <textarea
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Anything you want us to know..."
+                      rows={3}
+                      className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                    />
                   )}
                 />
               </div>

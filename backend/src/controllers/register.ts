@@ -1,9 +1,11 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import isEmail from "validator/lib/isEmail.js";
 import AppError from "../lib/appError.ts";
 import { prisma, Role } from "../lib/prismaClient.ts";
 import { Prisma } from "../../generated/prisma/client.ts";
+import { sendVerificationEmail } from "../lib/email.ts";
 
 const registerHandler = express.Router();
 
@@ -21,8 +23,9 @@ registerHandler.post("", async (req, res) => {
   else if (!isEmail(email)) throw new AppError("Invalid email address", 400);
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  let newUser: { id: string; email: string };
   try {
-    const newUser = await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         email: email,
         password: hashedPassword,
@@ -34,21 +37,48 @@ registerHandler.post("", async (req, res) => {
           },
         },
       },
-      include: {
-        profile: true,
+      select: {
+        id: true,
+        email: true,
       },
     });
-
-    res.status(200).json({
-      data: newUser,
-      message: "",
-      error: false,
-    });
+    newUser = created;
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError)
       if (e.code === "P2002") throw new AppError("Email already in use", 409);
     throw new AppError("Failed to create user", 400);
   }
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await prisma.user.update({
+    where: { id: newUser.id },
+    data: {
+      emailVerificationToken: tokenHash,
+      emailVerificationTokenExpiresAt: expiresAt,
+    },
+  });
+
+  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+
+  try {
+    await sendVerificationEmail(email, verificationUrl);
+  } catch (e) {
+    await prisma.profile.delete({ where: { userId: newUser.id } });
+    await prisma.user.delete({ where: { id: newUser.id } });
+    throw new AppError(
+      "Could not send verification email. Please try again.",
+      500
+    );
+  }
+
+  res.status(200).json({
+    data: { id: newUser.id, email: newUser.email },
+    message: "",
+    error: false,
+  });
 });
 
 export default registerHandler;

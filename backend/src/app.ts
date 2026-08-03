@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 
 import registerHandler from "./controllers/register.ts";
 import loginHandler from "./controllers/login.ts";
+import emailVerificationHandler from "./controllers/emailVerification.ts";
 import errorHandler from "./middleware/errorHandler.ts";
 import protectedRouter from "./controllers/routeGuard.ts";
 import webhookHandler from "./controllers/webhook.ts";
@@ -12,15 +13,18 @@ import { prisma } from "./lib/prismaClient.ts";
 
 const app = express();
 
-app.use("/api/webhooks", webhookHandler);
-app.use(express.json());
-app.use(cookieParser());
 app.use(cors({
   origin: process.env.FRONTEND_URL,
-  credentials: true
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-app.get("/api/test", (req, res) => {
+app.use("/webhooks", webhookHandler);
+app.use(express.json());
+app.use(cookieParser());
+
+app.get("/test", (req, res) => {
   res.json({
     data: req.body,
     message: "Backend connection works",
@@ -28,9 +32,10 @@ app.get("/api/test", (req, res) => {
   });
 });
 
-app.use("/api/register", registerHandler);
-app.use("/api/login", loginHandler);
-app.post("/api/logout", async (req, res) => {
+app.use("/register", registerHandler);
+app.use("/login", loginHandler);
+app.use("/verify-email", emailVerificationHandler);
+app.post("/logout", async (req, res) => {
   const refreshToken = req.cookies.refresh_token;
   if (refreshToken) {
     const storedTokens = await prisma.refreshTokens.findMany({
@@ -51,7 +56,7 @@ app.post("/api/logout", async (req, res) => {
   res.clearCookie("refresh_token", { path: "/" });
   res.json({ data: {}, message: "Logged out", error: false });
 });
-app.use("/api", protectedRouter)
+app.use("", protectedRouter)
 app.use(errorHandler);
 
 export default app;

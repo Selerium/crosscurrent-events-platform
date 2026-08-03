@@ -5,16 +5,12 @@ services:
     env_file:
       - ./config/.env.database
     volumes:
-      - ./data:/var/lib/postgresql/data
-    # ports:
-      # - 5432
+      - ./data:/var/lib/postgres/data
 
   backend:
     build: ./backend
     env_file:
       - ./config/.env.backend
-    # ports:
-      # - 3000:3000
     volumes:
       - ./backend:/app
     depends_on:

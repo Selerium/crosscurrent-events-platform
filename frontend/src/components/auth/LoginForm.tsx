@@ -1,9 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import api from "@/lib/axios";
-import { AuthDivider } from "@/components/auth/AuthDivider";
-import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -63,20 +60,7 @@ export function LoginForm() {
         </div>
 
         <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <Label htmlFor="password" className="mb-0">
-              Password
-            </Label>
-            <Link
-              href="#"
-              className="text-xs font-medium text-primary hover:text-primary-hover"
-              onClick={(e) => e.preventDefault()}
-              aria-disabled
-              title="Forgot password flow coming soon"
-            >
-              Forgot password?
-            </Link>
-          </div>
+          <Label htmlFor="password">Password</Label>
           <PasswordInput
             {...register("password", { required: true })}
             id="password"
@@ -94,9 +78,6 @@ export function LoginForm() {
           Sign in
         </Button>
       </form>
-
-      <AuthDivider />
-      <OAuthButtons />
     </>
   );
 }

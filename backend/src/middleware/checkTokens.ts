@@ -54,7 +54,11 @@ const checkTokens = async (req, res, next) => {
     });
 
     if (!user || !user.profile) {
-        throw new AppError("User not found", 401);
+      throw new AppError("User not found", 401);
+    }
+
+    if (!user.emailVerified) {
+      throw new AppError("Please verify your email address first", 403);
     }
 
     const newAccessToken = jwt.sign(

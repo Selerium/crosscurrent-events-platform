@@ -27,6 +27,9 @@ loginHandler.post("", async (req, res) => {
   const passCheck = await bcrypt.compare(password, user.password);
   if (!passCheck) throw new AppError("Password is incorrect", 401);
 
+  if (!user.emailVerified)
+    throw new AppError("Please verify your email address first", 403);
+
   const jwtsecret = process.env.JWT_SECRET || "";
 
   const accessToken = jwt.sign(

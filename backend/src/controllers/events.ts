@@ -1,6 +1,22 @@
 import express from "express";
 import AppError from "../lib/appError.ts";
-import { prisma } from "../lib/prismaClient.ts";
+import {
+  prisma,
+  PrimaryLeaderRoles,
+  SecondaryLeaderRoles,
+} from "../lib/prismaClient.ts";
+import {
+  uploadSafeguardingMiddleware,
+  deleteUploadedFile,
+} from "../lib/uploads.ts";
+
+const asString = (v: any): string => (v == null ? "" : String(v));
+const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
+const asStringArray = (v: any): string[] => {
+  if (Array.isArray(v)) return v.map(String);
+  if (v == null || v === "") return [];
+  return [String(v)];
+};
 
 const statusMap: Record<string, string> = {
   OPEN: "active",
@@ -46,7 +62,20 @@ eventsHandler.get("", async (req, res) => {
   res.status(200).json({ data, error: false, message: "" });
 });
 
-eventsHandler.post("/:id/register", async (req, res) => {
+eventsHandler.post(
+  "/:id/register",
+  uploadSafeguardingMiddleware,
+  async (req, res) => {
+    try {
+      await registerForEvent(req, res);
+    } catch (err) {
+      deleteUploadedFile(req.file?.filename ?? null);
+      throw err;
+    }
+  }
+);
+
+const registerForEvent = async (req: any, res: any) => {
   const event = await prisma.event.findUnique({
     where: { id: req.params.id },
   });
@@ -70,23 +99,92 @@ eventsHandler.post("/:id/register", async (req, res) => {
   if (numRegistrations >= event.maxSignUps)
     throw new AppError("This event is full", 403);
 
-  const { shirtSize, swimming, selfPay, medications, allergies } = req.body;
+  if (req.user!.role !== "LEADER" && req.file) {
+    deleteUploadedFile(req.file.filename);
+  }
+
+  const shirtSize = asString(req.body.shirtSize);
+  const swimming = asBool(req.body.swimming);
+  const selfPay = asBool(req.body.selfPay);
+  const medications = asStringArray(req.body.medications);
+  const allergies = asStringArray(req.body.allergies);
+
+  let spouseId: string | null = null;
+  let primaryLeaderRole: string | null = null;
+  let secondaryLeaderRoles: string[] = [];
+  let safeguardingDoc: string | null = null;
+
+  if (req.user!.role === "LEADER") {
+    primaryLeaderRole = asString(req.body.primaryLeaderRole) || null;
+    secondaryLeaderRoles = asStringArray(req.body.secondaryLeaderRoles);
+
+    const validPrimary = Object.values(PrimaryLeaderRoles);
+    if (!primaryLeaderRole || !validPrimary.includes(primaryLeaderRole as any)) {
+      throw new AppError("A valid primary leader role is required", 400);
+    }
+
+    const validSecondary = Object.values(SecondaryLeaderRoles);
+    const uniqueSecondary = [...new Set(secondaryLeaderRoles)];
+    if (
+      uniqueSecondary.length !== 3 ||
+      !uniqueSecondary.every((r) => validSecondary.includes(r as any))
+    ) {
+      throw new AppError(
+        "Exactly three distinct secondary leader roles are required",
+        400
+      );
+    }
+    secondaryLeaderRoles = uniqueSecondary;
+
+    if (!req.file) {
+      throw new AppError("Safeguarding/DBS certificate is required", 400);
+    }
+    safeguardingDoc = req.file.filename;
+
+    const rawSpouseId = req.body.spouseId as string | null | undefined;
+    if (rawSpouseId) {
+      if (rawSpouseId === req.user!.id) {
+        throw new AppError("You cannot select yourself as a spouse", 400);
+      }
+      const spouse = await prisma.profile.findUnique({
+        where: { id: rawSpouseId },
+        select: { approved: true },
+      });
+      if (!spouse) {
+        throw new AppError("Spouse profile not found", 404);
+      }
+      if (!spouse.approved) {
+        throw new AppError("Spouse profile is not approved", 400);
+      }
+      spouseId = rawSpouseId;
+    }
+  }
 
   const registration = await prisma.registration.create({
     data: {
       eventId: event.id,
       profileId: req.user!.id,
       shirtSize,
-      swimming: swimming === true,
-      selfPay: selfPay === true,
-      medications: medications ?? [],
-      allergies: allergies ?? [],
+      swimming,
+      selfPay,
+      medications,
+      allergies,
       paid: false,
+      mediaConsent: asBool(req.body.mediaConsent),
+      swimmingPermission:
+        req.user!.role === "STUDENT" && asBool(req.body.swimmingPermission),
+      emergencyName: asString(req.body.emergencyName).trim() || null,
+      emergencyPhone: asString(req.body.emergencyPhone).trim() || null,
+      notes: asString(req.body.notes).trim() || null,
+      safeguardingDoc,
+      spouseId,
+      primaryLeaderRole: primaryLeaderRole as any,
+      secondaryLeaderRoles: secondaryLeaderRoles as any[],
     },
   });
 
   res.status(201).json({ data: registration, error: false, message: "" });
-});
+};
 
 eventsHandler.delete("/:id/register", async (req, res) => {
   const registration = await prisma.registration.findFirst({
@@ -101,6 +199,7 @@ eventsHandler.delete("/:id/register", async (req, res) => {
     throw new AppError("Cannot unregister after payment has been made", 403);
   }
 
+  deleteUploadedFile(registration.safeguardingDoc);
   await prisma.registration.delete({ where: { id: registration.id } });
 
   res.status(200).json({ data: null, error: false, message: "" });
