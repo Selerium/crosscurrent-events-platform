@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "crypto";
 import AppError from "../lib/appError.ts";
 import {
   prisma,
@@ -9,6 +10,7 @@ import {
   uploadSafeguardingMiddleware,
   deleteUploadedFile,
 } from "../lib/uploads.ts";
+import { sendParentVerificationEmail } from "../lib/email.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -183,6 +185,68 @@ const registerForEvent = async (req: any, res: any) => {
     },
   });
 
+  if (req.user!.role === "STUDENT") {
+    const profile = await prisma.profile.findUnique({
+      where: { id: req.user!.id },
+      select: { parentOneEmail: true, name: true },
+    });
+
+    if (!profile?.parentOneEmail) {
+      deleteUploadedFile(registration.safeguardingDoc);
+      await prisma.registration.delete({ where: { id: registration.id } });
+      throw new AppError(
+        "Parent email is required in your profile before registering",
+        400
+      );
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.registration.update({
+      where: { id: registration.id },
+      data: { parentToken: tokenHash, parentTokenExpiresAt: expiresAt },
+    });
+
+    const formatDate = (d: Date) =>
+      new Date(d).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    const verificationUrl = `${process.env.FRONTEND_URL}/parent-verify?token=${token}`;
+
+    try {
+      await sendParentVerificationEmail(
+        profile.parentOneEmail,
+        {
+          eventName: event.name,
+          eventDates: `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`,
+          studentName: profile.name,
+          shirtSize,
+          swimming,
+          swimmingPermission: asBool(req.body.swimmingPermission),
+          selfPay,
+          mediaConsent: asBool(req.body.mediaConsent),
+          medications,
+          allergies,
+          emergencyName: asString(req.body.emergencyName).trim(),
+          emergencyPhone: asString(req.body.emergencyPhone).trim(),
+          notes: asString(req.body.notes).trim(),
+        },
+        verificationUrl
+      );
+    } catch (e) {
+      deleteUploadedFile(registration.safeguardingDoc);
+      await prisma.registration.delete({ where: { id: registration.id } });
+      throw new AppError(
+        "Could not send parent verification email. Please try again.",
+        500
+      );
+    }
+  }
+
   res.status(201).json({ data: registration, error: false, message: "" });
 };
 
@@ -248,6 +312,7 @@ eventsHandler.get("/:id", async (req, res) => {
 
       user = {
         paid: registration.paid,
+        parentVerified: registration.parentVerified,
         room,
         group: registration.group,
         swimming: registration.swimming,

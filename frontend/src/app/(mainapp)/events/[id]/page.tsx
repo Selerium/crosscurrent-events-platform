@@ -41,6 +41,7 @@ type EventData = {
   status: string;
   user: {
     paid: boolean;
+    parentVerified: boolean;
     room: { name: string; members: { name: string; mobile: string }[] } | null;
     group: string | null;
     swimming: boolean;
@@ -437,6 +438,12 @@ export default function EventPage() {
     if (!userApproved) {
       toast.warning(
         "Your account needs to be approved before you can pay for events."
+      );
+      return;
+    }
+    if (userRole === "STUDENT" && !eventData?.user?.parentVerified) {
+      toast.warning(
+        "Your registration is awaiting parent verification before you can pay."
       );
       return;
     }
@@ -1066,6 +1073,14 @@ export default function EventPage() {
                     {eventData.user.paid ? "PAID" : "PAYMENT PENDING"}
                   </span>
                 )}
+                {userRole === "STUDENT" &&
+                  eventData.user &&
+                  !eventData.user.paid &&
+                  !eventData.user.parentVerified && (
+                    <span className="rounded-md px-2 py-0.5 text-xs font-semibold bg-orange-800 text-white">
+                      PARENT VERIFICATION PENDING
+                    </span>
+                  )}
               </div>
               <p>{eventData.brief}</p>
             </div>
@@ -1155,11 +1170,21 @@ export default function EventPage() {
                   </Button>
                 )
               )}
-              {eventData.user && !eventData.user.paid && (
-                <Button onClick={onPay} className="w-full p-4 justify-center">
-                  PAY FOR EVENT
-                </Button>
-              )}
+              {eventData.user && !eventData.user.paid &&
+                userRole === "STUDENT" &&
+                !eventData.user.parentVerified && (
+                  <div className="w-full p-4 rounded-lg border text-center text-muted-foreground font-medium">
+                    Waiting for parent verification. Check your parent&apos;s
+                    email to approve the registration before paying.
+                  </div>
+                )}
+              {eventData.user && !eventData.user.paid &&
+                (userRole !== "STUDENT" ||
+                  eventData.user.parentVerified) && (
+                  <Button onClick={onPay} className="w-full p-4 justify-center">
+                    PAY FOR EVENT
+                  </Button>
+                )}
               {eventData.user && !eventData.user.paid && (
                 <Button
                   onClick={() => {

@@ -28,6 +28,7 @@ paymentsHandler.post("/create-session", async (req, res) => {
       id: true,
       approved: true,
       name: true,
+      role: true,
       user: { select: { email: true } },
     },
   });
@@ -55,7 +56,7 @@ paymentsHandler.post("/create-session", async (req, res) => {
 
   const registration = await prisma.registration.findFirst({
     where: { profileId: profile.id, eventId },
-    select: { paid: true, paymentSession: true, id: true },
+    select: { paid: true, paymentSession: true, id: true, parentVerified: true },
   });
 
   if (!registration) {
@@ -64,6 +65,13 @@ paymentsHandler.post("/create-session", async (req, res) => {
 
   if (registration.paid) {
     throw new AppError("You have already paid for this event", 400);
+  }
+
+  if (profile.role === "STUDENT" && !registration.parentVerified) {
+    throw new AppError(
+      "Parent verification is required before you can pay for this event",
+      403
+    );
   }
 
   const paidCount = await prisma.registration.count({

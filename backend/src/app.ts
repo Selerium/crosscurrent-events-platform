@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import registerHandler from "./controllers/register.ts";
 import loginHandler from "./controllers/login.ts";
 import emailVerificationHandler from "./controllers/emailVerification.ts";
+import parentVerificationHandler from "./controllers/parentVerification.ts";
 import errorHandler from "./middleware/errorHandler.ts";
 import protectedRouter from "./controllers/routeGuard.ts";
 import webhookHandler from "./controllers/webhook.ts";
@@ -35,6 +36,7 @@ app.get("/test", (req, res) => {
 app.use("/register", registerHandler);
 app.use("/login", loginHandler);
 app.use("/verify-email", emailVerificationHandler);
+app.use("/parent-verify", parentVerificationHandler);
 app.post("/logout", async (req, res) => {
   const refreshToken = req.cookies.refresh_token;
   if (refreshToken) {

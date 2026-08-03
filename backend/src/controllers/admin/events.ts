@@ -235,6 +235,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
     primaryLeaderRole: r.primaryLeaderRole || "",
     secondaryLeaderRoles: r.secondaryLeaderRoles,
     safeguardingDoc: r.safeguardingDoc || "",
+    parentVerified: r.parentVerified,
   }));
 
   res.status(200).json({ data, error: false, message: "" });

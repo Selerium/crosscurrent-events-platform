@@ -119,6 +119,10 @@ model Registration {
   notes          String?
   safeguardingDoc String?
 
+  parentVerified Boolean @default(false)
+  parentToken String?
+  parentTokenExpiresAt DateTime?
+
   paid           Boolean
   paymentSession String?
 }

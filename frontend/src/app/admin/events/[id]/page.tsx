@@ -60,6 +60,7 @@ type Participant = {
   primaryLeaderRole: string;
   secondaryLeaderRoles: string[];
   safeguardingDoc: string;
+  parentVerified: boolean;
 };
 
 type ParticipantFilter = "all" | "leaders" | "students";
@@ -631,6 +632,19 @@ export default function AdminEventPage() {
                       {p.selfPay && (
                         <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
                           Scholarship
+                        </span>
+                      )}
+                      {!isLeaderParticipant(p) && (
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                            p.parentVerified
+                              ? "bg-green-100 text-green-800"
+                              : "bg-orange-100 text-orange-800"
+                          }`}
+                        >
+                          {p.parentVerified
+                            ? "Parent verified"
+                            : "Parent pending"}
                         </span>
                       )}
                     </div>
