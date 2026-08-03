@@ -400,12 +400,12 @@ export default function EventPage() {
     );
     formData.append("mediaConsent", String(data.mediaConsent));
     formData.append("swimmingPermission", String(data.swimmingPermission));
-    if (data.emergencyName) formData.append("emergencyName", data.emergencyName);
+    if (data.emergencyName)
+      formData.append("emergencyName", data.emergencyName);
     if (data.emergencyPhone)
       formData.append("emergencyPhone", data.emergencyPhone);
     if (data.notes) formData.append("notes", data.notes);
-    if (safeguardingFile)
-      formData.append("safeguardingDoc", safeguardingFile);
+    if (safeguardingFile) formData.append("safeguardingDoc", safeguardingFile);
     try {
       await api.post(`/events/${params.id}/register`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -742,12 +742,23 @@ export default function EventPage() {
                     />
                   </div>
 
+                  <span className="font-bold">Preferred Roles</span>
+                  <span>
+                    This section is just to know your volunteer preferences at
+                    the event. This{" "}
+                    <span className="italic">does not confirm your role</span> -
+                    just interest. We will assign accordingly based on leader
+                    numbers and logistics
+                  </span>
+
                   <div className="flex flex-col gap-2">
                     <span className="font-bold">Primary Leader Role</span>
                     <Controller
                       name="primaryLeaderRole"
                       control={control}
-                      rules={{ required: "Please select a primary leader role" }}
+                      rules={{
+                        required: "Please select a primary leader role",
+                      }}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
                           {PRIMARY_LEADER_ROLES.map((role) => (
@@ -806,8 +817,7 @@ export default function EventPage() {
                                 }}
                                 className={cn(
                                   "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
-                                  disabled &&
-                                    "opacity-40 cursor-not-allowed",
+                                  disabled && "opacity-40 cursor-not-allowed",
                                   selected
                                     ? "bg-neutral-600 text-white"
                                     : "bg-neutral-100 hover:bg-neutral-200"
@@ -1028,7 +1038,7 @@ export default function EventPage() {
             <div className="flex flex-col items-start gap-2">
               <button
                 className="flex items-center cursor-pointer"
-                onClick={() => router.push('/dashboard')}
+                onClick={() => router.push("/dashboard")}
               >
                 <ChevronLeft width={20} height={20} /> Back
               </button>
@@ -1146,10 +1156,7 @@ export default function EventPage() {
                 )
               )}
               {eventData.user && !eventData.user.paid && (
-                <Button
-                  onClick={onPay}
-                  className="w-full p-4 justify-center"
-                >
+                <Button onClick={onPay} className="w-full p-4 justify-center">
                   PAY FOR EVENT
                 </Button>
               )}
