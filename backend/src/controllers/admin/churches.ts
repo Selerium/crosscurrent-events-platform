@@ -78,6 +78,7 @@ adminChurchesHandler.patch("/:id", async (req, res) => {
     contactEmail: primary?.user?.email || "",
     contactPhone: primary?.phone || "",
     address: `${updated!.state}, ${updated!.country}`,
+    updatedAt: updated!.updatedAt,
   };
 
   res.status(200).json({ data, error: false, message: "Church updated" });
@@ -139,6 +140,7 @@ adminChurchesHandler.get("", async (req, res) => {
       contactEmail: primary?.user?.email || "",
       contactPhone: primary?.phone || "",
       address: `${c.state}, ${c.country}`,
+      updatedAt: c.updatedAt,
     };
   });
 
@@ -221,6 +223,7 @@ adminChurchesHandler.get("/:id", async (req, res) => {
     contactEmail: primary?.user?.email || "",
     contactPhone: primary?.phone || "",
     address: `${church.state}, ${church.country}`,
+    updatedAt: church.updatedAt,
   };
 
   res.status(200).json({ data, error: false, message: "" });

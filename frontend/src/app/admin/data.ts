@@ -79,6 +79,7 @@ export type ChurchRecord = {
   contactEmail: string;
   contactPhone: string;
   address: string;
+  updatedAt: string;
 };
 
 export const currencyFormatter = new Intl.NumberFormat("en-AE", {

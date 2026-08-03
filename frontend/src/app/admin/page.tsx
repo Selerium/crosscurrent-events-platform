@@ -92,6 +92,14 @@ export default function AdminDashboard() {
     ? activeEvents.reduce((total, event) => total + event.paidSignUps, 0)
     : 0;
   const totalUnpaidSignUps = totalSignUps - totalPaidSignUps;
+  const recentChurches = churches
+    ? [...churches]
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        )
+        .slice(0, 3)
+    : [];
   console.log(events);
 
   return (
@@ -280,8 +288,8 @@ export default function AdminDashboard() {
                     No churches
                   </div>
                 ) : (
-                  <div className="divide-y">
-                    {churches.map((church) => (
+                  <div className="max-h-[552px] divide-y overflow-y-auto">
+                    {recentChurches.map((church) => (
                       <div key={church.id} className="flex flex-col gap-4 p-4">
                         <div className="flex items-start gap-3">
                           <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
