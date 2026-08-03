@@ -109,6 +109,7 @@ const checkTokens = async (req, res, next) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        domain: process.env.COOKIE_DOMAIN ?? undefined,
         path: '/',
         maxAge: 15 * 60 * 1000,
     });
@@ -116,6 +117,7 @@ const checkTokens = async (req, res, next) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        domain: process.env.COOKIE_DOMAIN ?? undefined,
         path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000,
     });

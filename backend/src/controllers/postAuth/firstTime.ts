@@ -76,6 +76,7 @@ firstTimeHandler.post("", async (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
+    domain: process.env.COOKIE_DOMAIN ?? undefined,
     path: "/",
     maxAge: 15 * 60 * 1000,
   });
