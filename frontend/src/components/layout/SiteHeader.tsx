@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 
@@ -26,6 +27,11 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState(serverUser);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const stored = getUserFromStorage();
@@ -96,65 +102,147 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {user ? (
-            <nav className="flex items-center gap-2 text-sm sm:gap-3">
-              <Link
-                href={user.role === "ADMIN" ? "/admin" : "/dashboard"}
-                className="rounded-lg px-3 py-2 font-medium text-foreground hover:bg-foreground/5"
-              >
-                Dashboard
-              </Link>
-              {user.role === "ADMIN" ? (
-                <>
+          <nav className="hidden items-center gap-2 text-sm sm:gap-3 md:flex">
+            {user ? (
+              <>
+                <Link
+                  href={user.role === "ADMIN" ? "/admin" : "/dashboard"}
+                  className="rounded-lg px-3 py-2 font-medium text-foreground hover:bg-foreground/5"
+                >
+                  Dashboard
+                </Link>
+                {user.role === "ADMIN" ? (
+                  <>
+                    <Button asChild variant="ghost">
+                      <Link href="/admin/events">
+                        Events
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost">
+                      <Link href="/admin/churches">
+                        Churches
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost">
+                      <Link href="/admin/profiles">
+                        Profiles
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
                   <Button asChild variant="ghost">
-                    <Link href="/admin/events">
-                      Events
+                    <Link href="/my-church" onClick={handleMyChurchClick}>
+                      My Church
                     </Link>
                   </Button>
-                  <Button asChild variant="ghost">
-                    <Link href="/admin/churches">
-                      Churches
-                    </Link>
-                  </Button>
-                  <Button asChild variant="ghost">
-                    <Link href="/admin/profiles">
-                      Profiles
-                    </Link>
-                  </Button>
-                </>
-              ) : (
+                )}
                 <Button asChild variant="ghost">
-                  <Link href="/my-church" onClick={handleMyChurchClick}>
-                    My Church
+                  <Link href="/profile">
+                    My account
                   </Link>
                 </Button>
-              )}
-              <Button asChild variant="ghost">
-                <Link href="/profile">
-                  My account
-                </Link>
-              </Button>
-              <Button variant="ghost" onClick={handleLogout}>
-                Log out
-              </Button>
-            </nav>
-          ) : (
-            <nav className="flex items-center gap-2 text-sm sm:gap-3">
-              <Button asChild variant="ghost">
-                <Link href="/login">
-                  Sign in
-                </Link>
-              </Button>
-              <Button asChild>
-                <Link href="/register">
-                  Get started
-                </Link>
-              </Button>
-            </nav>
-          )}
+                <Button variant="ghost" onClick={handleLogout}>
+                  Log out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button asChild variant="ghost">
+                  <Link href="/login">
+                    Sign in
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/register">
+                    Get started
+                  </Link>
+                </Button>
+              </>
+            )}
+          </nav>
           <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            aria-label="Toggle navigation menu"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((open) => !open)}
+          >
+            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </Button>
         </div>
       </div>
+      {mobileOpen && (
+        <div className="border-t border-border bg-card/80 backdrop-blur-sm md:hidden">
+          <nav className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3">
+            {user ? (
+              <>
+                <Button asChild variant="ghost" className="justify-start">
+                  <Link
+                    href={user.role === "ADMIN" ? "/admin" : "/dashboard"}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
+                </Button>
+                {user.role === "ADMIN" ? (
+                  <>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link href="/admin/events" onClick={() => setMobileOpen(false)}>
+                        Events
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link href="/admin/churches" onClick={() => setMobileOpen(false)}>
+                        Churches
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link href="/admin/profiles" onClick={() => setMobileOpen(false)}>
+                        Profiles
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <Button asChild variant="ghost" className="justify-start">
+                    <Link
+                      href="/my-church"
+                      onClick={(e) => {
+                        handleMyChurchClick(e);
+                        setMobileOpen(false);
+                      }}
+                    >
+                      My Church
+                    </Link>
+                  </Button>
+                )}
+                <Button asChild variant="ghost" className="justify-start">
+                  <Link href="/profile" onClick={() => setMobileOpen(false)}>
+                    My account
+                  </Link>
+                </Button>
+                <Button variant="ghost" className="justify-start" onClick={handleLogout}>
+                  Log out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button asChild variant="ghost" className="justify-start">
+                  <Link href="/login" onClick={() => setMobileOpen(false)}>
+                    Sign in
+                  </Link>
+                </Button>
+                <Button asChild className="justify-start">
+                  <Link href="/register" onClick={() => setMobileOpen(false)}>
+                    Get started
+                  </Link>
+                </Button>
+              </>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

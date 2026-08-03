@@ -1,6 +1,9 @@
 import express from "express";
+import fs from "fs";
+import path from "path";
 import AppError from "../../lib/appError.ts";
 import { prisma } from "../../lib/prismaClient.ts";
+import { uploadsDir } from "../../lib/uploads.ts";
 
 const statusMap: Record<string, string> = {
   OPEN: "active",
@@ -231,9 +234,36 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
     notes: r.notes || "",
     primaryLeaderRole: r.primaryLeaderRole || "",
     secondaryLeaderRoles: r.secondaryLeaderRoles,
+    safeguardingDoc: r.safeguardingDoc || "",
   }));
 
   res.status(200).json({ data, error: false, message: "" });
 });
+
+adminEventsHandler.get(
+  "/:id/participants/:participantId/document",
+  async (req, res) => {
+    const { id, participantId } = req.params;
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: participantId, eventId: id },
+      select: { safeguardingDoc: true },
+    });
+
+    if (!registration || !registration.safeguardingDoc) {
+      throw new AppError("Document not found", 404);
+    }
+
+    const filePath = path.join(uploadsDir, registration.safeguardingDoc);
+
+    if (!fs.existsSync(filePath)) {
+      throw new AppError("Document not found", 404);
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${registration.safeguardingDoc}"`);
+    res.sendFile(filePath);
+  }
+);
 
 export default adminEventsHandler;

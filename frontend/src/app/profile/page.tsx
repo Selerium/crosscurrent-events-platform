@@ -131,8 +131,8 @@ export default function Profile() {
     <div className="flex items-center justify-center p-4 sm:px-6">
       <div className="w-full max-w-6xl min-w-72 p-4 flex flex-col gap-4 rounded-lg">
         <h1 className="text-2xl font-bold">My Account</h1>
-        <div className="grid grid-cols-5 gap-4">
-          <div className="flex flex-col gap-4 p-4 rounded-lg border col-span-1 h-fit">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+          <div className="flex flex-col gap-4 p-4 rounded-lg border md:col-span-1 h-fit">
             <button
               onClick={() => setSelectedOption(0)}
               className={`w-full text-left hover:text-primary cursor-pointer ${
@@ -151,7 +151,7 @@ export default function Profile() {
             </button>
           </div>
           {selectedOption === 0 && (
-            <div className="flex p-4 rounded-lg border col-span-4">
+            <div className="flex p-4 rounded-lg border md:col-span-4">
               <div className="flex flex-col gap-4 w-full">
                 <div className="flex w-full justify-between items-center">
                   <h2 className="text-xl font-bold">Profile</h2>
@@ -162,46 +162,46 @@ export default function Profile() {
                   </Button>
                 </div>
                 <hr />
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Role: </p>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Role: </p>
                   <Input
                     disabled
-                    className="min-w-72 grow px-4 py-2 rounded-lg border capitalize"
+                    className="w-full grow px-4 py-2 rounded-lg border capitalize"
                     value={profile.role.toLowerCase()}
                   />
                 </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Phone: </p>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Phone: </p>
                   <Input
                     disabled={!editMode}
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
+                    className="w-full grow px-4 py-2 rounded-lg border"
                     value={editMode ? form.phone : profile.phone || ""}
                     onChange={(e) =>
                       setForm({ ...form, phone: e.target.value })
                     }
                   />
                 </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Church: </p>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Church: </p>
                   <Input
                     disabled
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
+                    className="w-full grow px-4 py-2 rounded-lg border"
                     value={profile.church ? `${profile.church.name} ${localStorage.getItem("approved") === "false" ? "(pending approval)" : "" }` : "-"}
                   />
                 </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Country: </p>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Country: </p>
                   <Input
                     disabled
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
+                    className="w-full grow px-4 py-2 rounded-lg border"
                     value={profile.church ? profile.church.country : "-"}
                   />
                 </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Date of Birth: </p>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Date of Birth: </p>
                   <Input
                     disabled
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
+                    className="w-full grow px-4 py-2 rounded-lg border"
                     value={
                       profile.dob
                         ? new Date(profile.dob).toLocaleDateString()
@@ -209,19 +209,19 @@ export default function Profile() {
                     }
                   />
                 </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Gender: </p>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Gender: </p>
                   <Input
                     disabled
-                    className="min-w-72 grow px-4 py-2 rounded-lg border capitalize"
+                    className="w-full grow px-4 py-2 rounded-lg border capitalize"
                     value={profile.gender ? profile.gender.toLowerCase() : "-"}
                   />
                 </div>
-                <div className="flex items-center gap-2 rounded-lg w-full">
-                  <p className="w-72">Nationality: </p>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Nationality: </p>
                   <Input
                     disabled={!editMode}
-                    className="min-w-72 grow px-4 py-2 rounded-lg border"
+                    className="w-full grow px-4 py-2 rounded-lg border"
                     value={
                       editMode ? form.nationality : profile.nationality || "-"
                     }
@@ -232,11 +232,11 @@ export default function Profile() {
                 </div>
                 {localStorage.getItem('role') === "STUDENT" &&
                   <>
-                    <div className="flex items-center gap-2 rounded-lg w-full">
-                      <p className="w-72">Parent Name: </p>
+                    <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                      <p className="shrink-0 sm:w-72">Parent Name: </p>
                       <Input
                         disabled={!editMode}
-                        className="min-w-72 grow px-4 py-2 rounded-lg border"
+                        className="w-full grow px-4 py-2 rounded-lg border"
                         value={
                           editMode
                             ? form.parentOneName
@@ -247,11 +247,11 @@ export default function Profile() {
                         }
                       />
                     </div>
-                    <div className="flex items-center gap-2 rounded-lg w-full">
-                      <p className="w-72">Parent Email: </p>
+                    <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                      <p className="shrink-0 sm:w-72">Parent Email: </p>
                       <Input
                         disabled={!editMode}
-                        className="min-w-72 grow px-4 py-2 rounded-lg border"
+                        className="w-full grow px-4 py-2 rounded-lg border"
                         value={
                           editMode
                             ? form.parentOneEmail
@@ -262,11 +262,11 @@ export default function Profile() {
                         }
                       />
                     </div>
-                    <div className="flex items-center gap-2 rounded-lg w-full">
-                      <p className="w-72">Parent Phone: </p>
+                    <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                      <p className="shrink-0 sm:w-72">Parent Phone: </p>
                       <Input
                         disabled={!editMode}
-                        className="min-w-72 grow px-4 py-2 rounded-lg border"
+                        className="w-full grow px-4 py-2 rounded-lg border"
                         value={
                           editMode
                             ? form.parentOnePhone
@@ -283,25 +283,25 @@ export default function Profile() {
             </div>
           )}
           {selectedOption === 1 && (
-            <div className="flex p-4 rounded-lg border col-span-4">
+            <div className="flex p-4 rounded-lg border md:col-span-4">
               <div className="flex flex-col gap-4 w-full">
                 <h2 className="text-xl font-bold">Settings</h2>
                 <hr />
                 <div className="flex flex-col gap-2 rounded-lg w-full">
                   <p className="font-bold">Account Settings</p>
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-72 w-1/2">Change your password</p>
+                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+                    <p className="w-full sm:w-1/2 sm:min-w-72">Change your password</p>
                     <Button
-                      className="justify-center min-w-72 w-1/2"
+                      className="justify-center w-full sm:w-1/2 sm:min-w-72"
                       onClick={() => setPasswordModal(true)}
                     >
                       Reset Password
                     </Button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-72 w-1/2">Change your email</p>
+                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+                    <p className="w-full sm:w-1/2 sm:min-w-72">Change your email</p>
                     <Button
-                      className="justify-center min-w-72 w-1/2"
+                      className="justify-center w-full sm:w-1/2 sm:min-w-72"
                       onClick={() => setEmailModal(true)}
                     >
                       Reset Email
@@ -315,7 +315,7 @@ export default function Profile() {
       </div>
 
       {passwordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
             <h3 className="text-lg font-bold mb-4">Reset Password</h3>
             <div className="flex flex-col gap-3">
@@ -352,7 +352,7 @@ export default function Profile() {
       )}
 
       {emailModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
             <h3 className="text-lg font-bold mb-4">Reset Email</h3>
             <div className="flex flex-col gap-3">

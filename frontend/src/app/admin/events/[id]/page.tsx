@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   Clock,
   Edit3,
+  FileText,
   MapPin,
   Plus,
   Save,
@@ -58,7 +59,14 @@ type Participant = {
   notes: string;
   primaryLeaderRole: string;
   secondaryLeaderRoles: string[];
+  safeguardingDoc: string;
 };
+
+type ParticipantFilter = "all" | "leaders" | "students";
+
+function isLeaderParticipant(p: Participant): boolean {
+  return Boolean(p.primaryLeaderRole) || p.secondaryLeaderRoles.length > 0;
+}
 
 export default function AdminEventPage() {
   const router = useRouter();
@@ -81,6 +89,8 @@ export default function AdminEventPage() {
   const [endOpen, setEndOpen] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantFilter, setParticipantFilter] =
+    useState<ParticipantFilter>("all");
 
   useEffect(() => {
     api.get(`/admin/events/${params.id}`)
@@ -94,6 +104,17 @@ export default function AdminEventPage() {
       .catch(() => {})
       .finally(() => setParticipantsLoading(false));
   }, [params.id]);
+
+  const filteredParticipants = participants.filter((p) => {
+    if (participantFilter === "all") return true;
+    const leader = isLeaderParticipant(p);
+    return participantFilter === "leaders" ? leader : !leader;
+  });
+
+  function participantDocUrl(p: Participant) {
+    const base = api.defaults.baseURL?.replace(/\/$/, "") ?? "";
+    return `${base}/admin/events/${params.id}/participants/${p.id}/document`;
+  }
 
   function startEditing() {
     if (!eventInfo) return;
@@ -551,15 +572,38 @@ export default function AdminEventPage() {
         <hr />
 
         <section className="rounded-lg border p-4">
-          <h2 className="font-bold">Registered Participants</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-bold">Registered Participants</h2>
+            <div className="flex gap-1 rounded-lg border p-1">
+              {(["all", "leaders", "students"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setParticipantFilter(f)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+                    participantFilter === f
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
           {participantsLoading ? (
             <p className="mt-4 text-muted-foreground">Loading participants...</p>
           ) : participants.length === 0 ? (
             <p className="mt-4 text-muted-foreground">No participants registered</p>
+          ) : filteredParticipants.length === 0 ? (
+            <p className="mt-4 text-muted-foreground">
+              No {participantFilter} registered for this event
+            </p>
           ) : (
             <div className="mt-4 divide-y rounded-lg border">
-              {participants.map((p) => (
-                <div className="flex items-center gap-3 p-3" key={p.id}>
+              {filteredParticipants.map((p) => (
+                <div className="flex items-start gap-3 p-3" key={p.id}>
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                     <Users className="size-4" />
                   </div>
@@ -575,6 +619,15 @@ export default function AdminEventPage() {
                       >
                         {p.paid ? "PAID" : "UNPAID"}
                       </span>
+                      {isLeaderParticipant(p) ? (
+                        <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                          Leader
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          Student
+                        </span>
+                      )}
                       {p.selfPay && (
                         <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
                           Scholarship
@@ -630,6 +683,17 @@ export default function AdminEventPage() {
                           <span>Allergies: {p.allergies.join(", ")}</span>
                         )}
                       </div>
+                    )}
+                    {isLeaderParticipant(p) && p.safeguardingDoc && (
+                      <a
+                        href={participantDocUrl(p)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-primary px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                      >
+                        <FileText className="size-3" />
+                        View Document
+                      </a>
                     )}
                   </div>
                 </div>
