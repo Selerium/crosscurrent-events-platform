@@ -1028,7 +1028,7 @@ export default function EventPage() {
             <div className="flex flex-col items-start gap-2">
               <button
                 className="flex items-center cursor-pointer"
-                onClick={() => router.back()}
+                onClick={() => router.push('/dashboard')}
               >
                 <ChevronLeft width={20} height={20} /> Back
               </button>
