@@ -151,7 +151,7 @@ export default function AdminChurchPage() {
     <>
       {showPrimary && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
-          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-white gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-card gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg">Choose Primary Contact</span>
               <button

@@ -4,6 +4,7 @@ import path from "path";
 import AppError from "../../lib/appError.ts";
 import { prisma } from "../../lib/prismaClient.ts";
 import { uploadsDir } from "../../lib/uploads.ts";
+import { createNotifications } from "../../lib/notifications.ts";
 
 const statusMap: Record<string, string> = {
   OPEN: "active",
@@ -74,6 +75,21 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     where: { id: req.params.id },
     data,
   });
+
+  const registrations = await prisma.registration.findMany({
+    where: { eventId: updated.id },
+    select: { profileId: true },
+  });
+
+  await createNotifications(
+    registrations.map((r) => r.profileId),
+    {
+      type: "EVENT_UPDATED",
+      title: "Event updated",
+      message: `"${updated.name}" has been updated. Check the event page for the latest details.`,
+      link: `/events/${updated.id}`,
+    }
+  );
 
   res.status(200).json({ data: updated, error: false, message: "Event updated" });
 });

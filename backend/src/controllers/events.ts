@@ -10,7 +10,8 @@ import {
   uploadSafeguardingMiddleware,
   deleteUploadedFile,
 } from "../lib/uploads.ts";
-import { sendParentVerificationEmail } from "../lib/email.ts";
+import { sendParentVerificationEmail, sendScholarshipRequestEmail } from "../lib/email.ts";
+import { createNotifications } from "../lib/notifications.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -29,7 +30,11 @@ const statusMap: Record<string, string> = {
 const eventsHandler = express.Router();
 
 eventsHandler.get("", async (req, res) => {
-  const isAdmin = req.user?.role === "ADMIN";
+  const profile = await prisma.profile.findUnique({
+    where: { id: req.user!.id },
+    select: { role: true },
+  });
+  const isAdmin = profile?.role === "ADMIN";
 
   const events = await prisma.event.findMany({
     where: isAdmin
@@ -55,6 +60,8 @@ eventsHandler.get("", async (req, res) => {
     signedUp: e._count.registrations,
     maxSignUps: e.maxSignUps,
     price: e.price,
+    earlyBirdPrice: e.earlyBirdPrice,
+    earlyBirdDate: e.earlyBirdDate,
     status:
       e._count.registrations >= e.maxSignUps
         ? "closed"
@@ -86,6 +93,22 @@ const registerForEvent = async (req: any, res: any) => {
     throw new AppError("Event not found", 404);
   }
 
+  if (event.eventStatus !== "OPEN") {
+    throw new AppError("Registration is closed for this event", 400);
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: req.user!.id },
+  });
+
+  if (!profile) {
+    throw new AppError("Profile not found", 404);
+  }
+
+  if (!profile.approved) {
+    throw new AppError("Your account has not been approved yet", 403);
+  }
+
   const existing = await prisma.registration.findFirst({
     where: { eventId: event.id, profileId: req.user!.id },
   });
@@ -101,7 +124,7 @@ const registerForEvent = async (req: any, res: any) => {
   if (numRegistrations >= event.maxSignUps)
     throw new AppError("This event is full", 403);
 
-  if (req.user!.role !== "LEADER" && req.file) {
+  if (profile.role !== "LEADER" && req.file) {
     deleteUploadedFile(req.file.filename);
   }
 
@@ -116,7 +139,7 @@ const registerForEvent = async (req: any, res: any) => {
   let secondaryLeaderRoles: string[] = [];
   let safeguardingDoc: string | null = null;
 
-  if (req.user!.role === "LEADER") {
+  if (profile.role === "LEADER") {
     primaryLeaderRole = asString(req.body.primaryLeaderRole) || null;
     secondaryLeaderRoles = asStringArray(req.body.secondaryLeaderRoles);
 
@@ -174,7 +197,7 @@ const registerForEvent = async (req: any, res: any) => {
       paid: false,
       mediaConsent: asBool(req.body.mediaConsent),
       swimmingPermission:
-        req.user!.role === "STUDENT" && asBool(req.body.swimmingPermission),
+        profile.role === "STUDENT" && asBool(req.body.swimmingPermission),
       emergencyName: asString(req.body.emergencyName).trim() || null,
       emergencyPhone: asString(req.body.emergencyPhone).trim() || null,
       notes: asString(req.body.notes).trim() || null,
@@ -185,13 +208,13 @@ const registerForEvent = async (req: any, res: any) => {
     },
   });
 
-  if (req.user!.role === "STUDENT") {
-    const profile = await prisma.profile.findUnique({
+  if (profile.role === "STUDENT") {
+    const studentProfile = await prisma.profile.findUnique({
       where: { id: req.user!.id },
       select: { parentOneEmail: true, name: true },
     });
 
-    if (!profile?.parentOneEmail) {
+    if (!studentProfile?.parentOneEmail) {
       deleteUploadedFile(registration.safeguardingDoc);
       await prisma.registration.delete({ where: { id: registration.id } });
       throw new AppError(
@@ -219,11 +242,11 @@ const registerForEvent = async (req: any, res: any) => {
 
     try {
       await sendParentVerificationEmail(
-        profile.parentOneEmail,
+        studentProfile.parentOneEmail,
         {
           eventName: event.name,
           eventDates: `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`,
-          studentName: profile.name,
+          studentName: studentProfile.name,
           shirtSize,
           swimming,
           swimmingPermission: asBool(req.body.swimmingPermission),
@@ -243,6 +266,51 @@ const registerForEvent = async (req: any, res: any) => {
       throw new AppError(
         "Could not send parent verification email. Please try again.",
         500
+      );
+    }
+  }
+
+  if (selfPay && profile.role === "STUDENT") {
+    const regProfile = await prisma.profile.findUnique({
+      where: { id: req.user!.id },
+      select: { churchId: true, name: true },
+    });
+
+    if (regProfile?.churchId) {
+      const primaries = await prisma.profile.findMany({
+        where: {
+          churchId: regProfile.churchId,
+          primaryForChurch: true,
+          id: { not: req.user!.id },
+        },
+        select: { id: true, user: { select: { email: true } } },
+      });
+
+      await createNotifications(
+        primaries.map((p) => p.id),
+        {
+          type: "SCHOLARSHIP_REQUEST",
+          title: "Scholarship request",
+          message: `${regProfile.name} requested a scholarship for "${event.name}".`,
+          link: "/my-church",
+        }
+      );
+
+      const eventDates = [event.startDate, event.endDate]
+        .filter(Boolean)
+        .map((d) => new Date(d as Date).toDateString())
+        .join(" – ");
+
+      await Promise.all(
+        primaries
+          .filter((p) => p.user?.email)
+          .map((p) =>
+            sendScholarshipRequestEmail(p.user!.email!, {
+              studentName: regProfile.name,
+              eventName: event.name,
+              eventDates,
+            })
+          )
       );
     }
   }
@@ -282,7 +350,34 @@ eventsHandler.get("/:id", async (req, res) => {
   }
 
   let user = null;
+  let registrants: { id: string; name: string; role: string }[] = [];
   if (req.user?.id) {
+    const viewer = await prisma.profile.findUnique({
+      where: { id: req.user.id },
+      select: { churchId: true, approved: true },
+    });
+
+    if (viewer?.churchId && viewer.approved) {
+      const churchRegistrations = await prisma.registration.findMany({
+        where: {
+          eventId: event.id,
+          paid: true,
+          profileId: { not: req.user.id },
+          profile: { churchId: viewer.churchId },
+        },
+        include: {
+          profile: { select: { id: true, name: true, role: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      registrants = churchRegistrations.map((r) => ({
+        id: r.profile.id,
+        name: r.profile.name,
+        role: r.profile.role || "STUDENT",
+      }));
+    }
+
     const registration = await prisma.registration.findFirst({
       where: { eventId: event.id, profileId: req.user.id },
     });
@@ -332,9 +427,12 @@ eventsHandler.get("/:id", async (req, res) => {
     maxSignUps: event.maxSignUps,
     location: event.location,
     price: event.price,
+    earlyBirdPrice: event.earlyBirdPrice,
+    earlyBirdDate: event.earlyBirdDate,
     schedule: event.schedule,
     status: statusMap[event.eventStatus] || "closed",
     user,
+    registrants,
   };
 
   res.status(200).json({ data, error: false, message: "" });

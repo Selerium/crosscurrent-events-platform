@@ -1,6 +1,7 @@
 import express from "express";
 import meHandler from "./postAuth/me.ts";
 import meEventsHandler from "./postAuth/meEvents.ts";
+import notificationsHandler from "./postAuth/notifications.ts";
 import profileHandler from "./postAuth/profile.ts";
 import firstTimeHandler from "./postAuth/firstTime.ts";
 import eventsHandler from "./events.ts";
@@ -10,6 +11,7 @@ import profilesHandler from "./postAuth/profiles.ts";
 import adminEventsHandler from "./admin/events.ts";
 import adminChurchesHandler from "./admin/churches.ts";
 import adminProfilesHandler from "./admin/profiles.ts";
+import adminAdminsHandler from "./admin/admins.ts";
 import checkTokens from "../middleware/checkTokens.ts";
 import requireAdmin from "../middleware/requireAdmin.ts";
 
@@ -20,10 +22,12 @@ adminRouter.use(requireAdmin);
 adminRouter.use('/events', adminEventsHandler);
 adminRouter.use('/churches', adminChurchesHandler);
 adminRouter.use('/profiles', adminProfilesHandler);
+adminRouter.use('/admins', adminAdminsHandler);
 
 protectedRouter.use(checkTokens)
 protectedRouter.use('/me', meHandler)
 protectedRouter.use('/me/events', meEventsHandler)
+protectedRouter.use('/notifications', notificationsHandler)
 protectedRouter.use('/profile', profileHandler)
 protectedRouter.use('/profile/first-time', firstTimeHandler)
 protectedRouter.use('/churches', churchHandler)

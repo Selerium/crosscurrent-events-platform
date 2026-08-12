@@ -3,18 +3,21 @@
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import {
+  Banknote,
   CalendarDays,
   ChevronLeft,
+  CircleDollarSign,
   Clock,
   MapPin,
   Phone,
+  Search,
   Upload,
   Users,
   XIcon,
 } from "lucide-react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -37,6 +40,8 @@ type EventData = {
   maxSignUps: number;
   location: string;
   price: number;
+  earlyBirdPrice: number | null;
+  earlyBirdDate: Date | null;
   schedule: ScheduleItem[][];
   status: string;
   user: {
@@ -48,6 +53,7 @@ type EventData = {
     allergies: string[];
     medication: string[];
   } | null;
+  registrants: { id: string; name: string; role: string }[];
 };
 
 type UserData = {
@@ -144,6 +150,7 @@ function EditableListItem({
           className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
         />
         <button
+          type="button"
           onClick={() => {
             onDelete();
             setEditing(false);
@@ -161,11 +168,12 @@ function EditableListItem({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="text-left flex-1 px-3.5 py-2.5 text-sm border border-transparent rounded-lg hover:bg-neutral-100 cursor-pointer"
+        className="text-left flex-1 px-3.5 py-2.5 text-sm border border-transparent rounded-lg hover:bg-muted cursor-pointer"
       >
         {value}
       </button>
       <button
+        type="button"
         onClick={onDelete}
         className="cursor-pointer text-muted-foreground hover:text-foreground"
       >
@@ -234,6 +242,9 @@ function SpousePicker({ onChange }: SpousePickerProps) {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Search for a name..."
           className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -249,19 +260,19 @@ function SpousePicker({ onChange }: SpousePickerProps) {
         )}
       </div>
       {open && query.trim() && options.length === 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-muted-foreground shadow-lg">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover px-3.5 py-2.5 text-sm text-muted-foreground shadow-lg">
           No matching profiles
         </div>
       )}
       {open && options.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border bg-white shadow-lg">
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border bg-popover shadow-lg">
           {options.map((opt) => (
             <button
               key={opt.id}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => select(opt)}
-              className="w-full cursor-pointer px-3.5 py-2.5 text-left text-sm hover:bg-neutral-100"
+              className="w-full cursor-pointer px-3.5 py-2.5 text-left text-sm hover:bg-muted"
             >
               <span className="font-semibold">{opt.name}</span>
               {opt.church && (
@@ -292,6 +303,23 @@ export default function EventPage() {
   const [userApproved, setUserApproved] = useState(true);
   const [userRole, setUserRole] = useState("");
   const [safeguardingFile, setSafeguardingFile] = useState<File | null>(null);
+  const [showScholarships, setShowScholarships] = useState(false);
+  const [scholarshipRequests, setScholarshipRequests] = useState<
+    {
+      id: string;
+      profileId: string;
+      name: string;
+      role: string;
+      paid: boolean;
+    }[]
+  >([]);
+  const [scholarshipLoading, setScholarshipLoading] = useState(false);
+  const [scholarshipSearch, setScholarshipSearch] = useState("");
+  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
+  const [registrantFilter, setRegistrantFilter] = useState<
+    "all" | "LEADER" | "STUDENT"
+  >("all");
+  const [registrantSearch, setRegistrantSearch] = useState("");
   const { control, handleSubmit, reset } = useForm<RegistrationForm>({
     defaultValues: {
       shirtSize: "",
@@ -319,14 +347,18 @@ export default function EventPage() {
         ...data,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
+        earlyBirdDate: data.earlyBirdDate
+          ? new Date(data.earlyBirdDate)
+          : null,
         schedule: (data.schedule || []).map((day: ScheduleItem[]) =>
           day.map((item: ScheduleItem) => ({
             ...item,
             startTime: item.startTime,
             endTime: item.endTime,
-          }))
+          })),
         ),
         user: data.user || null,
+        registrants: data.registrants || [],
       });
 
       return data;
@@ -339,7 +371,7 @@ export default function EventPage() {
   useEffect(() => {
     let cancelled = false;
     let registerModal = new URLSearchParams(window.location.search).get(
-      "register"
+      "register",
     );
     const load = async () => {
       const [meRes, eventData] = await Promise.all([
@@ -382,6 +414,21 @@ export default function EventPage() {
     }, 0);
   }, []);
 
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const scholarship = sp.get("scholarship");
+    setTimeout(() => {
+      if (scholarship === "success=true") {
+        toast.success("Scholarship payment completed");
+      } else if (scholarship === "cancelled") {
+        toast.warning("Scholarship payment cancelled");
+      }
+    }, 0);
+    if (scholarship) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const onRegisterSubmit = async (data: RegistrationForm) => {
     if (userRole === "LEADER" && !safeguardingFile) {
       toast.warning("Please upload your Safeguarding/DBS certificate");
@@ -397,7 +444,7 @@ export default function EventPage() {
     if (data.primaryLeaderRole)
       formData.append("primaryLeaderRole", data.primaryLeaderRole);
     data.secondaryLeaderRoles.forEach((r) =>
-      formData.append("secondaryLeaderRoles", r)
+      formData.append("secondaryLeaderRoles", r),
     );
     formData.append("mediaConsent", String(data.mediaConsent));
     formData.append("swimmingPermission", String(data.swimmingPermission));
@@ -418,7 +465,7 @@ export default function EventPage() {
       await fetchEvent();
     } catch (err: any) {
       toast.error(
-        err.response?.data?.message || "Could not submit registration"
+        err.response?.data?.message || "Could not submit registration",
       );
     }
   };
@@ -437,13 +484,13 @@ export default function EventPage() {
   const onPay = async () => {
     if (!userApproved) {
       toast.warning(
-        "Your account needs to be approved before you can pay for events."
+        "Your account needs to be approved before you can pay for events.",
       );
       return;
     }
     if (userRole === "STUDENT" && !eventData?.user?.parentVerified) {
       toast.warning(
-        "Your registration is awaiting parent verification before you can pay."
+        "Your registration is awaiting parent verification before you can pay.",
       );
       return;
     }
@@ -456,6 +503,73 @@ export default function EventPage() {
       toast.error(err.response?.data?.message || "Could not initiate payment");
     }
   };
+
+  async function openScholarships() {
+    setShowScholarships(true);
+    setScholarshipLoading(true);
+    setScholarshipSearch("");
+    setSelectedProfileIds([]);
+    try {
+      const res = await api.get("/churches/my/scholarship-requests", {
+        params: { eventId: params.id },
+      });
+      setScholarshipRequests(res.data.data || []);
+    } catch {
+      toast.error("Could not load scholarship requests");
+    } finally {
+      setScholarshipLoading(false);
+    }
+  }
+
+  function toggleScholarshipSelection(profileId: string) {
+    setSelectedProfileIds((prev) =>
+      prev.includes(profileId)
+        ? prev.filter((id) => id !== profileId)
+        : [...prev, profileId],
+    );
+  }
+
+  async function processScholarshipSelection(profileIds: string[]) {
+    if (profileIds.length === 0) return;
+
+    try {
+      const res = await api.post("/payments/scholarship", {
+        eventId: params.id,
+        profileIds,
+      });
+      window.location.href = res.data.data.url;
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message ||
+          "Could not process scholarship selection",
+      );
+    }
+  }
+
+  const filteredRegistrants = useMemo(() => {
+    const registrants = eventData?.registrants || [];
+    const query = registrantSearch.trim().toLowerCase();
+    return registrants.filter((r) => {
+      const matchesFilter =
+        registrantFilter === "all" || r.role === registrantFilter;
+      const matchesSearch = !query || r.name.toLowerCase().includes(query);
+      return matchesFilter && matchesSearch;
+    });
+  }, [eventData, registrantFilter, registrantSearch]);
+
+  const { displayPrice, isEarlyBird } = useMemo(() => {
+    const earlyBirdDate = eventData?.earlyBirdDate
+      ? new Date(eventData.earlyBirdDate)
+      : null;
+    const earlyBirdActive =
+      !!eventData?.earlyBirdPrice && !!earlyBirdDate && new Date() <= earlyBirdDate;
+    return {
+      displayPrice: earlyBirdActive
+        ? eventData!.earlyBirdPrice!
+        : eventData?.price,
+      isEarlyBird: earlyBirdActive,
+    };
+  }, [eventData]);
 
   if (eventError) {
     return (
@@ -481,7 +595,7 @@ export default function EventPage() {
     <>
       {eventData.user && expandID && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
-          <div className="flex flex-col p-4 grow m-4 md:m-10 relative border rounded-lg bg-white gap-2">
+          <div className="flex flex-col p-4 grow m-4 md:m-10 relative border rounded-lg bg-card gap-2">
             <div className="flex justify-between">
               <span className="font-bold">ID Document</span>
               <button
@@ -499,7 +613,7 @@ export default function EventPage() {
       )}
       {showRegister && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
-          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-white gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-card gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg">
                 Register for {eventData.name}
@@ -518,7 +632,7 @@ export default function EventPage() {
 
             <form
               onSubmit={handleSubmit(onRegisterSubmit, () =>
-                toast.warning("Please fill out all fields")
+                toast.warning("Please fill out all fields"),
               )}
               className="flex flex-col gap-4"
             >
@@ -539,13 +653,13 @@ export default function EventPage() {
                             className={cn(
                               "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
                               field.value === size
-                                ? "bg-neutral-600 text-white"
-                                : "bg-neutral-100 hover:bg-neutral-200"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted hover:bg-muted/70",
                             )}
                           >
                             {size}
                           </button>
-                        )
+                        ),
                       )}
                     </div>
                   )}
@@ -631,7 +745,7 @@ export default function EventPage() {
 
               <div className="flex flex-col gap-2">
                 <span className="font-bold">
-                  Medications{" "}
+                  Medications/Medical Information{" "}
                   <span className="font-medium text-muted-foreground italic">
                     (press Enter to add)
                   </span>
@@ -652,7 +766,7 @@ export default function EventPage() {
                           }}
                           onDelete={() => {
                             field.onChange(
-                              field.value.filter((_, i) => i !== idx)
+                              field.value.filter((_, i) => i !== idx),
                             );
                           }}
                         />
@@ -701,7 +815,7 @@ export default function EventPage() {
                           }}
                           onDelete={() => {
                             field.onChange(
-                              field.value.filter((_, i) => i !== idx)
+                              field.value.filter((_, i) => i !== idx),
                             );
                           }}
                         />
@@ -776,8 +890,8 @@ export default function EventPage() {
                               className={cn(
                                 "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
                                 field.value === role.value
-                                  ? "bg-neutral-600 text-white"
-                                  : "bg-neutral-100 hover:bg-neutral-200"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted hover:bg-muted/70",
                               )}
                             >
                               {role.label}
@@ -817,7 +931,7 @@ export default function EventPage() {
                                 onClick={() => {
                                   const next = selected
                                     ? field.value.filter(
-                                        (r) => r !== role.value
+                                        (r) => r !== role.value,
                                       )
                                     : [...field.value, role.value];
                                   field.onChange(next);
@@ -826,8 +940,8 @@ export default function EventPage() {
                                   "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
                                   disabled && "opacity-40 cursor-not-allowed",
                                   selected
-                                    ? "bg-neutral-600 text-white"
-                                    : "bg-neutral-100 hover:bg-neutral-200"
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted hover:bg-muted/70",
                                 )}
                               >
                                 {role.label}
@@ -846,6 +960,12 @@ export default function EventPage() {
                         (PDF, required)
                       </span>
                     </span>
+                    <span>
+                      If you do not have one, you can follow the instructions{" "}
+                      <a target="_blank" className="underline text-blue-700 rounded-sm" href="https://drive.google.com/drive/folders/19PGozF9mHkdKrkLfjeVxWKLo4NcbyBfj">
+                        here
+                      </a>
+                    </span>
                     {safeguardingFile ? (
                       <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3.5 py-2.5">
                         <span className="truncate text-sm">
@@ -860,7 +980,7 @@ export default function EventPage() {
                         </button>
                       </div>
                     ) : (
-                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border px-3.5 py-3 text-sm hover:bg-neutral-50">
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border px-3.5 py-3 text-sm hover:bg-muted">
                         <input
                           type="file"
                           accept="application/pdf"
@@ -933,6 +1053,9 @@ export default function EventPage() {
                       type="text"
                       value={field.value}
                       onChange={field.onChange}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.preventDefault();
+                      }}
                       placeholder="Emergency contact name"
                       className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
                     />
@@ -946,6 +1069,9 @@ export default function EventPage() {
                       type="text"
                       value={field.value}
                       onChange={field.onChange}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.preventDefault();
+                      }}
                       placeholder="Emergency contact number"
                       className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
                     />
@@ -991,7 +1117,7 @@ export default function EventPage() {
       )}
       {showUnregister && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
-          <div className="flex flex-col p-6 m-4 relative border rounded-lg bg-white gap-4 w-full max-w-md">
+          <div className="flex flex-col p-6 m-4 relative border rounded-lg bg-card gap-4 w-full max-w-md">
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg">Unregister</span>
               <button
@@ -1023,7 +1149,7 @@ export default function EventPage() {
       )}
       {showMerch && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
-          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-white gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-card gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg">Merchandise</span>
               <button
@@ -1036,6 +1162,91 @@ export default function EventPage() {
             <div className="flex items-center justify-center p-8 text-muted-foreground">
               No merchandise available for this event yet.
             </div>
+          </div>
+        </div>
+      )}
+
+      {showScholarships && (
+        <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
+          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-card gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-lg">Scholarship requests</span>
+              <button
+                onClick={() => setShowScholarships(false)}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="font-bold">Search by name</span>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={scholarshipSearch}
+                  onChange={(e) => setScholarshipSearch(e.target.value)}
+                  placeholder="Search by name..."
+                  className="w-full rounded-lg border border-border bg-transparent py-2.5 pl-9 pr-3.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
+                />
+              </div>
+            </div>
+
+            {scholarshipLoading ? (
+              <p className="text-muted-foreground">
+                Loading scholarship requests...
+              </p>
+            ) : scholarshipRequests.length === 0 ? (
+              <p className="text-muted-foreground">
+                No scholarship requests for this event yet.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {scholarshipRequests
+                  .filter((r) =>
+                    r.name
+                      .toLowerCase()
+                      .includes(scholarshipSearch.trim().toLowerCase()),
+                  )
+                  .map((r) => (
+                    <label
+                      key={r.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={r.paid}
+                        checked={
+                          r.paid || selectedProfileIds.includes(r.profileId)
+                        }
+                        onChange={() => toggleScholarshipSelection(r.profileId)}
+                        className="size-4 accent-neutral-600"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold">{r.name}</span>
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                            {r.role.toLowerCase()}
+                          </span>
+                          {r.paid && (
+                            <span className="rounded-md bg-green-800 px-2 py-0.5 text-xs font-medium text-white">
+                              Paid
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+              </div>
+            )}
+
+            <Button
+              onClick={() => processScholarshipSelection(selectedProfileIds)}
+              disabled={selectedProfileIds.length === 0}
+              className="w-full justify-center p-3"
+            >
+              Process selected ({selectedProfileIds.length})
+            </Button>
           </div>
         </div>
       )}
@@ -1056,8 +1267,8 @@ export default function EventPage() {
                     eventData.status === "active"
                       ? "bg-green-800 text-white"
                       : eventData.status === "completed"
-                      ? "bg-blue-800 text-white"
-                      : "bg-muted text-muted-foreground"
+                        ? "bg-blue-800 text-white"
+                        : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {eventData.status}
@@ -1082,10 +1293,10 @@ export default function EventPage() {
                     </span>
                   )}
               </div>
-              <p>{eventData.brief}</p>
+              <p className="text-justify">{eventData.brief}</p>
             </div>
-            <div className="flex justify-center flex-col gap-2">
-              <span className="flex gap-2">
+            <div className="flex justify-center flex-col gap-2 min-w-fit pl-4">
+              <span className="flex gap-2 w-fit">
                 <CalendarDays width={24} height={24} />{" "}
                 {eventData.startDate.toLocaleDateString("en-UK", {
                   day: "2-digit",
@@ -1093,10 +1304,21 @@ export default function EventPage() {
                   year: "numeric",
                 })}
               </span>
-              <span className="flex gap-2">
+              <span className="flex gap-2 w-fit">
                 <MapPin width={24} height={24} /> {eventData.location}
               </span>
-              <span className="flex gap-2">
+              {displayPrice != null && (
+                <span className="flex gap-2 w-fit">
+                  <Banknote width={24} height={24} />
+                  {displayPrice} AED
+                  {isEarlyBird && (
+                    <span className="rounded-md bg-green-800 px-2 py-0.5 text-xs font-semibold text-white">
+                      Early bird
+                    </span>
+                  )}
+                </span>
+              )}
+              <span className="flex gap-2 w-fit">
                 <Users width={24} height={24} /> {eventData.signedUp} /{" "}
                 {eventData.maxSignUps}
               </span>
@@ -1116,7 +1338,7 @@ export default function EventPage() {
                       "py-2 px-4 border w-fit rounded-lg transition-all cursor-pointer font-bold",
                       selectedDay === idx
                         ? "bg-primary text-primary-foreground"
-                        : ""
+                        : "",
                     )}
                   >
                     Day {idx + 1}
@@ -1145,7 +1367,13 @@ export default function EventPage() {
               ))}
             </div>
             <div className="col-span-1 order-1 lg:order-2 flex flex-col gap-2 h-fit">
-              {!eventData.user && eventData.signedUp >= eventData.maxSignUps ? (
+              {!eventData.user && eventData.status !== "active" ? (
+                <div className="w-full p-4 justify-center rounded-lg border text-center text-muted-foreground font-medium">
+                  {eventData.status === "completed"
+                    ? "Event completed"
+                    : "Registration closed"}
+                </div>
+              ) : !eventData.user && eventData.signedUp >= eventData.maxSignUps ? (
                 <div className="w-full p-4 justify-center rounded-lg border text-center text-muted-foreground font-medium">
                   All seats filled
                 </div>
@@ -1155,7 +1383,7 @@ export default function EventPage() {
                     onClick={() => {
                       if (!userApproved) {
                         toast.warning(
-                          "Your account needs to be approved before you can register for events."
+                          "Your account needs to be approved before you can register for events.",
                         );
                         return;
                       }
@@ -1170,7 +1398,8 @@ export default function EventPage() {
                   </Button>
                 )
               )}
-              {eventData.user && !eventData.user.paid &&
+              {eventData.user &&
+                !eventData.user.paid &&
                 userRole === "STUDENT" &&
                 !eventData.user.parentVerified && (
                   <div className="w-full p-4 rounded-lg border text-center text-muted-foreground font-medium">
@@ -1178,9 +1407,9 @@ export default function EventPage() {
                     email to approve the registration before paying.
                   </div>
                 )}
-              {eventData.user && !eventData.user.paid &&
-                (userRole !== "STUDENT" ||
-                  eventData.user.parentVerified) && (
+              {eventData.user &&
+                !eventData.user.paid &&
+                (userRole !== "STUDENT" || eventData.user.parentVerified) && (
                   <Button onClick={onPay} className="w-full p-4 justify-center">
                     PAY FOR EVENT
                   </Button>
@@ -1190,7 +1419,7 @@ export default function EventPage() {
                   onClick={() => {
                     if (!userApproved) {
                       toast.warning(
-                        "Your account needs to be approved before you can unregister from events."
+                        "Your account needs to be approved before you can unregister from events.",
                       );
                       return;
                     }
@@ -1207,7 +1436,7 @@ export default function EventPage() {
                   onClick={() => {
                     if (!userApproved) {
                       toast.warning(
-                        "Your account needs to be approved before you can buy merchandise."
+                        "Your account needs to be approved before you can buy merchandise.",
                       );
                       return;
                     }
@@ -1216,6 +1445,16 @@ export default function EventPage() {
                   className="w-full p-4 justify-center"
                 >
                   BUY MERCHANDISE
+                </Button>
+              )}
+              {userRole === "LEADER" && userApproved && (
+                <Button
+                  onClick={openScholarships}
+                  variant="outline"
+                  className="w-full p-4 justify-center"
+                >
+                  <CircleDollarSign />
+                  Scholarship requests
                 </Button>
               )}
               {eventData.user && (
@@ -1279,6 +1518,62 @@ export default function EventPage() {
               )}
             </div>
           </div>
+
+          {userApproved && (eventData.registrants?.length ?? 0) > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <span className="font-bold">
+                  Who&apos;s signed up from your church
+                </span>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={registrantSearch}
+                      onChange={(e) => setRegistrantSearch(e.target.value)}
+                      placeholder="Search by name..."
+                      className="w-full rounded-lg border border-border bg-transparent py-2 pl-9 pr-3.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    {(["all", "LEADER", "STUDENT"] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setRegistrantFilter(f)}
+                        className={cn(
+                          "rounded-lg border px-3 py-2 text-sm font-medium capitalize transition-colors cursor-pointer",
+                          registrantFilter === f
+                            ? "bg-primary text-primary-foreground"
+                            : "",
+                        )}
+                      >
+                        {f === "all" ? "All" : f.toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {filteredRegistrants.length === 0 ? (
+                <p className="text-muted-foreground">
+                  No registered members match your search.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {filteredRegistrants.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border p-3"
+                    >
+                      <span className="font-semibold">{r.name}</span>
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                        {r.role.toLowerCase()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>

@@ -223,21 +223,24 @@ export default function FirstTime() {
                     <SelectValue placeholder="Select church" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(groupedChurches).map(([state, list]) => (
-                      <SelectGroup
-                        key={state}
-                        className={
-                          state === "Other" ? "order-last" : "order-first"
-                        }
-                      >
-                        <SelectLabel>{state}</SelectLabel>
-                        {list.map((church) => (
-                          <SelectItem key={church.id} value={church.id}>
-                            {church.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
+                    {Object.entries(groupedChurches)
+                      .map(([state, list]) => [
+                        state,
+                        [...list].sort((a, b) => a.name.localeCompare(b.name)),
+                      ] as const)
+                      .sort(([a], [b]) =>
+                        a === "Other" ? 1 : b === "Other" ? -1 : a.localeCompare(b)
+                      )
+                      .map(([state, list]) => (
+                        <SelectGroup key={state}>
+                          <SelectLabel>{state}</SelectLabel>
+                          {list.map((church) => (
+                            <SelectItem key={church.id} value={church.id}>
+                              {church.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
                   </SelectContent>
                 </Select>
               )}

@@ -102,7 +102,13 @@ export default function ChooseChurchPage() {
                 <SelectValue placeholder="Select a church" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(groupedChurches).map(([region, list]) => (
+                {Object.entries(groupedChurches)
+                  .map(([region, list]) => [
+                    region,
+                    [...list].sort((a, b) => a.name.localeCompare(b.name)),
+                  ] as const)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([region, list]) => (
                   <SelectGroup key={region}>
                     <SelectLabel>{region}</SelectLabel>
                     {list.map((church) => (

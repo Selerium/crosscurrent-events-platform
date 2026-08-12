@@ -2,6 +2,8 @@ import express from "express";
 import AppError from "../../lib/appError.ts";
 import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prismaClient.ts";
+import { createNotifications } from "../../lib/notifications.ts";
+import { sendChurchApplicationEmail } from "../../lib/email.ts";
 
 const firstTimeHandler = express.Router();
 
@@ -15,7 +17,6 @@ firstTimeHandler.post("", async (req, res) => {
     parentOneEmail,
     parentOnePhone,
     churchId,
-    primaryForChurch,
     role,
   } = req.body;
 
@@ -41,13 +42,16 @@ firstTimeHandler.post("", async (req, res) => {
     phone,
     role,
     churchId,
-    primaryForChurch: primaryForChurch ?? false,
     firstTime: false,
   };
 
   if (parentOneName !== undefined) data.parentOneName = parentOneName;
   if (parentOneEmail !== undefined) data.parentOneEmail = parentOneEmail;
   if (parentOnePhone !== undefined) data.parentOnePhone = parentOnePhone;
+
+  const existingProfile = await prisma.profile.findUnique({
+    where: { id: req.user.id },
+  });
 
   const profile = await prisma.profile.update({
     where: { id: req.user.id },
@@ -58,11 +62,54 @@ firstTimeHandler.post("", async (req, res) => {
     },
   });
 
+  if (
+    existingProfile &&
+    profile.churchId &&
+    existingProfile.churchId !== profile.churchId
+  ) {
+    const members = await prisma.profile.findMany({
+      where: {
+        churchId: profile.churchId,
+        id: { not: profile.id },
+      },
+      select: {
+        id: true,
+        role: true,
+        primaryForChurch: true,
+        user: { select: { email: true } },
+      },
+    });
+
+    const isLeader = profile.role === "LEADER";
+    const recipients = members
+      .filter((m) => (isLeader ? m.primaryForChurch : m.role === "LEADER"))
+      .map((m) => m.id);
+
+    await createNotifications(recipients, {
+      type: isLeader ? "LEADER_APPLIED" : "STUDENT_APPLIED",
+      title: isLeader ? "Leader applied" : "New student applied",
+      message: `${profile.name} applied to join ${profile.church.name}.`,
+      link: "/my-church",
+    });
+
+    await Promise.all(
+      members
+        .filter((m) => m.primaryForChurch && m.user?.email)
+        .map((m) =>
+          sendChurchApplicationEmail(m.user!.email!, {
+            applicantName: profile.name,
+            applicantRole: isLeader ? "Leader" : "Student",
+            churchName: profile.church.name,
+          })
+        )
+    );
+  }
+
   const jwtsecret = process.env.JWT_SECRET || "";
   const accessToken = jwt.sign(
     {
       id: profile.id,
-      name: profile.user.name,
+      name: profile.name,
       role: profile.role,
       firstTime: false,
       approved: profile.approved,
@@ -83,7 +130,7 @@ firstTimeHandler.post("", async (req, res) => {
 
   const response = {
     createdAt: profile.createdAt,
-    user: { name: profile.user.name, email: profile.user.email },
+    user: { name: profile.name, email: profile.user.email },
     role: profile.role,
     firstTime: profile.firstTime,
     gender: profile.gender,

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { Menu, X } from "lucide-react";
+import { Bell, Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 
@@ -137,6 +137,12 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                   </Button>
                 )}
                 <Button asChild variant="ghost">
+                  <Link href="/notifications">
+                    <Bell className="size-4" />
+                    Notifications
+                  </Link>
+                </Button>
+                <Button asChild variant="ghost">
                   <Link href="/profile">
                     My account
                   </Link>
@@ -217,6 +223,12 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                     </Link>
                   </Button>
                 )}
+                <Button asChild variant="ghost" className="justify-start">
+                  <Link href="/notifications" onClick={() => setMobileOpen(false)}>
+                    <Bell className="size-4" />
+                    Notifications
+                  </Link>
+                </Button>
                 <Button asChild variant="ghost" className="justify-start">
                   <Link href="/profile" onClick={() => setMobileOpen(false)}>
                     My account

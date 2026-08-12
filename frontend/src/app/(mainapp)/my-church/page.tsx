@@ -40,6 +40,7 @@ type UserProfile = {
   role: string;
   primaryForChurch: boolean;
   churchId: string | null;
+  approved: boolean;
 };
 
 export default function MyChurchPage() {
@@ -71,13 +72,13 @@ export default function MyChurchPage() {
   }, []);
 
   useEffect(() => {
-    if (!profile?.churchId) return;
+    if (!profile?.churchId || !profile.approved) return;
     setMembersLoading(true);
     api.get(`/churches/my/members`)
       .then((res) => setMembers(res.data.data || []))
       .catch(() => {})
       .finally(() => setMembersLoading(false));
-  }, [profile?.churchId]);
+  }, [profile?.churchId, profile?.approved]);
 
   async function openApproveModal(type: "student" | "leader") {
     if (type === "student") setShowApproveStudents(true);
@@ -133,8 +134,10 @@ export default function MyChurchPage() {
     return members.filter((m) => m.role === memberFilter);
   }, [members, memberFilter]);
 
-  const canApproveStudents = profile?.role === "LEADER" || profile?.primaryForChurch;
-  const canApproveLeaders = profile?.primaryForChurch;
+  const canApproveStudents =
+    profile?.approved && (profile?.role === "LEADER" || profile?.primaryForChurch);
+  const canApproveLeaders = profile?.approved && profile?.primaryForChurch;
+  const isMember = !!profile?.approved;
 
   if (loading) {
     return (
@@ -163,7 +166,7 @@ export default function MyChurchPage() {
     <>
       {removeTarget && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
-          <div className="flex flex-col p-6 m-4 relative border rounded-lg bg-white gap-4 w-full max-w-md">
+          <div className="flex flex-col p-6 m-4 relative border rounded-lg bg-card gap-4 w-full max-w-md">
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg">Remove Member</span>
               <button
@@ -202,7 +205,7 @@ export default function MyChurchPage() {
       )}
       {(showApproveStudents || showApproveLeaders) && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
-          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-white gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-card gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg">
                 {showApproveStudents ? "Approve Students" : "Approve Leaders"}
@@ -288,7 +291,7 @@ export default function MyChurchPage() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {canApproveStudents && (
                 <Button onClick={() => openApproveModal("student")}>
                   <Shield />
@@ -337,71 +340,84 @@ export default function MyChurchPage() {
 
           <hr />
 
-          <section className="rounded-lg border p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-bold">Members</h2>
-              <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
-                {(["all", "LEADER", "STUDENT"] as const).map((role) => (
-                  <button
-                    className={`h-8 rounded-md px-3 text-sm font-medium capitalize transition-colors ${
-                      memberFilter === role
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                    key={role}
-                    onClick={() => setMemberFilter(role)}
-                    type="button"
-                  >
-                    {role === "all" ? "All" : role === "LEADER" ? "Leaders" : "Students"}
-                  </button>
-                ))}
-              </div>
+          {!isMember && (
+            <div className="flex gap-2 p-4 rounded-lg border border-yellow-500">
+              <Shield className="text-yellow-500" />
+              <p>
+                Your membership is still pending approval from your church.
+                Once approved, you will be able to view the member list and
+                participate in church activities.
+              </p>
             </div>
-            {membersLoading ? (
-              <p className="mt-4 text-muted-foreground">Loading members...</p>
-            ) : members.length === 0 ? (
-              <p className="mt-4 text-muted-foreground">No members found</p>
-            ) : filteredMembers.length === 0 ? (
-              <p className="mt-4 text-muted-foreground">No members match this filter</p>
-            ) : (
-              <div className="mt-4 divide-y rounded-lg border">
-                {filteredMembers.map((member) => (
-                  <div className="flex items-center gap-3 p-3" key={member.id}>
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                      <Users className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">{member.name}</span>
-                        {member.primary && (
-                          <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
-                            Primary
-                          </span>
-                        )}
-                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
-                          {member.role.toLowerCase()}
-                        </span>
-                        {!member.approved && (
-                          <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
-                            Pending
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {profile?.primaryForChurch && !member.primary && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => setRemoveTarget(member)}
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-                ))}
+          )}
+
+          {isMember && (
+            <section className="rounded-lg border p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="font-bold">Members</h2>
+                <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
+                  {(["all", "LEADER", "STUDENT"] as const).map((role) => (
+                    <button
+                      className={`h-8 rounded-md px-3 text-sm font-medium capitalize transition-colors ${
+                        memberFilter === role
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                      key={role}
+                      onClick={() => setMemberFilter(role)}
+                      type="button"
+                    >
+                      {role === "all" ? "All" : role === "LEADER" ? "Leaders" : "Students"}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
-          </section>
+              {membersLoading ? (
+                <p className="mt-4 text-muted-foreground">Loading members...</p>
+              ) : members.length === 0 ? (
+                <p className="mt-4 text-muted-foreground">No members found</p>
+              ) : filteredMembers.length === 0 ? (
+                <p className="mt-4 text-muted-foreground">No members match this filter</p>
+              ) : (
+                <div className="mt-4 divide-y rounded-lg border">
+                  {filteredMembers.map((member) => (
+                    <div className="flex items-center gap-3 p-3" key={member.id}>
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                        <Users className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold">{member.name}</span>
+                          {member.primary && (
+                            <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                              Primary
+                            </span>
+                          )}
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                            {member.role.toLowerCase()}
+                          </span>
+                          {!member.approved && (
+                            <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {profile?.primaryForChurch && !member.primary && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setRemoveTarget(member)}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </div>
     </>

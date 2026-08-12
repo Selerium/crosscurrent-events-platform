@@ -1,7 +1,13 @@
 import AppError from "../lib/appError.ts";
+import { prisma } from "../lib/prismaClient.ts";
 
-const requireAdmin = (req, res, next) => {
-  if (req.user?.role !== "ADMIN") {
+const requireAdmin = async (req, res, next) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: req.user?.id },
+    select: { role: true },
+  });
+
+  if (profile?.role !== "ADMIN") {
     throw new AppError("Admin access required", 403);
   }
   next();

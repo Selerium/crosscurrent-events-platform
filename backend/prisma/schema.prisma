@@ -68,6 +68,8 @@ model Profile {
 
   registrations Registration[]
   spouseOf      Registration[] @relation("RegistrationSpouse")
+
+  notifications Notification[]
 }
 
 model Church {
@@ -86,6 +88,8 @@ model Church {
   // primaryContactNumber String
 
   members Profile[] @relation("ChurchProfiles")
+
+  scholarshipPayments ScholarshipPayment[]
 }
 
 model Registration {
@@ -146,6 +150,27 @@ model Event {
   earlyBirdDate  DateTime?
 
   registrations Registration[]
+  scholarshipPayments ScholarshipPayment[]
+}
+
+model ScholarshipPayment {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  churchId String
+  church   Church @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  eventId  String
+  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  sessionId  String   @unique
+  profileIds String[]
+  paid       Boolean  @default(false)
+  quantity   Int
+  amount     Int
+  currency   String   @default("aed")
+
+  @@index([churchId, paid])
 }
 
 enum ShirtSize {
@@ -189,4 +214,22 @@ enum SecondaryLeaderRoles {
   PRAYER_TEAM
   REGISTRATION
   MEDICAL_AND_SAFEGUARDING
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  type    String
+  title   String
+  message String
+  link    String
+  seen    Boolean  @default(false)
+
+  @@index([profileId, seen])
+  @@index([profileId, createdAt])
 }

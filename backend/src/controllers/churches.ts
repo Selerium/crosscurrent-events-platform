@@ -2,6 +2,8 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prismaClient.ts";
 import AppError from "../lib/appError.ts";
+import { createNotifications } from "../lib/notifications.ts";
+import { sendChurchApplicationEmail } from "../lib/email.ts";
 
 const churchesHandler = express.Router();
 
@@ -69,6 +71,76 @@ churchesHandler.get("/my", async (req, res) => {
   res.status(200).json({ data, error: false, message: "" });
 });
 
+churchesHandler.get("/my/scholarship-requests", async (req, res) => {
+  const user = (req as any).user;
+  if (!user?.id) {
+    throw new AppError("Not authenticated", 401);
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: user.id },
+  });
+
+  if (!profile?.churchId) {
+    res.status(200).json({ data: [], events: [], error: false, message: "" });
+    return;
+  }
+
+  if (profile.role !== "LEADER" || !profile.approved) {
+    throw new AppError(
+      "Only approved leaders can view scholarship requests",
+      403
+    );
+  }
+
+  const eventId = (req.query.eventId as string) || "";
+
+  const where: Record<string, unknown> = {
+    selfPay: true,
+    profile: { churchId: profile.churchId },
+  };
+  if (eventId) {
+    where.eventId = eventId;
+  }
+
+  const [registrations, activeEvents] = await Promise.all([
+    prisma.registration.findMany({
+      where,
+      include: {
+        profile: { select: { id: true, name: true, role: true } },
+        event: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true,
+            endDate: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.event.findMany({
+      where: { eventStatus: "OPEN" },
+      select: { id: true, name: true, startDate: true, endDate: true },
+      orderBy: { startDate: "asc" },
+    }),
+  ]);
+
+  const data = registrations.map((r) => ({
+    id: r.id,
+    profileId: r.profile.id,
+    name: r.profile.name,
+    role: r.profile.role || "STUDENT",
+    paid: r.paid,
+    eventId: r.event.id,
+    eventName: r.event.name,
+    eventStartDate: r.event.startDate,
+    eventEndDate: r.event.endDate,
+  }));
+
+  res.status(200).json({ data, events: activeEvents, error: false, message: "" });
+});
+
 churchesHandler.get("/my/members", async (req, res) => {
   const user = (req as any).user;
   if (!user?.id) {
@@ -82,6 +154,10 @@ churchesHandler.get("/my/members", async (req, res) => {
   if (!profile?.churchId) {
     res.status(200).json({ data: [], error: false, message: "" });
     return;
+  }
+
+  if (!profile.approved) {
+    throw new AppError("Your account has not been approved yet", 403);
   }
 
   const members = await prisma.profile.findMany({
@@ -122,6 +198,10 @@ churchesHandler.post("/my/members/:memberId/approve", async (req, res) => {
     throw new AppError("Member not found in your church", 404);
   }
 
+  if (profile.role !== "LEADER" || !profile.approved) {
+    throw new AppError("Only approved leaders can approve members", 403);
+  }
+
   if (target.approved) {
     throw new AppError("Member is already approved", 400);
   }
@@ -130,9 +210,20 @@ churchesHandler.post("/my/members/:memberId/approve", async (req, res) => {
     throw new AppError("Only the primary contact can approve leaders", 403);
   }
 
+  const church = await prisma.church.findUnique({
+    where: { id: profile.churchId },
+  });
+
   await prisma.profile.update({
     where: { id: target.id },
     data: { approved: true, approvedById: profile.id },
+  });
+
+  await createNotifications([target.id], {
+    type: "MEMBER_APPROVED",
+    title: "You were approved",
+    message: `Your membership at ${church?.name ?? "your church"} has been approved.`,
+    link: "/dashboard",
   });
 
   res.status(200).json({ data: {}, error: false, message: "Member approved" });
@@ -154,10 +245,53 @@ churchesHandler.post("/choose", async (req, res) => {
     throw new AppError("Church not found", 404);
   }
 
+  const existingProfile = await prisma.profile.findUnique({
+    where: { id: user.id },
+  });
+
   const profile = await prisma.profile.update({
     where: { id: user.id },
     data: { churchId },
   });
+
+  if (existingProfile && existingProfile.churchId !== profile.churchId) {
+    const members = await prisma.profile.findMany({
+      where: {
+        churchId: profile.churchId!,
+        id: { not: profile.id },
+      },
+      select: {
+        id: true,
+        role: true,
+        primaryForChurch: true,
+        user: { select: { email: true } },
+      },
+    });
+
+    const isLeader = profile.role === "LEADER";
+    const recipients = members
+      .filter((m) => (isLeader ? m.primaryForChurch : m.role === "LEADER"))
+      .map((m) => m.id);
+
+    await createNotifications(recipients, {
+      type: isLeader ? "LEADER_APPLIED" : "STUDENT_APPLIED",
+      title: isLeader ? "Leader applied" : "New student applied",
+      message: `${profile.name} applied to join ${church.name}.`,
+      link: "/my-church",
+    });
+
+    await Promise.all(
+      members
+        .filter((m) => m.primaryForChurch && m.user?.email)
+        .map((m) =>
+          sendChurchApplicationEmail(m.user!.email!, {
+            applicantName: profile.name,
+            applicantRole: isLeader ? "Leader" : "Student",
+            churchName: church.name,
+          })
+        )
+    );
+  }
 
   const jwtsecret = process.env.JWT_SECRET || "";
   const accessToken = jwt.sign(
@@ -207,6 +341,14 @@ churchesHandler.post("/my/members/:memberId/reject", async (req, res) => {
     throw new AppError("Member not found in your church", 404);
   }
 
+  if (profile.role !== "LEADER" || !profile.approved) {
+    throw new AppError("Only approved leaders can remove members", 403);
+  }
+
+  if (target.id === profile.id) {
+    throw new AppError("You cannot remove yourself", 400);
+  }
+
   if (target.primaryForChurch) {
     throw new AppError("Cannot reject the primary contact", 403);
   }
@@ -214,6 +356,13 @@ churchesHandler.post("/my/members/:memberId/reject", async (req, res) => {
   await prisma.profile.update({
     where: { id: target.id },
     data: { churchId: null, approved: false },
+  });
+
+  await createNotifications([target.id], {
+    type: "MEMBER_REJECTED",
+    title: "Not approved",
+    message: "Your request to join the church was not approved.",
+    link: "/choose-church",
   });
 
   res.status(200).json({ data: {}, error: false, message: "Member rejected" });
@@ -261,6 +410,10 @@ churchesHandler.get("/:id/members", async (req, res) => {
 
   if (!profile?.churchId || profile.churchId !== req.params.id) {
     throw new AppError("You are not a member of this church", 403);
+  }
+
+  if (!profile.approved) {
+    throw new AppError("Your account has not been approved yet", 403);
   }
 
   const members = await prisma.profile.findMany({

@@ -31,22 +31,75 @@ webhookHandler.post(
       );
     }
 
-    res.status(200).json({ received: true });
-
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
-      const registration = await prisma.registration.findFirst({
-        where: { paymentSession: session.id },
+      const scholarshipPayment = await prisma.scholarshipPayment.findUnique({
+        where: { sessionId: session.id },
+        include: {
+          event: { select: { name: true } },
+        },
       });
 
-      if (registration && !registration.paid) {
-        await prisma.registration.update({
-          where: { id: registration.id },
-          data: { paid: true },
+      if (scholarshipPayment) {
+        if (!scholarshipPayment.paid) {
+          await prisma.$transaction(async (tx) => {
+            await tx.scholarshipPayment.update({
+              where: { id: scholarshipPayment.id },
+              data: {
+                paid: true,
+                amount: session.amount_total ?? scholarshipPayment.amount,
+              },
+            });
+
+            await tx.registration.updateMany({
+              where: {
+                profileId: { in: scholarshipPayment.profileIds },
+                eventId: scholarshipPayment.eventId,
+                selfPay: true,
+              },
+              data: { paid: true },
+            });
+
+            await tx.notification.createMany({
+              data: scholarshipPayment.profileIds.map((profileId) => ({
+                profileId,
+                type: "REGISTRATION_UPDATED",
+                title: "Registration updated",
+                message: `Your scholarship for "${scholarshipPayment.event.name}" has been confirmed — payment received.`,
+                link: `/events/${scholarshipPayment.eventId}`,
+              })),
+            });
+          });
+        }
+      } else {
+        const registration = await prisma.registration.findFirst({
+          where: { paymentSession: session.id },
+          include: {
+            event: { select: { name: true } },
+          },
         });
+
+        if (registration && !registration.paid) {
+          await prisma.registration.update({
+            where: { id: registration.id },
+            data: { paid: true },
+          });
+
+          await prisma.notification.create({
+            data: {
+              profileId: registration.profileId,
+              type: "REGISTRATION_UPDATED",
+              title: "Registration updated",
+              message: `Your registration for "${registration.event.name}" has been updated — payment confirmed.`,
+              link: `/events/${registration.eventId}`,
+            },
+          });
+        }
       }
     }
+
+    res.status(200).json({ received: true });
   }
 );
 

@@ -1,11 +1,9 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/label";
-import { submitRegisterForm } from "@/actions/registerForm";
 import { toast } from "sonner"
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -19,7 +17,8 @@ export function RegisterForm() {
     confirmPassword: string;
   };
   
-  const { register, handleSubmit, formState } = useForm<RegisterFormData>();
+  const { register, handleSubmit, formState, getValues } =
+    useForm<RegisterFormData>();
   const router = useRouter();
 
   const onSubmit = async (data: RegisterFormData) => {
@@ -84,7 +83,11 @@ export function RegisterForm() {
         <div>
           <Label htmlFor="confirmPassword">Confirm password</Label>
           <PasswordInput
-            {...register("confirmPassword", { required: true })}
+            {...register("confirmPassword", {
+              required: "Confirm password is required",
+              validate: (value) =>
+                value === getValues("password") || "Passwords do not match",
+            })}
             id="confirmPassword"
             name="confirmPassword"
             autoComplete="new-password"
@@ -92,6 +95,11 @@ export function RegisterForm() {
             minLength={8}
             required
           />
+          {formState.errors.confirmPassword && (
+            <p className="mt-1 text-sm text-red-500">
+              {formState.errors.confirmPassword.message}
+            </p>
+          )}
         </div>
 
         <p className="text-xs text-muted">

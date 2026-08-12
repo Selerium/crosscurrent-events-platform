@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { NotificationItem, type NotificationRecord } from "@/components/notifications/NotificationItem";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
@@ -25,6 +26,8 @@ export default function DashboardPage() {
     signedUp: number;
     maxSignUps: number;
     price: number;
+    earlyBirdPrice: number | null;
+    earlyBirdDate: Date | null;
     status: string;
   };
 
@@ -39,6 +42,9 @@ export default function DashboardPage() {
   const [usersEventsError, setUsersEventsError] = useState(false);
   const [name, setName] = useState("User");
   const [approved, setApproved] = useState(true);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [unseenCount, setUnseenCount] = useState(0);
 
   useEffect(() => {
     setName(localStorage.getItem("name") ?? "User");
@@ -75,6 +81,15 @@ export default function DashboardPage() {
         )
       )
       .catch(() => setUsersEventsError(true));
+
+    api
+      .get("/notifications?page=1&limit=3")
+      .then((res) => {
+        setNotifications(res.data.data || []);
+        setUnseenCount(res.data.unseenCount ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => setNotificationsLoading(false));
   }, []);
 
   return (
@@ -150,7 +165,19 @@ export default function DashboardPage() {
                           <MapPinned width={24} height={24} /> {event.location}
                         </span>
                         <span className="flex gap-2">
-                          <Banknote width={24} height={24} /> {event.price} AED
+                          <Banknote width={24} height={24} />{" "}
+                          {event.earlyBirdPrice != null &&
+                          event.earlyBirdDate != null &&
+                          new Date() <= new Date(event.earlyBirdDate) ? (
+                            <>
+                              {event.earlyBirdPrice} AED
+                              <span className="rounded-md bg-green-800 px-2 py-0.5 text-xs font-semibold text-white">
+                                Early bird
+                              </span>
+                            </>
+                          ) : (
+                            `${event.price} AED`
+                          )}
                         </span>
                         <span className="flex gap-2">
                           <Users width={24} height={24} /> {event.signedUp}/
@@ -159,7 +186,13 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="flex flex-col sm:grid grid-cols-2 gap-4 w-full">
-                      {event.signedUp >= event.maxSignUps ? (
+                      {event.status !== "active" ? (
+                        <div className="sm:w-1/2 p-2 justify-center rounded-lg border text-center text-muted-foreground font-medium text-sm">
+                          {event.status === "completed"
+                            ? "Event completed"
+                            : "Registration closed"}
+                        </div>
+                      ) : event.signedUp >= event.maxSignUps ? (
                         <div className="sm:w-1/2 p-2 justify-center rounded-lg border text-center text-muted-foreground font-medium text-sm">
                           All seats filled
                         </div>
@@ -194,6 +227,40 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="flex flex-col gap-4 lg:col-span-2">
+              <section className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="flex items-center gap-2 font-semibold text-foreground">
+                    Notifications
+                    {unseenCount > 0 && (
+                      <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                        {unseenCount}
+                      </span>
+                    )}
+                  </h2>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/notifications">Show all</Link>
+                  </Button>
+                </div>
+                {notificationsLoading ? (
+                  <div className="p-4 rounded-lg border text-muted-foreground">
+                    Loading...
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="p-4 rounded-lg border text-muted-foreground">
+                    No notifications
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {notifications.map((notification) => (
+                      <NotificationItem
+                        key={notification.id}
+                        notification={notification}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+
               <h2 className="font-semibold text-foreground">My Calendar</h2>
               {usersEventsError ? (
                 <div className="p-4 rounded-lg border text-muted-foreground">

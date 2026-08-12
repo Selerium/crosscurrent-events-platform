@@ -7,12 +7,18 @@ import {
   Contact,
   Edit3,
   Plus,
+  UserPlus,
   Users,
+  XIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import {
   currencyFormatter,
   formatEventDate,
@@ -31,6 +37,42 @@ export default function AdminDashboard() {
   const [eventsError, setEventsError] = useState(false);
   const [churchesError, setChurchesError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [adminForm, setAdminForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
+  const [addingAdmin, setAddingAdmin] = useState(false);
+
+  async function handleAddAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (
+      !adminForm.fullName ||
+      !adminForm.email ||
+      !adminForm.password ||
+      !adminForm.phone
+    ) {
+      toast.warning("Please fill out all fields");
+      return;
+    }
+    setAddingAdmin(true);
+    try {
+      await api.post("/admin/admins", adminForm);
+      toast.success("Admin account created", {
+        description: `An email was sent to ${adminForm.email}`,
+      });
+      setShowAddAdmin(false);
+      setAdminForm({ fullName: "", email: "", password: "", phone: "" });
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message || "Could not create admin account",
+      );
+    } finally {
+      setAddingAdmin(false);
+    }
+  }
 
   const revenueByPeriod: Record<RevenuePeriod, number> = {
     "All time": events
@@ -111,7 +153,88 @@ export default function AdminDashboard() {
               Admin Dashboard
             </h1>
           </div>
+          <Button onClick={() => setShowAddAdmin(true)}>
+            <UserPlus /> Add admin
+          </Button>
         </div>
+
+        {showAddAdmin && (
+          <form
+            onSubmit={handleAddAdmin}
+            className="fixed top-0 z-50 flex h-full w-full items-center justify-center bg-black/50 p-4"
+          >
+            <div className="flex w-full max-w-md flex-col gap-4 rounded-lg border bg-card p-6">
+              <div className="flex items-center justify-between">
+                <span className="text-lg font-bold">Add admin</span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddAdmin(false)}
+                  className="cursor-pointer"
+                >
+                  <XIcon width={24} height={24} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="adminFullName">Full name</Label>
+                <Input
+                  id="adminFullName"
+                  value={adminForm.fullName}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, fullName: e.target.value })
+                  }
+                  placeholder="Enter full name"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="adminEmail">Email</Label>
+                <Input
+                  id="adminEmail"
+                  type="email"
+                  value={adminForm.email}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, email: e.target.value })
+                  }
+                  placeholder="admin@example.com"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="adminPhone">Phone</Label>
+                <Input
+                  id="adminPhone"
+                  type="tel"
+                  value={adminForm.phone}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, phone: e.target.value })
+                  }
+                  placeholder="+971500000000"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="adminPassword">Password</Label>
+                <PasswordInput
+                  id="adminPassword"
+                  value={adminForm.password}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, password: e.target.value })
+                  }
+                  placeholder="At least 8 characters"
+                  minLength={8}
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={addingAdmin}
+                className="w-full justify-center p-3"
+              >
+                {addingAdmin ? "Creating..." : "Create admin account"}
+              </Button>
+            </div>
+          </form>
+        )}
 
         {loading ? (
           <p className="text-muted-foreground">Loading...</p>

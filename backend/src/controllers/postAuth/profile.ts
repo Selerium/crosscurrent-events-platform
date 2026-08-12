@@ -23,6 +23,7 @@ profileHandler.get("", async (req, res) => {
     user: { name: profile.name, email: profile.user.email },
     role: profile.role,
     firstTime: profile.firstTime,
+    approved: profile.approved,
     gender: profile.gender,
     dob: profile.dob,
     nationality: profile.nationality,
@@ -55,7 +56,6 @@ profileHandler.put("", async (req, res) => {
     parentOneEmail,
     parentOnePhone,
     churchId,
-    primaryForChurch,
   } = req.body;
 
   const data: Record<string, unknown> = {};
@@ -67,7 +67,6 @@ profileHandler.put("", async (req, res) => {
   if (parentOneEmail !== undefined) data.parentOneEmail = parentOneEmail;
   if (parentOnePhone !== undefined) data.parentOnePhone = parentOnePhone;
   if (churchId !== undefined) data.churchId = churchId;
-  if (primaryForChurch !== undefined) data.primaryForChurch = primaryForChurch;
 
   const profile = await prisma.profile.update({
     where: { id: req.user.id },
@@ -83,6 +82,7 @@ profileHandler.put("", async (req, res) => {
     user: { name: profile.name, email: profile.user.email },
     role: profile.role,
     firstTime: profile.firstTime,
+    approved: profile.approved,
     gender: profile.gender,
     dob: profile.dob,
     nationality: profile.nationality,
