@@ -1326,7 +1326,7 @@ export default function EventPage() {
           </div>
           <hr />
           <div className="grid lg:grid-cols-3 grid-cols-1 gap-4">
-            <div className="col-span-1 order-2 lg:order-1 lg:col-span-2 flex flex-col gap-2">
+            <div className="col-span-1 order-2 lg:order-1 lg:col-span-2 flex flex-col gap-2 lg:overflow-y-scroll lg:h-125">
               <hr className="block md:hidden" />
               <span className="font-bold">Schedule</span>
               <div className="flex gap-2">

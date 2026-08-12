@@ -309,7 +309,7 @@ export default function AdminEventPage() {
         <hr />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="order-2 col-span-1 flex flex-col gap-2 lg:order-1 lg:col-span-2">
+          <div className="order-2 col-span-1 flex flex-col gap-2 lg:order-1 lg:col-span-2 lg:overflow-y-scroll lg:h-125">
             <span className="font-bold">Schedule</span>
             {editing ? (
               <div className="flex flex-col gap-3">
