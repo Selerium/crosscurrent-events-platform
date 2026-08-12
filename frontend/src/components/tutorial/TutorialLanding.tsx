@@ -227,6 +227,7 @@ const TUTORIALS: Tutorial[] = [
 
 export function TutorialLanding() {
   const [activeId, setActiveId] = useState<RoleId>("student");
+  const [announcementOpen, setAnnouncementOpen] = useState(true);
   const tutorial = TUTORIALS.find((t) => t.id === activeId)!;
 
   return (
@@ -238,9 +239,9 @@ export function TutorialLanding() {
               How CrossCurrent works
             </h1>
             <p className="max-w-2xl text-muted-foreground">
-              CrossCurrent helps churches run their youth groups. Members join
-              a church, leaders approve them, and everyone registers for and
-              pays for events in one place.
+              {
+                "The one central platform for all things UAE YFC - just create an account, join your church, and register for Big Weekend. Your details are saved for every event and won't need re-registering each time."
+              }
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2">
               <Button asChild>
@@ -366,6 +367,59 @@ export function TutorialLanding() {
           </section>
         </div>
       </main>
+
+      {announcementOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-lg border p-6 shadow-lg">
+            <h2 className="text-xl font-bold text-foreground">
+              Big Weekend 2026 registrations are officially open!
+            </h2>
+            <div className="flex flex-col gap-4 text-sm text-muted-foreground">
+              <p>
+                Hi! We&rsquo;re excited to announce that Big Weekend 2026
+                registrations are <strong>OFFICIALLY OPEN</strong>!
+              </p>
+              <p>
+                To sign up, we&rsquo;ve created a new platform this year that
+                would help us as well as you and your youth groups to sign up
+                for not just BW, but ANY event that we run in the UAE. You can
+                register for an account right now to register for Big Weekend
+                (please read through the tutorial on the homepage to understand
+                how registration works).
+              </p>
+              <p>
+                Upon registering, you choose your church and once approved by
+                your church, you can sign up for all available events.
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>Youth group directors can manage youth leaders</li>
+                <li>Leaders can manage students</li>
+                <li>Students just have to sign up for events</li>
+              </ul>
+              <p>
+                This process has been put in place to ensure that we can verify
+                every church is represented properly by an actual member of your
+                church. While the chances of false registrations are very
+                minimal, this process makes sure to protect your churches and
+                your groups.
+              </p>
+              <p>
+                If you require any assistance with registering, please reach out
+                to us on{" "}
+                <a href="mailto:hello@eyu.ae" className="inline underline text-blue-400">
+                  hello@eyu.ae
+                </a>
+              </p>
+            </div>
+            <Button
+              className="mt-2 self-center"
+              onClick={() => setAnnouncementOpen(false)}
+            >
+              Got it!
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
