@@ -84,10 +84,13 @@ export default function AdminEventPage() {
   const [editLocation, setEditLocation] = useState("");
   const [editPrice, setEditPrice] = useState(0);
   const [editMaxSignUps, setEditMaxSignUps] = useState(0);
+  const [editEarlyBirdPrice, setEditEarlyBirdPrice] = useState("");
+  const [editEarlyBirdDate, setEditEarlyBirdDate] = useState<Date | null>(null);
   const [editSchedule, setEditSchedule] = useState<ScheduleItem[][]>([[]]);
   const [saving, setSaving] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
+  const [earlyBirdOpen, setEarlyBirdOpen] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const [participantFilter, setParticipantFilter] =
@@ -126,6 +129,12 @@ export default function AdminEventPage() {
     setEditLocation(eventInfo.location);
     setEditPrice(eventInfo.price);
     setEditMaxSignUps(eventInfo.capacity);
+    setEditEarlyBirdPrice(
+      eventInfo.earlyBirdPrice != null ? String(eventInfo.earlyBirdPrice) : ""
+    );
+    setEditEarlyBirdDate(
+      eventInfo.earlyBirdDate ? new Date(eventInfo.earlyBirdDate) : null
+    );
     setEditSchedule(
       eventInfo.schedule.length > 0
         ? eventInfo.schedule.map((day) =>
@@ -205,6 +214,12 @@ export default function AdminEventPage() {
         location: editLocation,
         price: editPrice,
         maxSignUps: editMaxSignUps,
+        earlyBirdPrice: editEarlyBirdPrice
+          ? Number(editEarlyBirdPrice)
+          : null,
+        earlyBirdDate: editEarlyBirdDate
+          ? editEarlyBirdDate.toISOString()
+          : null,
         schedule: editSchedule,
       });
       setEventInfo({
@@ -216,6 +231,12 @@ export default function AdminEventPage() {
         location: editLocation,
         price: editPrice,
         capacity: editMaxSignUps,
+        earlyBirdPrice: editEarlyBirdPrice
+          ? Number(editEarlyBirdPrice)
+          : null,
+        earlyBirdDate: editEarlyBirdDate
+          ? editEarlyBirdDate.toISOString()
+          : null,
         schedule: editSchedule,
       });
       setEditing(false);
@@ -523,6 +544,51 @@ export default function AdminEventPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-2 rounded-lg border p-4">
+                  <Label htmlFor="edit-early-bird-price">
+                    Early Bird Price (AED)
+                  </Label>
+                  <Input
+                    id="edit-early-bird-price"
+                    type="number"
+                    min={0}
+                    value={editEarlyBirdPrice}
+                    onChange={(e) => setEditEarlyBirdPrice(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 rounded-lg border p-4">
+                  <Label>Early Bird Deadline</Label>
+                  <Popover
+                    open={earlyBirdOpen}
+                    onOpenChange={setEarlyBirdOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer justify-start text-left font-normal"
+                      >
+                        <CalendarIcon width={14} height={14} />
+                        {editEarlyBirdDate
+                          ? editEarlyBirdDate.toLocaleDateString()
+                          : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={editEarlyBirdDate ?? undefined}
+                        onSelect={(date) => {
+                          setEditEarlyBirdDate(date ?? null);
+                          setEarlyBirdOpen(false);
+                        }}
+                        disabled={(date) =>
+                          editStartDate ? date < editStartDate : false
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="flex flex-col gap-2 rounded-lg border p-4">
                   <Label htmlFor="edit-max-signups">Max Sign Ups</Label>
                   <Input
                     id="edit-max-signups"
@@ -560,6 +626,23 @@ export default function AdminEventPage() {
                   label="Price"
                   value={currencyFormatter.format(eventInfo.price)}
                 />
+                {eventInfo.earlyBirdPrice != null && (
+                  <InfoBlock
+                    icon={<Banknote width={20} height={20} />}
+                    label="Early Bird Price"
+                    value={currencyFormatter.format(eventInfo.earlyBirdPrice)}
+                  />
+                )}
+                {eventInfo.earlyBirdDate && (
+                  <InfoBlock
+                    icon={<CalendarDays width={20} height={20} />}
+                    label="Early Bird Deadline"
+                    value={formatEventDate(
+                      eventInfo.earlyBirdDate,
+                      eventInfo.earlyBirdDate,
+                    )}
+                  />
+                )}
                 <InfoBlock
                   icon={<Banknote width={20} height={20} />}
                   label="Revenue"

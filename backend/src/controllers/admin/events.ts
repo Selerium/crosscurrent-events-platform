@@ -162,6 +162,8 @@ adminEventsHandler.get("", async (req, res) => {
       unpaidSignUps: e._count.registrations - paidCount,
       capacity: e.maxSignUps,
       price: e.price,
+      earlyBirdPrice: e.earlyBirdPrice,
+      earlyBirdDate: e.earlyBirdDate,
       revenue: paidCount * e.price,
       schedule: e.schedule,
     };
@@ -199,6 +201,8 @@ adminEventsHandler.get("/:id", async (req, res) => {
     unpaidSignUps: event._count.registrations - paidCount,
     capacity: event.maxSignUps,
     price: event.price,
+    earlyBirdPrice: event.earlyBirdPrice,
+    earlyBirdDate: event.earlyBirdDate,
     revenue: paidCount * event.price,
     schedule: event.schedule,
   };

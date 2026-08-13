@@ -172,7 +172,7 @@ export default function DashboardPage() {
                             <>
                               {event.earlyBirdPrice} AED
                               <span className="rounded-md bg-green-800 px-2 py-0.5 text-xs font-semibold text-white">
-                                Early bird
+                                EARLY BIRD
                               </span>
                             </>
                           ) : (

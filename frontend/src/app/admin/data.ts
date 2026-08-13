@@ -21,6 +21,8 @@ export type AdminEvent = {
   unpaidSignUps: number;
   capacity: number;
   price: number;
+  earlyBirdPrice: number | null;
+  earlyBirdDate: string | null;
   revenue: number;
   schedule: {
     item: string;

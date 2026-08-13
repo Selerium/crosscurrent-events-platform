@@ -11,7 +11,7 @@ const earlyBirdPrice = process.env.EARLY_BW26_PRICE || "";
 
 function getActivePrice(): string {
   const now = new Date();
-  const cutoff = new Date(2026, 7, 31, 23, 59, 59);
+  const cutoff = new Date(2026, 8, 6, 23, 59, 59);
   return now <= cutoff ? earlyBirdPrice : regularPrice;
 }
 
