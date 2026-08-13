@@ -581,9 +581,6 @@ export default function AdminEventPage() {
                           setEditEarlyBirdDate(date ?? null);
                           setEarlyBirdOpen(false);
                         }}
-                        disabled={(date) =>
-                          editStartDate ? date < editStartDate : false
-                        }
                       />
                     </PopoverContent>
                   </Popover>
