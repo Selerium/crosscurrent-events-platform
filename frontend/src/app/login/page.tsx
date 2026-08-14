@@ -14,7 +14,9 @@ export default async function LoginPage() {
     redirect("/");
   }
 
-  await redirectIfAuthenticated();
+  if (await redirectIfAuthenticated()) {
+    redirect("/dashboard");
+  }
 
   return (
     <AuthShell

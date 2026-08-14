@@ -48,16 +48,19 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
         localStorage.removeItem("id");
         localStorage.removeItem("name");
         localStorage.removeItem("role");
+        localStorage.removeItem("firstTime");
+        localStorage.removeItem("approved");
         setUser(null);
       });
-  }, [pathname]);
-
-  async function handleLogout() {
-    localStorage.removeItem("id");
-    localStorage.removeItem("name");
-    localStorage.removeItem("role");
-    localStorage.removeItem("firstTime");
-    localStorage.removeItem("approved");
+    }, [pathname]);
+    
+    async function handleLogout() {
+      localStorage.removeItem("id");
+      localStorage.removeItem("name");
+      localStorage.removeItem("role");
+      localStorage.removeItem("firstTime");
+      localStorage.removeItem("approved");
+      setUser(null);
     try {
       await api.post("/logout");
     } catch {

@@ -1,39 +1,50 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-export async function redirectIfAuthenticated() {
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+
+export type SessionUser = {
+  id: string;
+  name: string;
+  role: string;
+  firstTime: boolean;
+  approved: boolean;
+  churchId: string | null;
+};
+
+export async function redirectIfAuthenticated(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
-  if (!token) return;
+  if (!token) return null;
 
-  let role: string | null = null;
-  let firstTime: boolean | null = null;
-  let approved = false;
-  let churchId: string | null = null;
+  let data: SessionUser;
   try {
-    const payload = JSON.parse(
-      Buffer.from(token.split(".")[1], "base64").toString(),
-    );
-    if (payload.exp && payload.exp * 1000 < Date.now()) return;
-    role = payload.role;
-    firstTime = payload.firstTime;
-    approved = payload.approved ?? false;
-    churchId = payload.churchId ?? null;
+    const res = await fetch(`${API_BASE}/me`, {
+      headers: {
+        Accept: "application/json",
+        Cookie: cookieStore.toString(),
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    data = json?.data;
+    if (!data) return null;
   } catch {
-    return;
+    return null;
   }
 
-  if (role === "ADMIN") {
+  if (data.role === "ADMIN") {
     redirect("/admin");
   }
 
-  if (firstTime === true) {
+  if (data.firstTime === true) {
     redirect("/profile/first-time");
   }
 
-  if (!approved && !churchId) {
+  if (!data.approved && !data.churchId) {
     redirect("/choose-church");
   }
 
-  redirect("/dashboard");
+  return data;
 }

@@ -118,8 +118,8 @@ model Registration {
 
   mediaConsent Boolean @default(false)
   swimmingPermission Boolean @default(false)
-  emergencyName  String?
-  emergencyPhone String?
+  emergencyName  String
+  emergencyPhone String
   notes          String?
   safeguardingDoc String?
 

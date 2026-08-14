@@ -198,8 +198,8 @@ const registerForEvent = async (req: any, res: any) => {
       mediaConsent: asBool(req.body.mediaConsent),
       swimmingPermission:
         profile.role === "STUDENT" && asBool(req.body.swimmingPermission),
-      emergencyName: asString(req.body.emergencyName).trim() || null,
-      emergencyPhone: asString(req.body.emergencyPhone).trim() || null,
+      emergencyName: asString(req.body.emergencyName).trim(),
+      emergencyPhone: asString(req.body.emergencyPhone).trim(),
       notes: asString(req.body.notes).trim() || null,
       safeguardingDoc,
       spouseId,

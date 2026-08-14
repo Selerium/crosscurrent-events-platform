@@ -347,9 +347,7 @@ export default function EventPage() {
         ...data,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
-        earlyBirdDate: data.earlyBirdDate
-          ? new Date(data.earlyBirdDate)
-          : null,
+        earlyBirdDate: data.earlyBirdDate ? new Date(data.earlyBirdDate) : null,
         schedule: (data.schedule || []).map((day: ScheduleItem[]) =>
           day.map((item: ScheduleItem) => ({
             ...item,
@@ -562,7 +560,9 @@ export default function EventPage() {
       ? new Date(eventData.earlyBirdDate)
       : null;
     const earlyBirdActive =
-      !!eventData?.earlyBirdPrice && !!earlyBirdDate && new Date() <= earlyBirdDate;
+      !!eventData?.earlyBirdPrice &&
+      !!earlyBirdDate &&
+      new Date() <= earlyBirdDate;
     return {
       displayPrice: earlyBirdActive
         ? eventData!.earlyBirdPrice!
@@ -962,7 +962,11 @@ export default function EventPage() {
                     </span>
                     <span>
                       If you do not have one, you can follow the instructions{" "}
-                      <a target="_blank" className="underline text-blue-700 rounded-sm" href="https://drive.google.com/drive/folders/19PGozF9mHkdKrkLfjeVxWKLo4NcbyBfj">
+                      <a
+                        target="_blank"
+                        className="underline text-blue-700 rounded-sm"
+                        href="https://drive.google.com/drive/folders/19PGozF9mHkdKrkLfjeVxWKLo4NcbyBfj"
+                      >
                         here
                       </a>
                     </span>
@@ -1039,15 +1043,13 @@ export default function EventPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <span className="font-bold">
-                  Emergency Contact{" "}
-                  <span className="font-medium text-muted-foreground italic">
-                    (optional)
-                  </span>
-                </span>
+                <span className="font-bold">Emergency Contact</span>
                 <Controller
                   name="emergencyName"
                   control={control}
+                  rules={{
+                    required: "Please enter your emergency contact's name",
+                  }}
                   render={({ field }) => (
                     <input
                       type="text"
@@ -1064,6 +1066,9 @@ export default function EventPage() {
                 <Controller
                   name="emergencyPhone"
                   control={control}
+                  rules={{
+                    required: "Please enter your emergency contact's number",
+                  }}
                   render={({ field }) => (
                     <input
                       type="text"
@@ -1373,7 +1378,8 @@ export default function EventPage() {
                     ? "Event completed"
                     : "Registration closed"}
                 </div>
-              ) : !eventData.user && eventData.signedUp >= eventData.maxSignUps ? (
+              ) : !eventData.user &&
+                eventData.signedUp >= eventData.maxSignUps ? (
                 <div className="w-full p-4 justify-center rounded-lg border text-center text-muted-foreground font-medium">
                   All seats filled
                 </div>

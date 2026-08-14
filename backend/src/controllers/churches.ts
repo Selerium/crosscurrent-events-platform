@@ -162,15 +162,26 @@ churchesHandler.get("/my/members", async (req, res) => {
 
   const members = await prisma.profile.findMany({
     where: { churchId: profile.churchId },
+    include: {
+      user: { select: { email: true } },
+    },
     orderBy: { name: "asc" },
   });
 
   const data = members.map((m) => ({
     id: m.id,
     name: m.name,
+    email: m.user?.email || "",
     role: m.role || "STUDENT",
     approved: m.approved,
     primary: m.primaryForChurch,
+    phone: m.phone || "",
+    gender: m.gender || "",
+    dob: m.dob?.toISOString() || "",
+    nationality: m.nationality || "",
+    parentOneName: m.parentOneName || "",
+    parentOneEmail: m.parentOneEmail || "",
+    parentOnePhone: m.parentOnePhone || "",
   }));
 
   res.status(200).json({ data, error: false, message: "" });

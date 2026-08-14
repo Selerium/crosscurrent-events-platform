@@ -14,7 +14,9 @@ export default async function RegisterPage() {
     redirect("/");
   }
 
-  await redirectIfAuthenticated();
+  if (await redirectIfAuthenticated()) {
+    redirect("/dashboard");
+  }
 
   return (
     <AuthShell

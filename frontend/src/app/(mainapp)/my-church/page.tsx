@@ -1,13 +1,19 @@
 "use client";
 
 import {
+  Calendar,
   ChevronLeft,
   Church,
   Contact,
+  Flag,
   Mail,
+  MailIcon,
   MapPin,
   Phone,
+  PhoneIcon,
+  Search,
   Shield,
+  User,
   Users,
   XIcon,
 } from "lucide-react";
@@ -31,9 +37,17 @@ type ChurchData = {
 type Member = {
   id: string;
   name: string;
+  email: string;
   role: string;
   approved: boolean;
   primary: boolean;
+  phone: string;
+  gender: string;
+  dob: string;
+  nationality: string;
+  parentOneName: string;
+  parentOneEmail: string;
+  parentOnePhone: string;
 };
 
 type UserProfile = {
@@ -51,6 +65,7 @@ export default function MyChurchPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [memberFilter, setMemberFilter] = useState<"all" | "LEADER" | "STUDENT">("all");
+  const [memberSearch, setMemberSearch] = useState("");
 
   const [showApproveStudents, setShowApproveStudents] = useState(false);
   const [showApproveLeaders, setShowApproveLeaders] = useState(false);
@@ -130,9 +145,13 @@ export default function MyChurchPage() {
   }
 
   const filteredMembers = useMemo(() => {
-    if (memberFilter === "all") return members;
-    return members.filter((m) => m.role === memberFilter);
-  }, [members, memberFilter]);
+    const search = memberSearch.trim().toLowerCase();
+    return members.filter((m) => {
+      if (memberFilter !== "all" && m.role !== memberFilter) return false;
+      if (search && !m.name.toLowerCase().includes(search)) return false;
+      return true;
+    });
+  }, [members, memberFilter, memberSearch]);
 
   const canApproveStudents =
     profile?.approved && (profile?.role === "LEADER" || profile?.primaryForChurch);
@@ -232,17 +251,35 @@ export default function MyChurchPage() {
                 {pendingMembers.map((m) => (
                   <div
                     key={m.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex flex-col items-start gap-4 justify-between rounded-lg border p-3"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                        <Users className="size-4" />
-                      </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="font-semibold">{m.name}</span>
-                        <p className="text-sm text-muted-foreground capitalize">
+                        <p className="text-sm text-muted-foreground capitalize italic pb-2">
                           {m.role.toLowerCase()}
                         </p>
+                        <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
+                          {m.email && <p className="break-all"><MailIcon className="inline" width={16} height={16} /> {m.email}</p>}
+                          {m.phone && <p><PhoneIcon className="inline" width={16} height={16} /> {m.phone}</p>}
+                          {m.gender && (
+                            <p className="capitalize"><User className="inline" width={16} height={16} /> {m.gender.toLowerCase()}</p>
+                          )}
+                          {m.dob && (
+                            <p><Calendar className="inline" width={16} height={16} /> {new Date(m.dob).toLocaleDateString()}</p>
+                          )}
+                          {m.nationality && <p className="col-span-2 pb-4"><Flag className="inline" width={16} height={16} /> {m.nationality}</p>}
+                          {m.role === "STUDENT" && (
+                            <>
+                              <p className="col-span-2 font-bold">Parent Details:</p>
+                              {m.parentOneName && <p><User className="inline" width={16} height={16} />  {m.parentOneName}</p>}
+                              {m.parentOneEmail && (
+                                <p className="break-all"><MailIcon className="inline" width={16} height={16} /> {m.parentOneEmail}</p>
+                              )}
+                              {m.parentOnePhone && <p><PhoneIcon className="inline" width={16} height={16} /> {m.parentOnePhone}</p>}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -355,11 +392,21 @@ export default function MyChurchPage() {
             <section className="rounded-lg border p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="font-bold">Members</h2>
-                <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
-                  {(["all", "LEADER", "STUDENT"] as const).map((role) => (
-                    <button
-                      className={`h-8 rounded-md px-3 text-sm font-medium capitalize transition-colors ${
-                        memberFilter === role
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      placeholder="Search by name..."
+                      className="w-full rounded-lg border border-border bg-transparent py-2 pl-9 pr-3.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
+                    {(["all", "LEADER", "STUDENT"] as const).map((role) => (
+                      <button
+                        className={`h-8 rounded-md px-3 text-sm font-medium capitalize transition-colors ${
+                          memberFilter === role
                           ? "bg-primary text-primary-foreground"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
@@ -370,6 +417,7 @@ export default function MyChurchPage() {
                       {role === "all" ? "All" : role === "LEADER" ? "Leaders" : "Students"}
                     </button>
                   ))}
+                  </div>
                 </div>
               </div>
               {membersLoading ? (
@@ -377,7 +425,7 @@ export default function MyChurchPage() {
               ) : members.length === 0 ? (
                 <p className="mt-4 text-muted-foreground">No members found</p>
               ) : filteredMembers.length === 0 ? (
-                <p className="mt-4 text-muted-foreground">No members match this filter</p>
+                <p className="mt-4 text-muted-foreground">No members match your search</p>
               ) : (
                 <div className="mt-4 divide-y rounded-lg border">
                   {filteredMembers.map((member) => (
@@ -389,17 +437,38 @@ export default function MyChurchPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{member.name}</span>
                           {member.primary && (
-                            <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                            <span className="rounded-md bg-primary px-2 py-0.5 text-sm font-semibold text-primary-foreground">
                               Primary
                             </span>
                           )}
-                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-sm font-medium capitalize text-muted-foreground">
                             {member.role.toLowerCase()}
                           </span>
                           {!member.approved && (
-                            <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                            <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-sm font-medium text-yellow-800">
                               Pending
                             </span>
+                          )}
+                        </div>
+                        <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
+                          {member.email && <p className="break-all"><MailIcon className="inline" width={16} height={16} /> {member.email}</p>}
+                          {member.phone && <p><PhoneIcon className="inline" width={16} height={16} /> {member.phone}</p>}
+                          {member.gender && (
+                            <p className="capitalize"><User className="inline" width={16} height={16} /> {member.gender.toLowerCase()}</p>
+                          )}
+                          {member.dob && (
+                            <p><Calendar className="inline" width={16} height={16} /> {new Date(member.dob).toLocaleDateString()}</p>
+                          )}
+                          {member.nationality && <p className="col-span-2 pb-2"><Flag className="inline" width={16} height={16} /> {member.nationality}</p>}
+                          {member.role === "STUDENT" && (
+                            <>
+                              <p className="col-span-2 font-bold">Parent Details:</p>
+                              {member.parentOneName && <p><User className="inline" width={16} height={16} />  {member.parentOneName}</p>}
+                              {member.parentOneEmail && (
+                                <p className="break-all"><MailIcon className="inline" width={16} height={16} />  {member.parentOneEmail}</p>
+                              )}
+                              {member.parentOnePhone && <p><PhoneIcon className="inline" width={16} height={16} />  {member.parentOnePhone}</p>}
+                            </>
                           )}
                         </div>
                       </div>
@@ -408,6 +477,15 @@ export default function MyChurchPage() {
                           size="sm"
                           variant="destructive"
                           onClick={() => setRemoveTarget(member)}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                      {profile?.primaryForChurch && member.primary && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled
                         >
                           Remove
                         </Button>
