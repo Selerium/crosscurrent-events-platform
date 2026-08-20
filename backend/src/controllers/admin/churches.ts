@@ -102,17 +102,17 @@ adminChurchesHandler.get("", async (req, res) => {
   }
   if (emirate && emirate !== "all") {
     if (emirate === "other") {
-      where.country = { not: "United Arab Emirates" };
+      where.country = { notIn: ["UAE", "United Arab Emirates"] };
     } else {
       where.state = emirate;
-      where.country = "United Arab Emirates";
+      where.country = { in: ["UAE", "United Arab Emirates"] };
     }
   }
 
   const [total, uaeStates, otherCount] = await Promise.all([
     prisma.church.count({ where }),
-    prisma.church.findMany({ select: { state: true }, distinct: ["state"], where: { country: "United Arab Emirates" }, orderBy: { state: "asc" } }),
-    prisma.church.count({ where: { country: { not: "United Arab Emirates" } } }),
+    prisma.church.findMany({ select: { state: true }, distinct: ["state"], where: { country: { in: ["UAE", "United Arab Emirates"] } }, orderBy: { state: "asc" } }),
+    prisma.church.count({ where: { country: { notIn: ["UAE", "United Arab Emirates"] } } }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
