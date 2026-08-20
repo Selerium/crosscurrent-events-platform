@@ -73,6 +73,7 @@ export function SiteHeader({
   async function handleLogout() {
     try {
       toast.info("Logging out...");
+      window.location.href = "/";
       await api.post("/logout");
     } catch {
       // proceed even if logout request fails
@@ -83,7 +84,6 @@ export function SiteHeader({
     localStorage.removeItem("firstTime");
     localStorage.removeItem("approved");
     setUser(null);
-    window.location.href = "/";
   }
 
   function handleMyChurchClick(e: React.MouseEvent) {
