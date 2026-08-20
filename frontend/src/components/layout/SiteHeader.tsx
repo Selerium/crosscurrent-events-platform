@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Bell, Menu, X } from "lucide-react";
@@ -28,7 +28,6 @@ export function SiteHeader({
 }: {
   user?: SiteHeaderUser | null;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState(serverUser);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -84,8 +83,7 @@ export function SiteHeader({
     localStorage.removeItem("firstTime");
     localStorage.removeItem("approved");
     setUser(null);
-    router.push("/");
-    router.refresh();
+    window.location.href = "/";
   }
 
   function handleMyChurchClick(e: React.MouseEvent) {
