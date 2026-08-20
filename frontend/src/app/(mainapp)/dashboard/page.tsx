@@ -10,7 +10,10 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { NotificationItem, type NotificationRecord } from "@/components/notifications/NotificationItem";
+import {
+  NotificationItem,
+  type NotificationRecord,
+} from "@/components/notifications/NotificationItem";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
@@ -48,10 +51,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setName(localStorage.getItem("name") ?? "User");
-
+ console.log('hiiii')
     api
       .get("/me")
-      .then((res) => setApproved(res.data.data.approved ?? false))
+      .then((res) => {
+        setApproved(res.data.data.approved ?? false);
+        localStorage.setItem("id", res.data.data["id"]);
+        localStorage.setItem("name", res.data.data["name"]);
+        localStorage.setItem("role", res.data.data["role"]);
+        localStorage.setItem(
+          "firstTime",
+          res.data.data["firstTime"] ? "true" : "false",
+        );
+        localStorage.setItem(
+          "approved",
+          res.data.data["approved"] ? "true" : "false",
+        );
+        localStorage.setItem("churchId", res.data.data["churchId"] ?? "");
+      })
       .catch(() => {});
 
     api
@@ -64,7 +81,7 @@ export default function DashboardPage() {
               ...e,
               startDate: new Date(e.startDate as string),
               endDate: new Date(e.endDate as string),
-            }))
+            })),
         );
       })
       .catch(() => setAvailableEventsError(true));
@@ -77,8 +94,8 @@ export default function DashboardPage() {
             ...e,
             startDate: new Date(e.startDate as string),
             endDate: new Date(e.endDate as string),
-          }))
-        )
+          })),
+        ),
       )
       .catch(() => setUsersEventsError(true));
 
@@ -202,7 +219,7 @@ export default function DashboardPage() {
                           onClick={() => {
                             if (!approved) {
                               toast.warning(
-                                "Your account needs to be approved before you can register for events."
+                                "Your account needs to be approved before you can register for events.",
                               );
                               return;
                             }

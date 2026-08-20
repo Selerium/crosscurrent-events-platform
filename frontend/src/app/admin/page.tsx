@@ -75,15 +75,16 @@ export default function AdminDashboard() {
   }
 
   const revenueByPeriod: Record<RevenuePeriod, number> = {
-    "All time": events
-      ? events.reduce((sum, e) => sum + e.revenue, 0)
-      : 0,
+    "All time": events ? events.reduce((sum, e) => sum + e.revenue, 0) : 0,
     Monthly: events
       ? events
           .filter((e) => {
             const d = new Date(e.startDate);
             const now = new Date();
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            return (
+              d.getMonth() === now.getMonth() &&
+              d.getFullYear() === now.getFullYear()
+            );
           })
           .reduce((sum, e) => sum + e.revenue, 0)
       : 0,
@@ -99,10 +100,26 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eventsRes, churchesRes] = await Promise.allSettled([
+      const [eventsRes, churchesRes, meRes] = await Promise.allSettled([
         api.get("/admin/events"),
         api.get("/admin/churches"),
+        api.get("/me"),
       ]);
+
+      // if (meRes.status === "fulfilled") {
+      //   localStorage.setItem("id", meRes.value.data.data["id"]);
+      //   localStorage.setItem("name", meRes.value.data.data["name"]);
+      //   localStorage.setItem("role", meRes.value.data.data["role"]);
+      //   localStorage.setItem(
+      //     "firstTime",
+      //     meRes.value.data.data["firstTime"] ? "true" : "false",
+      //   );
+      //   localStorage.setItem(
+      //     "approved",
+      //     meRes.value.data.data["approved"] ? "true" : "false",
+      //   );
+      //   localStorage.setItem("churchId", meRes.value.data.data["churchId"] ?? "");
+      // }
 
       if (eventsRes.status === "fulfilled") {
         const eventsData: AdminEvent[] = eventsRes.value.data.data;
@@ -114,7 +131,8 @@ export default function AdminDashboard() {
 
       if (churchesRes.status === "fulfilled") {
         setChurches(churchesRes.value.data.data);
-        if (typeof churchesRes.value.data.data === "undefined") setChurchesError(true);
+        if (typeof churchesRes.value.data.data === "undefined")
+          setChurchesError(true);
       } else {
         setChurchesError(true);
       }
@@ -356,8 +374,12 @@ export default function AdminDashboard() {
                             <span className="inline-flex items-center gap-1.5">
                               <Users className="size-4" />
                               {event.signUps}/{event.capacity} sign ups
-                              <span className="text-green-700">({event.paidSignUps} paid)</span>
-                              <span className="text-red-700">({event.unpaidSignUps} unpaid)</span>
+                              <span className="text-green-700">
+                                ({event.paidSignUps} paid)
+                              </span>
+                              <span className="text-red-700">
+                                ({event.unpaidSignUps} unpaid)
+                              </span>
                             </span>
                           </div>
                         </div>
@@ -407,9 +429,7 @@ export default function AdminDashboard() {
                     No data available
                   </div>
                 ) : churches.length === 0 ? (
-                  <div className="p-4 text-muted-foreground">
-                    No churches
-                  </div>
+                  <div className="p-4 text-muted-foreground">No churches</div>
                 ) : (
                   <div className="max-h-[552px] divide-y overflow-y-auto">
                     {recentChurches.map((church) => (

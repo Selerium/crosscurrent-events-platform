@@ -12,6 +12,7 @@ import {
   Users,
   XIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -44,6 +45,7 @@ export default function AdminChurchPage() {
   const [saving, setSaving] = useState(false);
 
   const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
   const [editCountry, setEditCountry] = useState("");
   const [editState, setEditState] = useState("");
   const [memberFilter, setMemberFilter] = useState<"all" | "LEADER" | "STUDENT">("all");
@@ -63,6 +65,7 @@ export default function AdminChurchPage() {
 
   function startEditing() {
     if (!church) return;
+    setEditName(church.name);
     setEditCountry(church.country);
     setEditState(church.state);
     setEditing(true);
@@ -77,11 +80,13 @@ export default function AdminChurchPage() {
     setSaving(true);
     try {
       await api.patch(`/admin/churches/${params.id}`, {
+        name: editName,
         country: editCountry,
         state: editState,
       });
       setChurch({
         ...church,
+        name: editName,
         country: editCountry,
         state: editState,
         emirate: editState,
@@ -259,6 +264,15 @@ export default function AdminChurchPage() {
               {editing ? (
                 <>
                   <div className="flex flex-col gap-2">
+                    <Label htmlFor="edit-name">Church name</Label>
+                    <Input
+                      id="edit-name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Church name"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
                     <Label htmlFor="edit-country">Country</Label>
                     <Input
                       id="edit-country"
@@ -346,7 +360,7 @@ export default function AdminChurchPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{member.name}</span>
+                      <Link className="font-semibold hover:underline" href={`/admin/profiles/${member.id}`}>{member.name}</Link>
                       {member.primary && (
                         <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
                           Primary

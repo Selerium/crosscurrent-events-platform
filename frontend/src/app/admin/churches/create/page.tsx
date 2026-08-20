@@ -13,6 +13,7 @@ import { ChevronLeft } from "lucide-react";
 
 const UAE_EMIRATES = [
   "Abu Dhabi",
+  "Al Ain",
   "Dubai",
   "Sharjah",
   "Ajman",

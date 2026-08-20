@@ -38,6 +38,9 @@ app.use("/login", loginHandler);
 app.use("/verify-email", emailVerificationHandler);
 app.use("/parent-verify", parentVerificationHandler);
 app.post("/logout", async (req, res) => {
+  res.clearCookie("access_token", { path: "/", domain: process.env.COOKIE_DOMAIN ?? undefined });
+  res.clearCookie("refresh_token", { path: "/", domain: process.env.COOKIE_DOMAIN ?? undefined });
+
   const refreshToken = req.cookies.refresh_token;
   if (refreshToken) {
     const storedTokens = await prisma.refreshTokens.findMany({
@@ -54,8 +57,7 @@ app.post("/logout", async (req, res) => {
       }
     }
   }
-  res.clearCookie("access_token", { path: "/", domain: process.env.COOKIE_DOMAIN ?? undefined });
-  res.clearCookie("refresh_token", { path: "/", domain: process.env.COOKIE_DOMAIN ?? undefined });
+
   res.json({ data: {}, message: "Logged out", error: false });
 });
 app.use("", protectedRouter)

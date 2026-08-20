@@ -14,7 +14,8 @@ export default async function LoginPage() {
     redirect("/");
   }
 
-  if (await redirectIfAuthenticated()) {
+  const user = await redirectIfAuthenticated();
+  if (user) {
     redirect("/dashboard");
   }
 

@@ -12,6 +12,7 @@ import api from "@/lib/axios";
 
 type ChurchesResponse = PaginatedResponse<ChurchRecord> & {
   emirates: string[];
+  hasOther: boolean;
 };
 
 function ChurchesContent() {
@@ -122,6 +123,7 @@ function ChurchesContent() {
                   {em}
                 </option>
               ))}
+              {data?.hasOther && <option value="other">Other</option>}
             </select>
           </div>
         </section>

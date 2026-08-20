@@ -12,6 +12,8 @@ meHandler.get("", async (req, res) => {
   });
 
   if (!user || !user.profile) {
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
     throw new AppError("User not found", 401);
   }
 

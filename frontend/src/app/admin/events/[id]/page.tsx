@@ -15,6 +15,7 @@ import {
   Users,
   XIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -690,7 +691,7 @@ export default function AdminEventPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{p.name}</span>
+                      <Link className="font-semibold hover:underline" href={`/admin/profiles/${p.id}`}>{p.name}</Link>
                       <span
                         className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
                           p.paid

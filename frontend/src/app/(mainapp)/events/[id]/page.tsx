@@ -15,6 +15,7 @@ import {
   Users,
   XIcon,
 } from "lucide-react";
+import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1229,7 +1230,7 @@ export default function EventPage() {
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold">{r.name}</span>
+                          <Link className="font-semibold hover:underline" href={`/profiles/${r.profileId}`} onClick={(e) => e.stopPropagation()}>{r.name}</Link>
                           <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                             {r.role.toLowerCase()}
                           </span>
@@ -1570,7 +1571,7 @@ export default function EventPage() {
                       key={r.id}
                       className="flex items-center justify-between gap-2 rounded-lg border p-3"
                     >
-                      <span className="font-semibold">{r.name}</span>
+                      <Link className="font-semibold hover:underline" href={`/profiles/${r.id}`}>{r.name}</Link>
                       <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                         {r.role.toLowerCase()}
                       </span>

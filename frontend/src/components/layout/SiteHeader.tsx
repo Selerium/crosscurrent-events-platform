@@ -23,7 +23,11 @@ function getUserFromStorage(): SiteHeaderUser | null {
   return null;
 }
 
-export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null }) {
+export function SiteHeader({
+  user: serverUser,
+}: {
+  user?: SiteHeaderUser | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState(serverUser);
@@ -39,10 +43,23 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
 
     if (!stored) return;
 
-    api.get("/me")
+    api
+      .get("/me")
       .then((res) => {
         const { name, role, approved } = res.data.data;
         setUser({ name, role, approved: approved ?? false });
+        localStorage.setItem("id", res.data.data["id"]);
+        localStorage.setItem("name", res.data.data["name"]);
+        localStorage.setItem("role", res.data.data["role"]);
+        localStorage.setItem(
+          "firstTime",
+          res.data.data["firstTime"] ? "true" : "false",
+        );
+        localStorage.setItem(
+          "approved",
+          res.data.data["approved"] ? "true" : "false",
+        );
+        localStorage.setItem("churchId", res.data.data["churchId"] ?? "");
       })
       .catch(() => {
         localStorage.removeItem("id");
@@ -52,20 +69,21 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
         localStorage.removeItem("approved");
         setUser(null);
       });
-    }, [pathname]);
-    
-    async function handleLogout() {
-      localStorage.removeItem("id");
-      localStorage.removeItem("name");
-      localStorage.removeItem("role");
-      localStorage.removeItem("firstTime");
-      localStorage.removeItem("approved");
-      setUser(null);
+  }, [pathname]);
+
+  async function handleLogout() {
     try {
+      toast.info("Logging out...");
       await api.post("/logout");
     } catch {
       // proceed even if logout request fails
     }
+    localStorage.removeItem("id");
+    localStorage.removeItem("name");
+    localStorage.removeItem("role");
+    localStorage.removeItem("firstTime");
+    localStorage.removeItem("approved");
+    setUser(null);
     router.push("/");
     router.refresh();
   }
@@ -73,7 +91,9 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
   function handleMyChurchClick(e: React.MouseEvent) {
     if (user && !user.approved) {
       e.preventDefault();
-      toast.warning("Your account needs to be approved before you can access this page.");
+      toast.warning(
+        "Your account needs to be approved before you can access this page.",
+      );
       return;
     }
   }
@@ -117,19 +137,13 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                 {user.role === "ADMIN" ? (
                   <>
                     <Button asChild variant="ghost">
-                      <Link href="/admin/events">
-                        Events
-                      </Link>
+                      <Link href="/admin/events">Events</Link>
                     </Button>
                     <Button asChild variant="ghost">
-                      <Link href="/admin/churches">
-                        Churches
-                      </Link>
+                      <Link href="/admin/churches">Churches</Link>
                     </Button>
                     <Button asChild variant="ghost">
-                      <Link href="/admin/profiles">
-                        Profiles
-                      </Link>
+                      <Link href="/admin/profiles">Profiles</Link>
                     </Button>
                   </>
                 ) : (
@@ -146,9 +160,7 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                   </Link>
                 </Button>
                 <Button asChild variant="ghost">
-                  <Link href="/profile">
-                    My account
-                  </Link>
+                  <Link href="/profile">My account</Link>
                 </Button>
                 <Button variant="ghost" onClick={handleLogout}>
                   Log out
@@ -157,14 +169,10 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
             ) : (
               <>
                 <Button asChild variant="ghost">
-                  <Link href="/login">
-                    Sign in
-                  </Link>
+                  <Link href="/login">Sign in</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/register">
-                    Get started
-                  </Link>
+                  <Link href="/register">Get started</Link>
                 </Button>
               </>
             )}
@@ -178,7 +186,11 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((open) => !open)}
           >
-            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {mobileOpen ? (
+              <X className="size-5" />
+            ) : (
+              <Menu className="size-5" />
+            )}
           </Button>
         </div>
       </div>
@@ -198,17 +210,26 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                 {user.role === "ADMIN" ? (
                   <>
                     <Button asChild variant="ghost" className="justify-start">
-                      <Link href="/admin/events" onClick={() => setMobileOpen(false)}>
+                      <Link
+                        href="/admin/events"
+                        onClick={() => setMobileOpen(false)}
+                      >
                         Events
                       </Link>
                     </Button>
                     <Button asChild variant="ghost" className="justify-start">
-                      <Link href="/admin/churches" onClick={() => setMobileOpen(false)}>
+                      <Link
+                        href="/admin/churches"
+                        onClick={() => setMobileOpen(false)}
+                      >
                         Churches
                       </Link>
                     </Button>
                     <Button asChild variant="ghost" className="justify-start">
-                      <Link href="/admin/profiles" onClick={() => setMobileOpen(false)}>
+                      <Link
+                        href="/admin/profiles"
+                        onClick={() => setMobileOpen(false)}
+                      >
                         Profiles
                       </Link>
                     </Button>
@@ -227,7 +248,10 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                   </Button>
                 )}
                 <Button asChild variant="ghost" className="justify-start">
-                  <Link href="/notifications" onClick={() => setMobileOpen(false)}>
+                  <Link
+                    href="/notifications"
+                    onClick={() => setMobileOpen(false)}
+                  >
                     <Bell className="size-4" />
                     Notifications
                   </Link>
@@ -237,7 +261,11 @@ export function SiteHeader({ user: serverUser }: { user?: SiteHeaderUser | null 
                     My account
                   </Link>
                 </Button>
-                <Button variant="ghost" className="justify-start" onClick={handleLogout}>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={handleLogout}
+                >
                   Log out
                 </Button>
               </>

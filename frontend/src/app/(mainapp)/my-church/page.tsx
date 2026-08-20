@@ -17,6 +17,7 @@ import {
   Users,
   XIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -255,7 +256,7 @@ export default function MyChurchPage() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="min-w-0">
-                        <span className="font-semibold">{m.name}</span>
+                        <Link className="font-semibold hover:underline" href={`/profiles/${m.id}`}>{m.name}</Link>
                         <p className="text-sm text-muted-foreground capitalize italic pb-2">
                           {m.role.toLowerCase()}
                         </p>
@@ -435,7 +436,7 @@ export default function MyChurchPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold">{member.name}</span>
+                          <Link className="font-semibold hover:underline" href={`/profiles/${member.id}`}>{member.name}</Link>
                           {member.primary && (
                             <span className="rounded-md bg-primary px-2 py-0.5 text-sm font-semibold text-primary-foreground">
                               Primary

@@ -101,12 +101,18 @@ adminChurchesHandler.get("", async (req, res) => {
     ];
   }
   if (emirate && emirate !== "all") {
-    where.state = emirate;
+    if (emirate === "other") {
+      where.country = { not: "United Arab Emirates" };
+    } else {
+      where.state = emirate;
+      where.country = "United Arab Emirates";
+    }
   }
 
-  const [total, allEmirates] = await Promise.all([
+  const [total, uaeStates, otherCount] = await Promise.all([
     prisma.church.count({ where }),
-    prisma.church.findMany({ select: { state: true }, distinct: ["state"], orderBy: { state: "asc" } }),
+    prisma.church.findMany({ select: { state: true }, distinct: ["state"], where: { country: "United Arab Emirates" }, orderBy: { state: "asc" } }),
+    prisma.church.count({ where: { country: { not: "United Arab Emirates" } } }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -144,7 +150,7 @@ adminChurchesHandler.get("", async (req, res) => {
     };
   });
 
-  res.status(200).json({ data, emirates: allEmirates.map((e) => e.state), total, page: effectivePage, limit, totalPages, error: false, message: "" });
+  res.status(200).json({ data, emirates: uaeStates.map((e) => e.state), hasOther: otherCount > 0, total, page: effectivePage, limit, totalPages, error: false, message: "" });
 });
 
 adminChurchesHandler.get("/:id/members", async (req, res) => {
