@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Bell, Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import axios from "axios";
 
 type SiteHeaderUser = {
   name: string;
@@ -31,6 +32,7 @@ export function SiteHeader({
   const pathname = usePathname();
   const [user, setUser] = useState(serverUser);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -42,8 +44,12 @@ export function SiteHeader({
 
     if (!stored) return;
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     api
-      .get("/me")
+      .get("/me", { signal: controller.signal })
       .then((res) => {
         const { name, role, approved } = res.data.data;
         setUser({ name, role, approved: approved ?? false });
@@ -60,7 +66,8 @@ export function SiteHeader({
         );
         localStorage.setItem("churchId", res.data.data["churchId"] ?? "");
       })
-      .catch(() => {
+      .catch((err) => {
+        if (axios.isCancel(err)) return;
         localStorage.removeItem("id");
         localStorage.removeItem("name");
         localStorage.removeItem("role");
@@ -68,12 +75,14 @@ export function SiteHeader({
         localStorage.removeItem("approved");
         setUser(null);
       });
+
+    return () => controller.abort();
   }, [pathname]);
 
   async function handleLogout() {
+    abortRef.current?.abort();
     try {
       toast.info("Logging out...");
-      window.location.href = "/";
       await api.post("/logout");
     } catch {
       // proceed even if logout request fails
@@ -83,7 +92,7 @@ export function SiteHeader({
     localStorage.removeItem("role");
     localStorage.removeItem("firstTime");
     localStorage.removeItem("approved");
-    setUser(null);
+    window.location.href = "/";
   }
 
   function handleMyChurchClick(e: React.MouseEvent) {
