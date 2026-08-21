@@ -4,6 +4,7 @@ import { Church, Contact, MapPin, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
@@ -28,6 +29,7 @@ function ChurchesContent() {
   const [data, setData] = useState<ChurchesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalSearch(search);
@@ -77,6 +79,24 @@ function ChurchesContent() {
     const params = new URLSearchParams(window.location.search);
     params.set("page", String(newPage));
     router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  async function handleDelete() {
+    if (!deletingId) return;
+    try {
+      await api.delete(`/admin/churches/${deletingId}`);
+      toast.success("Church deleted");
+      setDeletingId(null);
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", "15");
+      if (search) params.set("search", search);
+      if (emirate !== "all") params.set("emirate", emirate);
+      const res = await api.get(`/admin/churches?${params.toString()}`);
+      setData(res.data);
+    } catch {
+      toast.error("Could not delete church");
+    }
   }
 
   return (
@@ -180,11 +200,22 @@ function ChurchesContent() {
                   <span className="break-all text-sm text-muted-foreground">
                     {church.contactEmail}
                   </span>
-                  <Button asChild size="sm">
-                    <Link href={`/admin/churches/${church.id}`}>
-                      View church
-                    </Link>
-                  </Button>
+                  <div className="flex gap-2">
+                    {church.members === 0 && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setDeletingId(church.id)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                    <Button asChild size="sm">
+                      <Link href={`/admin/churches/${church.id}`}>
+                        View church
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))
@@ -199,6 +230,25 @@ function ChurchesContent() {
           />
         )}
       </div>
+
+      {deletingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
+            <h3 className="text-lg font-bold mb-2">Delete church</h3>
+            <p className="text-muted-foreground mb-6">
+              Are you sure you want to delete this church? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeletingId(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDelete}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

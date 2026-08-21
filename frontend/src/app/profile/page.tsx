@@ -35,6 +35,7 @@ export default function Profile() {
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState({
     phone: "",
+    dob: "",
     nationality: "",
     parentOneName: "",
     parentOneEmail: "",
@@ -54,6 +55,7 @@ export default function Profile() {
       const p = res.data.data;
       setForm({
         phone: p.phone || "",
+        dob: p.dob ? new Date(p.dob).toISOString().split("T")[0] : "",
         nationality: p.nationality || "",
         parentOneName: p.parentOneName || "",
         parentOneEmail: p.parentOneEmail || "",
@@ -200,12 +202,18 @@ export default function Profile() {
                 <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
                   <p className="shrink-0 sm:w-72">Date of Birth: </p>
                   <Input
-                    disabled
+                    type="date"
+                    disabled={!editMode}
                     className="w-full grow px-4 py-2 rounded-lg border"
                     value={
-                      profile.dob
-                        ? new Date(profile.dob).toLocaleDateString()
-                        : "-"
+                      editMode
+                        ? form.dob
+                        : profile.dob
+                          ? new Date(profile.dob).toISOString().split("T")[0]
+                          : ""
+                    }
+                    onChange={(e) =>
+                      setForm({ ...form, dob: e.target.value })
                     }
                   />
                 </div>

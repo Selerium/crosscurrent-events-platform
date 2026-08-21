@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { type ProfileDetail } from "../../data";
@@ -22,6 +23,7 @@ export default function AdminProfilePage() {
   const params = useParams<{ id: string }>();
   const [profile, setProfile] = useState<ProfileDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showDelete, setShowDelete] = useState(false);
 
   useEffect(() => {
     api.get(`/admin/profiles/${params.id}`)
@@ -29,6 +31,16 @@ export default function AdminProfilePage() {
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  async function handleDelete() {
+    try {
+      await api.delete(`/admin/profiles/${params.id}`);
+      toast.success("Profile deleted");
+      router.push("/admin/profiles");
+    } catch {
+      toast.error("Could not delete profile");
+    }
+  }
 
   if (loading) {
     return (
@@ -78,6 +90,9 @@ export default function AdminProfilePage() {
               </div>
             </div>
           </div>
+          <Button variant="destructive" onClick={() => setShowDelete(true)}>
+            Delete
+          </Button>
         </div>
 
         <hr />
@@ -205,6 +220,25 @@ export default function AdminProfilePage() {
           </>
         )}
       </div>
+
+      {showDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
+            <h3 className="text-lg font-bold mb-2">Delete profile</h3>
+            <p className="text-muted-foreground mb-6">
+              Are you sure you want to delete {profile.name}? This will permanently remove the user and all their registrations. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDelete(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDelete}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

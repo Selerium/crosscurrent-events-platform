@@ -4,6 +4,7 @@ import { Mail, Phone, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
@@ -25,6 +26,7 @@ function ProfilesContent() {
   const [data, setData] = useState<PaginatedResponse<ProfileRecord> | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalSearch(search);
@@ -74,6 +76,24 @@ function ProfilesContent() {
     const params = new URLSearchParams(window.location.search);
     params.set("page", String(newPage));
     router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  async function handleDelete() {
+    if (!deletingId) return;
+    try {
+      await api.delete(`/admin/profiles/${deletingId}`);
+      toast.success("Profile deleted");
+      setDeletingId(null);
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", "15");
+      if (search) params.set("search", search);
+      if (role !== "all") params.set("role", role);
+      const res = await api.get(`/admin/profiles?${params.toString()}`);
+      setData(res.data);
+    } catch {
+      toast.error("Could not delete profile");
+    }
   }
 
   return (
@@ -198,6 +218,13 @@ function ProfilesContent() {
                         View Profile
                       </Link>
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setDeletingId(profile.id)}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -213,6 +240,25 @@ function ProfilesContent() {
           />
         )}
       </div>
+
+      {deletingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
+            <h3 className="text-lg font-bold mb-2">Delete profile</h3>
+            <p className="text-muted-foreground mb-6">
+              Are you sure you want to delete this profile? This will permanently remove the user and all their registrations. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeletingId(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDelete}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -124,7 +124,7 @@ adminEventsHandler.get("", async (req, res) => {
       take: limit,
       include: {
         _count: { select: { registrations: true } },
-        registrations: { select: { paid: true } },
+        registrations: { select: { paid: true, createdAt: true } },
       },
       orderBy,
     }),
@@ -141,14 +141,20 @@ adminEventsHandler.get("", async (req, res) => {
         take: limit,
         include: {
           _count: { select: { registrations: true } },
-          registrations: { select: { paid: true } },
+          registrations: { select: { paid: true, createdAt: true } },
         },
         orderBy,
       })
     : events;
 
   const data = pagedEvents.map((e) => {
-    const paidCount = e.registrations.filter((r) => r.paid).length;
+    const paidRegistrations = e.registrations.filter((r) => r.paid);
+    const revenue = paidRegistrations.reduce((sum, r) => {
+      if (e.earlyBirdDate && e.earlyBirdPrice && r.createdAt <= e.earlyBirdDate) {
+        return sum + e.earlyBirdPrice;
+      }
+      return sum + e.price;
+    }, 0);
     return {
       id: e.id,
       name: e.name,
@@ -158,13 +164,13 @@ adminEventsHandler.get("", async (req, res) => {
       location: e.location,
       status: statusMap[e.eventStatus] || "closed",
       signUps: e._count.registrations,
-      paidSignUps: paidCount,
-      unpaidSignUps: e._count.registrations - paidCount,
+      paidSignUps: paidRegistrations.length,
+      unpaidSignUps: e._count.registrations - paidRegistrations.length,
       capacity: e.maxSignUps,
       price: e.price,
       earlyBirdPrice: e.earlyBirdPrice,
       earlyBirdDate: e.earlyBirdDate,
-      revenue: paidCount * e.price,
+      revenue,
       schedule: e.schedule,
     };
   });
@@ -178,7 +184,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
     include: {
       _count: { select: { registrations: true } },
       registrations: {
-        select: { paid: true },
+        select: { paid: true, createdAt: true },
       },
     },
   });
@@ -187,7 +193,13 @@ adminEventsHandler.get("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
-  const paidCount = event.registrations.filter((r) => r.paid).length;
+  const paidRegistrations = event.registrations.filter((r) => r.paid);
+  const revenue = paidRegistrations.reduce((sum, r) => {
+    if (event.earlyBirdDate && event.earlyBirdPrice && r.createdAt <= event.earlyBirdDate) {
+      return sum + event.earlyBirdPrice;
+    }
+    return sum + event.price;
+  }, 0);
   const data = {
     id: event.id,
     name: event.name,
@@ -197,13 +209,13 @@ adminEventsHandler.get("/:id", async (req, res) => {
     location: event.location,
     status: statusMap[event.eventStatus] || "closed",
     signUps: event._count.registrations,
-    paidSignUps: paidCount,
-    unpaidSignUps: event._count.registrations - paidCount,
+    paidSignUps: paidRegistrations.length,
+    unpaidSignUps: event._count.registrations - paidRegistrations.length,
     capacity: event.maxSignUps,
     price: event.price,
     earlyBirdPrice: event.earlyBirdPrice,
     earlyBirdDate: event.earlyBirdDate,
-    revenue: paidCount * event.price,
+    revenue,
     schedule: event.schedule,
   };
 

@@ -55,6 +55,30 @@ adminProfilesHandler.get("", async (req, res) => {
   res.status(200).json({ data, total, page: effectivePage, limit, totalPages, error: false, message: "" });
 });
 
+adminProfilesHandler.delete("/:id", async (req, res) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!profile) {
+    throw new AppError("Profile not found", 404);
+  }
+
+  await prisma.registration.updateMany({
+    where: { spouseId: profile.id },
+    data: { spouseId: null },
+  });
+
+  await prisma.registration.deleteMany({
+    where: { profileId: profile.id },
+  });
+
+  await prisma.profile.delete({ where: { id: profile.id } });
+  await prisma.user.delete({ where: { id: profile.userId } });
+
+  res.status(200).json({ data: null, error: false, message: "" });
+});
+
 adminProfilesHandler.get("/:id", async (req, res) => {
   const profile = await prisma.profile.findUnique({
     where: { id: req.params.id },

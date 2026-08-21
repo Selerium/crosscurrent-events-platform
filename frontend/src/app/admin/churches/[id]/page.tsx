@@ -49,6 +49,7 @@ export default function AdminChurchPage() {
   const [editCountry, setEditCountry] = useState("");
   const [editState, setEditState] = useState("");
   const [memberFilter, setMemberFilter] = useState<"all" | "LEADER" | "STUDENT">("all");
+  const [showDelete, setShowDelete] = useState(false);
 
   useEffect(() => {
     api.get(`/admin/churches/${params.id}`)
@@ -132,6 +133,16 @@ export default function AdminChurchPage() {
       toast.error("Could not update primary contact");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await api.delete(`/admin/churches/${params.id}`);
+      toast.success("Church deleted");
+      router.push("/admin/churches");
+    } catch {
+      toast.error("Could not delete church");
     }
   }
 
@@ -226,6 +237,11 @@ export default function AdminChurchPage() {
             </div>
           </div>
           <div className="flex gap-2">
+            {church.members === 0 && (
+              <Button variant="destructive" onClick={() => setShowDelete(true)}>
+                Delete
+              </Button>
+            )}
             <Button onClick={openPrimaryModal}>
               <Contact />
               Choose Primary Contact
@@ -388,6 +404,25 @@ export default function AdminChurchPage() {
         </section>
       </div>
     </div>
+
+    {showDelete && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-card rounded-lg border p-6 w-full max-w-md shadow-lg">
+          <h3 className="text-lg font-bold mb-2">Delete church</h3>
+          <p className="text-muted-foreground mb-6">
+            Are you sure you want to delete {church.name}? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

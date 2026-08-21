@@ -84,6 +84,25 @@ adminChurchesHandler.patch("/:id", async (req, res) => {
   res.status(200).json({ data, error: false, message: "Church updated" });
 });
 
+adminChurchesHandler.delete("/:id", async (req, res) => {
+  const church = await prisma.church.findUnique({
+    where: { id: req.params.id },
+    include: { _count: { select: { members: true } } },
+  });
+
+  if (!church) {
+    throw new AppError("Church not found", 404);
+  }
+
+  if (church._count.members > 0) {
+    throw new AppError("Cannot delete church with members", 400);
+  }
+
+  await prisma.church.delete({ where: { id: req.params.id } });
+
+  res.status(200).json({ data: null, error: false, message: "" });
+});
+
 adminChurchesHandler.get("", async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 15));
