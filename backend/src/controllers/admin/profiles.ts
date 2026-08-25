@@ -51,6 +51,7 @@ adminProfilesHandler.get("", async (req, res) => {
     primaryForChurch: p.primaryForChurch,
     churchName: p.church?.name || "",
     registrations: p._count.registrations,
+    ageCategory: p.ageCategory || null,
   }));
 
   res.status(200).json({ data, total, page: effectivePage, limit, totalPages, error: false, message: "" });
@@ -123,6 +124,7 @@ adminProfilesHandler.get("/:id", async (req, res) => {
     parentOneName: profile.parentOneName || "",
     parentOneEmail: profile.parentOneEmail || "",
     parentOnePhone: profile.parentOnePhone || "",
+    ageCategory: profile.ageCategory || null,
     registrations: profile.registrations.map((r) => ({
       id: r.id,
       paid: r.paid,

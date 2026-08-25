@@ -49,6 +49,7 @@ type Member = {
   parentOneName: string;
   parentOneEmail: string;
   parentOnePhone: string;
+  ageCategory: string | null;
 };
 
 type UserProfile = {
@@ -257,9 +258,20 @@ export default function MyChurchPage() {
                     <div className="flex items-center gap-3">
                       <div className="min-w-0">
                         <Link className="font-semibold hover:underline" href={`/profiles/${m.id}`}>{m.name}</Link>
-                        <p className="text-sm text-muted-foreground capitalize italic pb-2">
-                          {m.role.toLowerCase()}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm text-muted-foreground capitalize italic">
+                            {m.role.toLowerCase()}
+                          </p>
+                          {m.role === "STUDENT" && m.ageCategory && (
+                            <span className={`rounded-md px-2 py-0.5 text-sm font-medium ${
+                              m.ageCategory === "SENIOR"
+                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                                : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                            }`}>
+                              {m.ageCategory === "SENIOR" ? "Senior" : "Junior"}
+                            </span>
+                          )}
+                        </div>
                         <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
                           {m.email && <p className="break-all"><MailIcon className="inline" width={16} height={16} /> {m.email}</p>}
                           {m.phone && <p><PhoneIcon className="inline" width={16} height={16} /> {m.phone}</p>}
@@ -445,6 +457,15 @@ export default function MyChurchPage() {
                           <span className="rounded-md bg-muted px-2 py-0.5 text-sm font-medium capitalize text-muted-foreground">
                             {member.role.toLowerCase()}
                           </span>
+                          {member.role === "STUDENT" && member.ageCategory && (
+                            <span className={`rounded-md px-2 py-0.5 text-sm font-medium ${
+                              member.ageCategory === "SENIOR"
+                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                                : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                            }`}>
+                              {member.ageCategory === "SENIOR" ? "Senior" : "Junior"}
+                            </span>
+                          )}
                           {!member.approved && (
                             <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-sm font-medium text-yellow-800">
                               Pending

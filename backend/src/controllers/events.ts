@@ -368,7 +368,7 @@ eventsHandler.get("/:id", async (req, res) => {
           profile: { churchId: viewer.churchId },
         },
         include: {
-          profile: { select: { id: true, name: true, role: true } },
+          profile: { select: { id: true, name: true, role: true, ageCategory: true } },
         },
         orderBy: { createdAt: "asc" },
       });
@@ -378,6 +378,7 @@ eventsHandler.get("/:id", async (req, res) => {
           id: r.profile.id,
           name: r.profile.name,
           role: r.profile.role || "STUDENT",
+          ageCategory: r.profile.ageCategory || null,
           paid: r.paid,
           shirtSize: r.shirtSize,
           swimming: r.swimming,
@@ -397,6 +398,7 @@ eventsHandler.get("/:id", async (req, res) => {
           id: r.profile.id,
           name: r.profile.name,
           role: r.profile.role || "STUDENT",
+          ageCategory: r.profile.ageCategory || null,
           paid: r.paid,
         }));
       }

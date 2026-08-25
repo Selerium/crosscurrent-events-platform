@@ -208,6 +208,7 @@ adminChurchesHandler.get("/:id/members", async (req, res) => {
     primary: m.primaryForChurch,
     role: m.role || "STUDENT",
     approved: m.approved,
+    ageCategory: m.ageCategory || null,
   }));
 
   res.status(200).json({ data, error: false, message: "" });

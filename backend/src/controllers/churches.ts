@@ -182,6 +182,7 @@ churchesHandler.get("/my/members", async (req, res) => {
     parentOneName: m.parentOneName || "",
     parentOneEmail: m.parentOneEmail || "",
     parentOnePhone: m.parentOnePhone || "",
+    ageCategory: m.ageCategory || null,
   }));
 
   res.status(200).json({ data, error: false, message: "" });

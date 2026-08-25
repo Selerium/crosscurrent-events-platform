@@ -255,6 +255,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
           name: true,
           phone: true,
           church: { select: { name: true } },
+          ageCategory: true,
         },
       },
       spouse: { select: { name: true } },
@@ -283,6 +284,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
     secondaryLeaderRoles: r.secondaryLeaderRoles,
     safeguardingDoc: r.safeguardingDoc || "",
     parentVerified: r.parentVerified,
+    ageCategory: r.profile.ageCategory || null,
   }));
 
   res.status(200).json({ data, error: false, message: "" });

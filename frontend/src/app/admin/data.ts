@@ -45,6 +45,7 @@ export type ProfileRecord = {
   primaryForChurch: boolean;
   churchName: string;
   registrations: number;
+  ageCategory: string | null;
 };
 
 export type ProfileDetail = ProfileRecord & {

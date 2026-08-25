@@ -62,6 +62,7 @@ type Participant = {
   secondaryLeaderRoles: string[];
   safeguardingDoc: string;
   parentVerified: boolean;
+  ageCategory: string | null;
 };
 
 type ParticipantFilter = "all" | "leaders" | "students";
@@ -708,6 +709,15 @@ export default function AdminEventPage() {
                       ) : (
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                           Student
+                        </span>
+                      )}
+                      {!isLeaderParticipant(p) && p.ageCategory && (
+                        <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                          p.ageCategory === "SENIOR"
+                            ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                            : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                        }`}>
+                          {p.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                         </span>
                       )}
                       {p.selfPay && (

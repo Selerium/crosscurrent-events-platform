@@ -57,7 +57,7 @@ type EventData = {
     primaryLeaderRole: string | null;
     secondaryLeaderRoles: string[];
   } | null;
-  registrants: { id: string; name: string; role: string; paid: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
+  registrants: { id: string; name: string; role: string; ageCategory?: string | null; paid: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
 };
 
 type UserData = {
@@ -1598,6 +1598,15 @@ export default function EventPage() {
                           <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                             {r.role.toLowerCase()}
                           </span>
+                          {r.role === "STUDENT" && r.ageCategory && (
+                            <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                              r.ageCategory === "SENIOR"
+                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                                : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                            }`}>
+                              {r.ageCategory === "SENIOR" ? "Senior" : "Junior"}
+                            </span>
+                          )}
                         </div>
                         <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
                           {r.paid ? "Paid" : "Unpaid"}
