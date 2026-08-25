@@ -152,6 +152,9 @@ export function SiteHeader({
                     <Button asChild variant="ghost">
                       <Link href="/admin/profiles">Profiles</Link>
                     </Button>
+                    <Button asChild variant="ghost">
+                      <Link href="/admin/logs">Logs</Link>
+                    </Button>
                   </>
                 ) : (
                   <Button asChild variant="ghost">
@@ -238,6 +241,14 @@ export function SiteHeader({
                         onClick={() => setMobileOpen(false)}
                       >
                         Profiles
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link
+                        href="/admin/logs"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        Logs
                       </Link>
                     </Button>
                   </>

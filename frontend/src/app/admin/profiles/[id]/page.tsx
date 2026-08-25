@@ -4,17 +4,23 @@ import {
   CalendarDays,
   ChevronLeft,
   Contact,
+  Edit3,
   Mail,
   Phone,
+  Save,
   User,
   Users,
+  XIcon,
 } from "lucide-react";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { type ProfileDetail } from "../../data";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { type ProfileDetail, type ChurchRecord } from "../../data";
 import { formatEventDate } from "../../data";
 import api from "@/lib/axios";
 
@@ -24,6 +30,20 @@ export default function AdminProfilePage() {
   const [profile, setProfile] = useState<ProfileDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDelete, setShowDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [churches, setChurches] = useState<ChurchRecord[]>([]);
+
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editDob, setEditDob] = useState("");
+  const [editNationality, setEditNationality] = useState("");
+  const [editRole, setEditRole] = useState("");
+  const [editChurchId, setEditChurchId] = useState("");
+  const [editParentOneName, setEditParentOneName] = useState("");
+  const [editParentOneEmail, setEditParentOneEmail] = useState("");
+  const [editParentOnePhone, setEditParentOnePhone] = useState("");
 
   useEffect(() => {
     api.get(`/admin/profiles/${params.id}`)
@@ -31,6 +51,70 @@ export default function AdminProfilePage() {
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  async function startEditing() {
+    if (!profile) return;
+    setEditName(profile.name);
+    setEditPhone(profile.phone);
+    setEditGender(profile.gender);
+    setEditDob(profile.dob ? profile.dob.substring(0, 10) : "");
+    setEditNationality(profile.nationality);
+    setEditRole(profile.role);
+    setEditChurchId(profile.church?.id || "");
+    setEditParentOneName(profile.parentOneName);
+    setEditParentOneEmail(profile.parentOneEmail);
+    setEditParentOnePhone(profile.parentOnePhone);
+    setEditing(true);
+
+    if (churches.length === 0) {
+      try {
+        const res = await api.get("/admin/churches", { params: { limit: 100 } });
+        setChurches(res.data.data || []);
+      } catch {
+        toast.error("Could not load churches");
+      }
+    }
+  }
+
+  async function saveEdits() {
+    if (!profile) return;
+    setSaving(true);
+    try {
+      await api.patch(`/admin/profiles/${params.id}`, {
+        name: editName,
+        phone: editPhone,
+        gender: editGender,
+        dob: editDob || null,
+        nationality: editNationality,
+        role: editRole,
+        churchId: editChurchId || null,
+        parentOneName: editParentOneName,
+        parentOneEmail: editParentOneEmail,
+        parentOnePhone: editParentOnePhone,
+      });
+      setProfile({
+        ...profile,
+        name: editName,
+        phone: editPhone,
+        gender: editGender,
+        dob: editDob ? new Date(editDob).toISOString() : "",
+        nationality: editNationality,
+        role: editRole,
+        church: churches.find((c) => c.id === editChurchId)
+          ? { id: editChurchId, name: churches.find((c) => c.id === editChurchId)!.name }
+          : editChurchId ? profile.church : null,
+        parentOneName: editParentOneName,
+        parentOneEmail: editParentOneEmail,
+        parentOnePhone: editParentOnePhone,
+      });
+      setEditing(false);
+      toast.success("Profile updated");
+    } catch {
+      toast.error("Could not update profile");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleDelete() {
     try {
@@ -90,9 +174,28 @@ export default function AdminProfilePage() {
               </div>
             </div>
           </div>
-          <Button variant="destructive" onClick={() => setShowDelete(true)}>
-            Delete
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="destructive" onClick={() => setShowDelete(true)}>
+              Delete
+            </Button>
+            {editing ? (
+              <>
+                <Button variant="outline" onClick={() => setEditing(false)}>
+                  <XIcon />
+                  Cancel
+                </Button>
+                <Button onClick={saveEdits} disabled={saving}>
+                  <Save />
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </>
+            ) : (
+              <Button onClick={startEditing}>
+                <Edit3 />
+                Edit profile
+              </Button>
+            )}
+          </div>
         </div>
 
         <hr />
@@ -106,57 +209,114 @@ export default function AdminProfilePage() {
                 label="Email"
                 value={profile.email}
               />
-              <InfoBlock
-                icon={<Phone className="size-4" />}
-                label="Phone"
-                value={profile.phone || "Not provided"}
-              />
-              <InfoBlock
-                icon={<Contact className="size-4" />}
-                label="Gender"
-                value={profile.gender || "Not provided"}
-              />
-              <InfoBlock
-                icon={<Users className="size-4" />}
-                label="Nationality"
-                value={profile.nationality || "Not provided"}
-              />
-              {profile.dob && (
-                <InfoBlock
-                  icon={<CalendarDays className="size-4" />}
-                  label="Date of birth"
-                  value={new Date(profile.dob).toLocaleDateString("en-GB")}
-                />
-              )}
-              <InfoBlock
-                icon={<Users className="size-4" />}
-                label="Church"
-                value={profile.church?.name || "None"}
-              />
-              {profile.primaryForChurch && (
-                <InfoBlock
-                  icon={<Contact className="size-4" />}
-                  label="Primary contact"
-                  value="Yes"
-                />
-              )}
-              {profile.parentOneName && (
+              {editing ? (
+                <>
+                  <EditField icon={<Phone className="size-4" />} label="Phone" value={editPhone} onChange={setEditPhone} />
+                  <EditField icon={<Contact className="size-4" />} label="Gender" value={editGender} onChange={setEditGender} />
+                  <EditField icon={<Users className="size-4" />} label="Nationality" value={editNationality} onChange={setEditNationality} />
+                  <div className="flex flex-col gap-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <CalendarDays className="size-4" />
+                      Date of birth
+                    </Label>
+                    <Input type="date" value={editDob} onChange={(e) => setEditDob(e.target.value)} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Users className="size-4" />
+                      Church
+                    </Label>
+                    <Select value={editChurchId} onValueChange={setEditChurchId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="No church" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {churches.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Contact className="size-4" />
+                      Role
+                    </Label>
+                    <Select value={editRole} onValueChange={setEditRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="STUDENT">Student</SelectItem>
+                          <SelectItem value="LEADER">Leader</SelectItem>
+                          <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <EditField icon={<Contact className="size-4" />} label="Parent name" value={editParentOneName} onChange={setEditParentOneName} />
+                  <EditField icon={<Mail className="size-4" />} label="Parent email" value={editParentOneEmail} onChange={setEditParentOneEmail} />
+                  <EditField icon={<Phone className="size-4" />} label="Parent phone" value={editParentOnePhone} onChange={setEditParentOnePhone} />
+                </>
+              ) : (
                 <>
                   <InfoBlock
-                    icon={<Contact className="size-4" />}
-                    label="Parent name"
-                    value={profile.parentOneName}
-                  />
-                  <InfoBlock
-                    icon={<Mail className="size-4" />}
-                    label="Parent email"
-                    value={profile.parentOneEmail}
-                  />
-                  <InfoBlock
                     icon={<Phone className="size-4" />}
-                    label="Parent phone"
-                    value={profile.parentOnePhone}
+                    label="Phone"
+                    value={profile.phone || "Not provided"}
                   />
+                  <InfoBlock
+                    icon={<Contact className="size-4" />}
+                    label="Gender"
+                    value={profile.gender || "Not provided"}
+                  />
+                  <InfoBlock
+                    icon={<Users className="size-4" />}
+                    label="Nationality"
+                    value={profile.nationality || "Not provided"}
+                  />
+                  {profile.dob && (
+                    <InfoBlock
+                      icon={<CalendarDays className="size-4" />}
+                      label="Date of birth"
+                      value={new Date(profile.dob).toLocaleDateString("en-GB")}
+                    />
+                  )}
+                  <InfoBlock
+                    icon={<Users className="size-4" />}
+                    label="Church"
+                    value={profile.church?.name || "None"}
+                  />
+                  {profile.primaryForChurch && (
+                    <InfoBlock
+                      icon={<Contact className="size-4" />}
+                      label="Primary contact"
+                      value="Yes"
+                    />
+                  )}
+                  {profile.parentOneName && (
+                    <>
+                      <InfoBlock
+                        icon={<Contact className="size-4" />}
+                        label="Parent name"
+                        value={profile.parentOneName}
+                      />
+                      <InfoBlock
+                        icon={<Mail className="size-4" />}
+                        label="Parent email"
+                        value={profile.parentOneEmail}
+                      />
+                      <InfoBlock
+                        icon={<Phone className="size-4" />}
+                        label="Parent phone"
+                        value={profile.parentOnePhone}
+                      />
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -178,7 +338,7 @@ export default function AdminProfilePage() {
               <ContactLine
                 icon={<Contact className="size-4" />}
                 label="Role"
-                value={profile.role}
+                value={editing ? editRole : profile.role}
               />
             </div>
           </section>
@@ -259,6 +419,28 @@ function InfoBlock({
         {label}
       </div>
       <p className="mt-2 font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function EditField({
+  icon,
+  label,
+  value,
+  onChange,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        {icon}
+        {label}
+      </Label>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={label} />
     </div>
   );
 }

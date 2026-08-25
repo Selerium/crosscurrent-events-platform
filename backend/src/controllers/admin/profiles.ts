@@ -1,6 +1,7 @@
 import express from "express";
 import AppError from "../../lib/appError.ts";
 import { prisma } from "../../lib/prismaClient.ts";
+import { logAdminAction } from "../../lib/adminLog.ts";
 
 const adminProfilesHandler = express.Router();
 
@@ -64,18 +65,24 @@ adminProfilesHandler.delete("/:id", async (req, res) => {
     throw new AppError("Profile not found", 404);
   }
 
-  await prisma.registration.updateMany({
-    where: { spouseId: profile.id },
-    data: { spouseId: null },
-  });
+  try {
+    await prisma.registration.updateMany({
+      where: { spouseId: profile.id },
+      data: { spouseId: null },
+    });
 
-  await prisma.registration.deleteMany({
-    where: { profileId: profile.id },
-  });
+    await prisma.registration.deleteMany({
+      where: { profileId: profile.id },
+    });
 
-  await prisma.profile.delete({ where: { id: profile.id } });
-  await prisma.user.delete({ where: { id: profile.userId } });
+    await prisma.profile.delete({ where: { id: profile.id } });
+    await prisma.user.delete({ where: { id: profile.userId } });
+  } catch (err) {
+    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.delete", targetType: "profile", targetId: req.params.id, details: { name: profile.name, error: String(err) }, success: false });
+    throw err;
+  }
 
+  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.delete", targetType: "profile", targetId: req.params.id, details: { name: profile.name }, success: true });
   res.status(200).json({ data: null, error: false, message: "" });
 });
 
@@ -133,6 +140,57 @@ adminProfilesHandler.get("/:id", async (req, res) => {
   };
 
   res.status(200).json({ data, error: false, message: "" });
+});
+
+adminProfilesHandler.patch("/:id", async (req, res) => {
+  const profile = await prisma.profile.findUnique({ where: { id: req.params.id } });
+  if (!profile) {
+    throw new AppError("Profile not found", 404);
+  }
+
+  const { name, phone, gender, dob, nationality, role, churchId, parentOneName, parentOneEmail, parentOnePhone } = req.body;
+
+  const profileData: Record<string, unknown> = {};
+  if (name !== undefined) profileData.name = name;
+  if (phone !== undefined) profileData.phone = phone;
+  if (gender !== undefined) profileData.gender = gender;
+  if (dob !== undefined) profileData.dob = dob ? new Date(dob) : null;
+  if (nationality !== undefined) profileData.nationality = nationality;
+  if (parentOneName !== undefined) profileData.parentOneName = parentOneName;
+  if (parentOneEmail !== undefined) profileData.parentOneEmail = parentOneEmail;
+  if (parentOnePhone !== undefined) profileData.parentOnePhone = parentOnePhone;
+
+  if (role !== undefined) {
+    const validRoles = ["STUDENT", "LEADER", "ADMIN", "SUPER_ADMIN"];
+    if (!validRoles.includes(role)) throw new AppError("Invalid role", 400);
+    profileData.role = role;
+  }
+
+  if (churchId !== undefined) {
+    if (churchId) {
+      const church = await prisma.church.findUnique({ where: { id: churchId } });
+      if (!church) throw new AppError("Church not found", 404);
+      profileData.churchId = churchId;
+      profileData.approved = true;
+      profileData.approvedById = req.user.id;
+    } else {
+      profileData.churchId = null;
+      profileData.approved = false;
+      profileData.primaryForChurch = false;
+    }
+  }
+
+  if (Object.keys(profileData).length > 0) {
+    try {
+      await prisma.profile.update({ where: { id: req.params.id }, data: profileData });
+    } catch (err) {
+      logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.update", targetType: "profile", targetId: req.params.id, details: { ...profileData, error: String(err) }, success: false });
+      throw err;
+    }
+  }
+
+  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.update", targetType: "profile", targetId: req.params.id, details: profileData, success: true });
+  res.status(200).json({ data: {}, error: false, message: "Profile updated" });
 });
 
 export default adminProfilesHandler;

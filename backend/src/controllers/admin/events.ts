@@ -5,6 +5,7 @@ import AppError from "../../lib/appError.ts";
 import { prisma } from "../../lib/prismaClient.ts";
 import { uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
+import { logAdminAction } from "../../lib/adminLog.ts";
 
 const statusMap: Record<string, string> = {
   OPEN: "active",
@@ -25,21 +26,28 @@ adminEventsHandler.post("", async (req, res) => {
     throw new AppError("End date must be after start date", 400);
   }
 
-  const event = await prisma.event.create({
-    data: {
-      name,
-      brief,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      maxSignUps: Number(maxSignUps),
-      location,
-      price: Number(price),
-      earlyBirdPrice: earlyBirdPrice ? Number(earlyBirdPrice) : null,
-      earlyBirdDate: earlyBirdDate ? new Date(earlyBirdDate) : null,
-      schedule: schedule ?? [],
-    },
-  });
+  let event;
+  try {
+    event = await prisma.event.create({
+      data: {
+        name,
+        brief,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        maxSignUps: Number(maxSignUps),
+        location,
+        price: Number(price),
+        earlyBirdPrice: earlyBirdPrice ? Number(earlyBirdPrice) : null,
+        earlyBirdDate: earlyBirdDate ? new Date(earlyBirdDate) : null,
+        schedule: schedule ?? [],
+      },
+    });
+  } catch (err) {
+    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.create", targetType: "event", details: { name, location, error: String(err) }, success: false });
+    throw err;
+  }
 
+  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.create", targetType: "event", targetId: event.id, details: { name, location, price, earlyBirdPrice }, success: true });
   res.status(201).json({ data: event, error: false, message: "Event created" });
 });
 
@@ -71,10 +79,16 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     throw new AppError("End date must be after start date", 400);
   }
 
-  const updated = await prisma.event.update({
-    where: { id: req.params.id },
-    data,
-  });
+  let updated;
+  try {
+    updated = await prisma.event.update({
+      where: { id: req.params.id },
+      data,
+    });
+  } catch (err) {
+    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus, error: String(err) }, success: false });
+    throw err;
+  }
 
   const registrations = await prisma.registration.findMany({
     where: { eventId: updated.id },
@@ -91,6 +105,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     }
   );
 
+  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus }, success: true });
   res.status(200).json({ data: updated, error: false, message: "Event updated" });
 });
 

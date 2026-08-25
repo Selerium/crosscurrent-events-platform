@@ -5,6 +5,7 @@ import AppError from "../../lib/appError.ts";
 import { prisma, Role } from "../../lib/prismaClient.ts";
 import { Prisma } from "../../../generated/prisma/client.ts";
 import { sendAdminAccountEmail } from "../../lib/email.ts";
+import { logAdminAction } from "../../lib/adminLog.ts";
 
 const adminAdminsHandler = express.Router();
 
@@ -64,12 +65,14 @@ adminAdminsHandler.post("", async (req, res) => {
   } catch (e) {
     await prisma.profile.delete({ where: { userId: created.id } });
     await prisma.user.delete({ where: { id: created.id } });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "admin.create", targetType: "user", details: { name: fullName, email, error: "Failed to send admin account email" }, success: false });
     throw new AppError(
       "Could not send admin account email. Please try again.",
       500
     );
   }
 
+  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "admin.create", targetType: "user", targetId: created.id, details: { name: fullName, email }, success: true });
   res
     .status(201)
     .json({ data: created, error: false, message: "Admin account created" });

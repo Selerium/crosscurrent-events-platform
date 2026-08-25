@@ -84,6 +84,18 @@ export type ChurchRecord = {
   updatedAt: string;
 };
 
+export type AdminLogRecord = {
+  id: string;
+  adminId: string;
+  adminName: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  details: Record<string, unknown> | null;
+  success: boolean;
+  createdAt: string;
+};
+
 export const currencyFormatter = new Intl.NumberFormat("en-AE", {
   style: "currency",
   currency: "AED",

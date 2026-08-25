@@ -31,6 +31,7 @@ type Member = {
   phone: string;
   primary: boolean;
   role: string;
+  approved: boolean;
 };
 
 export default function AdminChurchPage() {
@@ -143,6 +144,26 @@ export default function AdminChurchPage() {
       router.push("/admin/churches");
     } catch {
       toast.error("Could not delete church");
+    }
+  }
+
+  async function handleApprove(memberId: string) {
+    try {
+      await api.post(`/admin/churches/${params.id}/members/${memberId}/approve`);
+      toast.success("Member approved");
+      setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, approved: true } : m));
+    } catch {
+      toast.error("Could not approve member");
+    }
+  }
+
+  async function handleReject(memberId: string) {
+    try {
+      await api.post(`/admin/churches/${params.id}/members/${memberId}/reject`);
+      toast.success("Member rejected");
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+    } catch {
+      toast.error("Could not reject member");
     }
   }
 
@@ -385,6 +406,22 @@ export default function AdminChurchPage() {
                       <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                         {member.role.toLowerCase()}
                       </span>
+                      {!member.approved && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleApprove(member.id)}
+                            className="rounded-md bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 hover:bg-green-200"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleReject(member.id)}
+                            className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-200"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
