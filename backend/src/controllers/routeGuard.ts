@@ -13,6 +13,7 @@ import adminChurchesHandler from "./admin/churches.ts";
 import adminProfilesHandler from "./admin/profiles.ts";
 import adminAdminsHandler from "./admin/admins.ts";
 import adminLogsHandler from "./admin/logs.ts";
+import adminEvaluateJuniorsHandler from "./admin/evaluateJuniors.ts";
 import checkTokens from "../middleware/checkTokens.ts";
 import requireAdmin from "../middleware/requireAdmin.ts";
 
@@ -25,6 +26,7 @@ adminRouter.use('/churches', adminChurchesHandler);
 adminRouter.use('/profiles', adminProfilesHandler);
 adminRouter.use('/admins', adminAdminsHandler);
 adminRouter.use('/logs', adminLogsHandler);
+adminRouter.use('/evaluate-juniors', adminEvaluateJuniorsHandler);
 
 protectedRouter.use(checkTokens)
 protectedRouter.use('/me', meHandler)

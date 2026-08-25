@@ -45,6 +45,17 @@ firstTimeHandler.post("", async (req, res) => {
     firstTime: false,
   };
 
+  if (role === "STUDENT") {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    data.ageCategory = age >= 16 ? "SENIOR" : "JUNIOR";
+  }
+
   if (parentOneName !== undefined) data.parentOneName = parentOneName;
   if (parentOneEmail !== undefined) data.parentOneEmail = parentOneEmail;
   if (parentOnePhone !== undefined) data.parentOnePhone = parentOnePhone;

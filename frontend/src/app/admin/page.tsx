@@ -38,6 +38,9 @@ export default function AdminDashboard() {
   const [churchesError, setChurchesError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [showEvaluateJuniors, setShowEvaluateJuniors] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evalResult, setEvalResult] = useState<{ updatedCount: number; updatedProfiles: { id: string; name: string; age: number }[] } | null>(null);
   const [adminForm, setAdminForm] = useState({
     fullName: "",
     email: "",
@@ -71,6 +74,24 @@ export default function AdminDashboard() {
       );
     } finally {
       setAddingAdmin(false);
+    }
+  }
+
+  async function handleEvaluateJuniors() {
+    setEvaluating(true);
+    setEvalResult(null);
+    try {
+      const res = await api.post("/admin/evaluate-juniors");
+      setEvalResult(res.data.data);
+      toast.success(`Evaluation complete`, {
+        description: `${res.data.data.updatedCount} student(s) promoted to Senior`,
+      });
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message || "Could not evaluate juniors",
+      );
+    } finally {
+      setEvaluating(false);
     }
   }
 
@@ -165,15 +186,20 @@ export default function AdminDashboard() {
   return (
     <main className="min-h-full bg-background px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
               Admin Dashboard
             </h1>
           </div>
-          <Button onClick={() => setShowAddAdmin(true)}>
-            <UserPlus /> Add admin
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setShowEvaluateJuniors(true); setEvalResult(null); }}>
+              <Users /> Evaluate Juniors
+            </Button>
+            <Button onClick={() => setShowAddAdmin(true)}>
+              <UserPlus /> Add admin
+            </Button>
+          </div>
         </div>
 
         {showAddAdmin && (
@@ -252,6 +278,73 @@ export default function AdminDashboard() {
               </Button>
             </div>
           </form>
+        )}
+
+        {showEvaluateJuniors && (
+          <div className="fixed top-0 z-50 flex h-full w-full items-center justify-center bg-black/50 p-4">
+            <div className="flex w-full max-w-md flex-col gap-4 rounded-lg border bg-card p-6">
+              <div className="flex items-center justify-between">
+                <span className="text-lg font-bold">Evaluate Juniors</span>
+                <button
+                  type="button"
+                  onClick={() => { setShowEvaluateJuniors(false); setEvalResult(null); }}
+                  className="cursor-pointer"
+                  disabled={evaluating}
+                >
+                  <XIcon width={24} height={24} />
+                </button>
+              </div>
+              {evalResult ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-foreground">
+                    {evalResult.updatedCount === 0
+                      ? "No junior students are currently 16 or older."
+                      : `${evalResult.updatedCount} student(s) promoted to Senior:`}
+                  </p>
+                  {evalResult.updatedProfiles.length > 0 && (
+                    <ul className="max-h-40 overflow-y-auto rounded-lg border bg-background p-3 text-sm">
+                      {evalResult.updatedProfiles.map((p) => (
+                        <li key={p.id} className="flex justify-between">
+                          <span>{p.name}</span>
+                          <span className="text-muted-foreground">age {p.age}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => { setShowEvaluateJuniors(false); setEvalResult(null); }}
+                    className="w-full justify-center"
+                  >
+                    Close
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    This will check all Junior students and promote those who are 16 or older to Senior. This action will be logged.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowEvaluateJuniors(false)}
+                      disabled={evaluating}
+                      className="flex-1 justify-center"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleEvaluateJuniors}
+                      disabled={evaluating}
+                      className="flex-1 justify-center"
+                    >
+                      {evaluating ? "Evaluating..." : "Confirm"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {loading ? (

@@ -37,13 +37,13 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  email         String          @unique
-  emailVerified Boolean         @default(false)
-  emailVerificationToken String?
+  email                           String               @unique
+  emailVerified                   Boolean              @default(false)
+  emailVerificationToken          String?
   emailVerificationTokenExpiresAt DateTime?
-  password      String
-  refreshTokens RefreshTokens[]
-  passwordResetTokens PasswordResetToken[]
+  password                        String
+  refreshTokens                   RefreshTokens[]
+  passwordResetTokens             PasswordResetToken[]
 
   profile Profile?
 }
@@ -64,9 +64,10 @@ model Profile {
   approved     Boolean @default(false)
   approvedById String?
 
-  role        Role?     @default(STUDENT)
+  role        Role?        @default(STUDENT)
   gender      Gender?
   dob         DateTime?
+  ageCategory AgeCategory?
   nationality String?
   phone       String?
 
@@ -123,20 +124,20 @@ model Registration {
   room        String?
   group       String?
 
-  spouseId           String?
-  spouse             Profile?            @relation("RegistrationSpouse", fields: [spouseId], references: [id], onDelete: SetNull)
-  primaryLeaderRole  PrimaryLeaderRoles?
+  spouseId             String?
+  spouse               Profile?               @relation("RegistrationSpouse", fields: [spouseId], references: [id], onDelete: SetNull)
+  primaryLeaderRole    PrimaryLeaderRoles?
   secondaryLeaderRoles SecondaryLeaderRoles[]
 
-  mediaConsent Boolean @default(false)
+  mediaConsent       Boolean @default(false)
   swimmingPermission Boolean @default(false)
-  emergencyName  String
-  emergencyPhone String
-  notes          String?
-  safeguardingDoc String?
+  emergencyName      String
+  emergencyPhone     String
+  notes              String?
+  safeguardingDoc    String?
 
-  parentVerified Boolean @default(false)
-  parentToken String?
+  parentVerified       Boolean   @default(false)
+  parentToken          String?
   parentTokenExpiresAt DateTime?
 
   paid           Boolean
@@ -161,7 +162,7 @@ model Event {
   earlyBirdPrice Int?
   earlyBirdDate  DateTime?
 
-  registrations Registration[]
+  registrations       Registration[]
   scholarshipPayments ScholarshipPayment[]
 }
 
@@ -200,6 +201,11 @@ enum Gender {
   FEMALE
 }
 
+enum AgeCategory {
+  JUNIOR
+  SENIOR
+}
+
 enum Role {
   STUDENT
   LEADER
@@ -234,13 +240,13 @@ model Notification {
   updatedAt DateTime @updatedAt
 
   profileId String
-  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   type    String
   title   String
   message String
   link    String
-  seen    Boolean  @default(false)
+  seen    Boolean @default(false)
 
   @@index([profileId, seen])
   @@index([profileId, createdAt])
