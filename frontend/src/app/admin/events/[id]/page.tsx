@@ -6,8 +6,11 @@ import {
   CalendarIcon,
   ChevronLeft,
   Clock,
+  DoorOpen,
   Edit3,
   FileText,
+  LayoutGrid,
+  Lock,
   MapPin,
   Plus,
   Save,
@@ -45,6 +48,9 @@ type Participant = {
   id: string;
   name: string;
   phone: string;
+  gender: string;
+  age: number | null;
+  role: string;
   church: string;
   paid: boolean;
   shirtSize: string;
@@ -63,6 +69,8 @@ type Participant = {
   safeguardingDoc: string;
   parentVerified: boolean;
   ageCategory: string | null;
+  group: string;
+  room: string;
 };
 
 type ParticipantFilter = "all" | "leaders" | "students";
@@ -97,6 +105,8 @@ export default function AdminEventPage() {
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const [participantFilter, setParticipantFilter] =
     useState<ParticipantFilter>("all");
+  const [closing, setClosing] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   useEffect(() => {
     api.get(`/admin/events/${params.id}`)
@@ -120,6 +130,35 @@ export default function AdminEventPage() {
   function participantDocUrl(p: Participant) {
     const base = api.defaults.baseURL?.replace(/\/$/, "") ?? "";
     return `${base}/admin/events/${params.id}/participants/${p.id}/document`;
+  }
+
+  async function handleCloseEvent() {
+    if (!eventInfo) return;
+    setClosing(true);
+    try {
+      await api.patch(`/admin/events/${params.id}`, { eventStatus: "CLOSED" });
+      setEventInfo({ ...eventInfo, status: "closed" });
+      toast.success("Event closed");
+    } catch {
+      toast.error("Could not close event");
+    } finally {
+      setClosing(false);
+      setShowCloseConfirm(false);
+    }
+  }
+
+  async function handleReopenEvent() {
+    if (!eventInfo) return;
+    setClosing(true);
+    try {
+      await api.patch(`/admin/events/${params.id}`, { eventStatus: "OPEN" });
+      setEventInfo({ ...eventInfo, status: "active" });
+      toast.success("Event reopened");
+    } catch {
+      toast.error("Could not reopen event");
+    } finally {
+      setClosing(false);
+    }
   }
 
   function startEditing() {
@@ -308,7 +347,7 @@ export default function AdminEventPage() {
               </>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             {editing ? (
               <>
                 <Button variant="outline" onClick={cancelEditing}>
@@ -321,10 +360,32 @@ export default function AdminEventPage() {
                 </Button>
               </>
             ) : (
-              <Button onClick={startEditing}>
-                <Edit3 />
-                Edit event
-              </Button>
+              <>
+                <Button variant="outline" asChild>
+                  <Link href={`/admin/events/${params.id}/plan/groups`}>
+                    <LayoutGrid /> Plan Groups
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href={`/admin/events/${params.id}/plan/rooms`}>
+                    <DoorOpen /> Plan Rooms
+                  </Link>
+                </Button>
+                {eventInfo.status === "active" && (
+                  <Button variant="destructive" onClick={() => setShowCloseConfirm(true)} disabled={closing}>
+                    <Lock /> Close Event
+                  </Button>
+                )}
+                {eventInfo.status === "closed" && (
+                  <Button variant="outline" onClick={handleReopenEvent} disabled={closing}>
+                    <Lock /> {closing ? "Reopening..." : "Reopen Event"}
+                  </Button>
+                )}
+                <Button onClick={startEditing}>
+                  <Edit3 />
+                  Edit event
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -807,6 +868,34 @@ export default function AdminEventPage() {
           )}
         </section>
       </div>
+
+      {showCloseConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold">Close Event</span>
+              <button
+                type="button"
+                onClick={() => setShowCloseConfirm(false)}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to close <strong>{eventInfo?.name}</strong>? Registrations will no longer be accepted.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowCloseConfirm(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleCloseEvent} disabled={closing}>
+                {closing ? "Closing..." : "Yes, close event"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

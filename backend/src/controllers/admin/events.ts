@@ -58,7 +58,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
-  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, schedule, eventStatus } = req.body;
+  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, schedule, eventStatus, groups, maxInGroup, room, maxInRoom } = req.body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
@@ -72,6 +72,10 @@ adminEventsHandler.patch("/:id", async (req, res) => {
   if (earlyBirdDate !== undefined) data.earlyBirdDate = earlyBirdDate ? new Date(earlyBirdDate) : null;
   if (schedule !== undefined) data.schedule = schedule;
   if (eventStatus !== undefined) data.eventStatus = eventStatus;
+  if (groups !== undefined) data.groups = Number(groups);
+  if (maxInGroup !== undefined) data.maxInGroup = Number(maxInGroup);
+  if (room !== undefined) data.room = Number(room);
+  if (maxInRoom !== undefined) data.maxInRoom = Number(maxInRoom);
 
   const finalStart = data.startDate ? new Date(data.startDate as string) : event.startDate;
   const finalEnd = data.endDate ? new Date(data.endDate as string) : event.endDate;
@@ -232,6 +236,10 @@ adminEventsHandler.get("/:id", async (req, res) => {
     earlyBirdDate: event.earlyBirdDate,
     revenue,
     schedule: event.schedule,
+    groups: event.groups,
+    maxInGroup: event.maxInGroup,
+    room: event.room,
+    maxInRoom: event.maxInRoom,
   };
 
   res.status(200).json({ data, error: false, message: "" });
@@ -254,6 +262,9 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
           id: true,
           name: true,
           phone: true,
+          gender: true,
+          role: true,
+          dob: true,
           church: { select: { name: true } },
           ageCategory: true,
         },
@@ -263,29 +274,47 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
     orderBy: { createdAt: "asc" },
   });
 
-  const data = registrations.map((r) => ({
-    id: r.id,
-    name: r.profile.name,
-    phone: r.profile.phone || "",
-    church: r.profile.church?.name || "",
-    paid: r.paid,
-    shirtSize: r.shirtSize,
-    swimming: r.swimming,
-    selfPay: r.selfPay,
-    medications: r.medications,
-    allergies: r.allergies,
-    spouse: r.spouse?.name || "",
-    mediaConsent: r.mediaConsent,
-    swimmingPermission: r.swimmingPermission,
-    emergencyName: r.emergencyName || "",
-    emergencyPhone: r.emergencyPhone || "",
-    notes: r.notes || "",
-    primaryLeaderRole: r.primaryLeaderRole || "",
-    secondaryLeaderRoles: r.secondaryLeaderRoles,
-    safeguardingDoc: r.safeguardingDoc || "",
-    parentVerified: r.parentVerified,
-    ageCategory: r.profile.ageCategory || null,
-  }));
+  const data = registrations.map((r) => {
+    let age: number | null = null;
+    if (r.profile.dob) {
+      const today = new Date();
+      const birthDate = new Date(r.profile.dob);
+      age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+    }
+
+    return {
+      id: r.id,
+      name: r.profile.name,
+      phone: r.profile.phone || "",
+      gender: r.profile.gender || "",
+      age,
+      role: r.profile.role || "STUDENT",
+      church: r.profile.church?.name || "",
+      paid: r.paid,
+      shirtSize: r.shirtSize,
+      swimming: r.swimming,
+      selfPay: r.selfPay,
+      medications: r.medications,
+      allergies: r.allergies,
+      spouse: r.spouse?.name || "",
+      mediaConsent: r.mediaConsent,
+      swimmingPermission: r.swimmingPermission,
+      emergencyName: r.emergencyName || "",
+      emergencyPhone: r.emergencyPhone || "",
+      notes: r.notes || "",
+      primaryLeaderRole: r.primaryLeaderRole || "",
+      secondaryLeaderRoles: r.secondaryLeaderRoles,
+      safeguardingDoc: r.safeguardingDoc || "",
+      parentVerified: r.parentVerified,
+      ageCategory: r.profile.ageCategory || null,
+      group: r.group || "",
+      room: r.room || "",
+    };
+  });
 
   res.status(200).json({ data, error: false, message: "" });
 });
@@ -315,5 +344,68 @@ adminEventsHandler.get(
     res.sendFile(filePath);
   }
 );
+
+adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) => {
+  const { id, participantId } = req.params;
+  const { group, room } = req.body;
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) throw new AppError("Event not found", 404);
+
+  const registration = await prisma.registration.findFirst({
+    where: { id: participantId, eventId: id },
+  });
+  if (!registration) throw new AppError("Registration not found", 404);
+
+  const data: Record<string, unknown> = {};
+  if (group !== undefined) data.group = group || null;
+  if (room !== undefined) data.room = room || null;
+
+  await prisma.registration.update({
+    where: { id: participantId },
+    data,
+  });
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.update_registration",
+    targetType: "registration",
+    targetId: participantId,
+    details: { eventId: id, group, room },
+    success: true,
+  });
+
+  res.status(200).json({ data: {}, error: false, message: "" });
+});
+
+adminEventsHandler.delete("/:id/registrations", async (req, res) => {
+  const { id } = req.params;
+  const { field } = req.query;
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) throw new AppError("Event not found", 404);
+
+  if (field !== "group" && field !== "room") {
+    throw new AppError("Query param 'field' must be 'group' or 'room'", 400);
+  }
+
+  const result = await prisma.registration.updateMany({
+    where: { eventId: id, [field]: { not: null } },
+    data: { [field]: null },
+  });
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.reset_registrations",
+    targetType: "event",
+    targetId: id,
+    details: { field, count: result.count },
+    success: true,
+  });
+
+  res.status(200).json({ data: { count: result.count }, error: false, message: "" });
+});
 
 export default adminEventsHandler;

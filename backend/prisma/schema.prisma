@@ -161,6 +161,10 @@ model Event {
   price          Int
   earlyBirdPrice Int?
   earlyBirdDate  DateTime?
+  groups         Int         @default(1)
+  maxInGroup     Int         @default(1)
+  room           Int         @default(1)
+  maxInRoom      Int         @default(1)
 
   registrations       Registration[]
   scholarshipPayments ScholarshipPayment[]

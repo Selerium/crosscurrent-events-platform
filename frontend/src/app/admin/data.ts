@@ -31,6 +31,10 @@ export type AdminEvent = {
     endTime: string;
     location: string;
   }[][];
+  groups: number;
+  maxInGroup: number;
+  room: number;
+  maxInRoom: number;
 };
 
 export type ProfileRecord = {
