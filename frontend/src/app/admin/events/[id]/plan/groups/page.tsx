@@ -26,7 +26,7 @@ function genderAgeChip(p: Participant) {
   if (!p.gender || p.age === null) return null;
   const letter = p.gender === "MALE" ? "M" : "F";
   return (
-    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${letter === "M" ? "bg-blue-900 text-blue-200" : "bg-pink-700 text-pink-200"}`}>
       {letter}{p.age}
     </span>
   );
@@ -37,8 +37,8 @@ function roleChip(p: Participant) {
   return (
     <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
       isLeader
-        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-        : "bg-muted text-muted-foreground"
+        ? "text-red-200 bg-red-900"
+        : "text-green-900 bg-green-200"
     }`}>
       {isLeader ? "Leader" : "Student"}
     </span>
@@ -48,7 +48,7 @@ function roleChip(p: Participant) {
 function churchChip(p: Participant) {
   if (!p.church) return null;
   return (
-    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+    <span className="rounded-full bg-muted text-white px-1.5 py-0.5 text-[10px] font-medium">
       {p.church}
     </span>
   );
