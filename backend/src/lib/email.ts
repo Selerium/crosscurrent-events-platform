@@ -280,3 +280,37 @@ Please approve this registration by opening this link: ${verificationUrl}`,
     throw new Error(error.message);
   }
 };
+
+export const sendPasswordResetEmail = async (
+  to: string,
+  resetUrl: string
+) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[email] password reset link for ${to}: ${resetUrl}`);
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: "do-not-reply@crosscurrent.ae",
+    to,
+    subject: "Reset your password | CrossCurrent",
+    text: `You requested a password reset. Please open this link to set a new password: ${resetUrl}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 24px;">
+        <h2 style="color: #1a1a1a;">Reset your password</h2>
+        <p style="color: #333;">We received a request to reset the password for your CrossCurrent account.</p>
+        <a href="${resetUrl}" style="display: inline-block; margin: 16px 0; padding: 12px 24px; background-color: #525252; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold;">
+          Reset password
+        </a>
+        <p style="color: #555; font-size: 14px;">
+          Or copy and paste this link into your browser:<br />
+          <a href="${resetUrl}">${resetUrl}</a>
+        </p>
+        <p style="color: #777; font-size: 12px;">This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};

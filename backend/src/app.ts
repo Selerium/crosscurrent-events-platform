@@ -7,6 +7,8 @@ import registerHandler from "./controllers/register.ts";
 import loginHandler from "./controllers/login.ts";
 import emailVerificationHandler from "./controllers/emailVerification.ts";
 import parentVerificationHandler from "./controllers/parentVerification.ts";
+import forgotPasswordHandler from "./controllers/forgotPassword.ts";
+import resetPasswordHandler from "./controllers/resetPassword.ts";
 import errorHandler from "./middleware/errorHandler.ts";
 import protectedRouter from "./controllers/routeGuard.ts";
 import webhookHandler from "./controllers/webhook.ts";
@@ -37,6 +39,8 @@ app.use("/register", registerHandler);
 app.use("/login", loginHandler);
 app.use("/verify-email", emailVerificationHandler);
 app.use("/parent-verify", parentVerificationHandler);
+app.use("/forgot-password", forgotPasswordHandler);
+app.use("/reset-password", resetPasswordHandler);
 app.post("/logout", async (req, res) => {
   res.clearCookie("access_token", { path: "/", domain: process.env.COOKIE_DOMAIN ?? undefined });
   res.clearCookie("refresh_token", { path: "/", domain: process.env.COOKIE_DOMAIN ?? undefined });

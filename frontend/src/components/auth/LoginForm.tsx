@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 
@@ -68,6 +69,14 @@ export function LoginForm() {
             placeholder="Enter your password"
             required
           />
+          <div className="mt-1 text-right">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Forgot password?
+            </Link>
+          </div>
         </div>
 
         <Button
