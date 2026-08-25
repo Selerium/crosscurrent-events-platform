@@ -20,6 +20,7 @@ type Participant = {
   role: string;
   church: string;
   room: string;
+  paid: boolean;
 };
 
 function genderAgeChip(p: Participant) {
@@ -83,7 +84,7 @@ export default function PlanRoomsPage() {
     Promise.all([
       api.get(`/admin/events/${params.id}`).then((res) => setEventInfo(res.data.data)),
       api.get(`/admin/events/${params.id}/participants`)
-        .then((res) => setParticipants(res.data.data || []))
+        .then((res) => setParticipants((res.data.data || []).filter((p: Participant) => p.paid)))
         .catch(() => toast.error("Failed to load participants")),
     ]).finally(() => setLoading(false));
   }, [params.id]);
