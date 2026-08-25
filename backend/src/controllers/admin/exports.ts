@@ -170,8 +170,10 @@ adminExportsHandler.get("/churches", async (req, res) => {
     orderBy: { name: "asc" },
   });
 
+  let sheetCount = 0;
   for (const church of churches) {
-    const sheet = workbook.addWorksheet(sanitizeSheetName(church.name));
+    ++sheetCount;
+    const sheet = workbook.addWorksheet(`${sheetCount}_${sanitizeSheetName(church.name)}_${sanitizeSheetName(church.state)}`);
     sheet.columns = [
       { header: "Name", key: "name", width: 25 },
       { header: "Email", key: "email", width: 30 },
@@ -241,8 +243,10 @@ adminExportsHandler.get("/events", async (req, res) => {
     orderBy: { startDate: "asc" },
   });
 
+  let sheetCount = 0;
   for (const event of events) {
-    const sheet = workbook.addWorksheet(sanitizeSheetName(event.name));
+    ++sheetCount;
+    const sheet = workbook.addWorksheet(`${sheetCount}_${sanitizeSheetName(event.name)}`);
     sheet.columns = [
       { header: "Name", key: "name", width: 25 },
       { header: "Email", key: "email", width: 30 },
