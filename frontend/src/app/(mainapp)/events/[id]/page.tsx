@@ -53,8 +53,11 @@ type EventData = {
     swimming: boolean;
     allergies: string[];
     medication: string[];
+    shirtSize: string;
+    primaryLeaderRole: string | null;
+    secondaryLeaderRoles: string[];
   } | null;
-  registrants: { id: string; name: string; role: string }[];
+  registrants: { id: string; name: string; role: string; paid: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
 };
 
 type UserData = {
@@ -1466,9 +1469,27 @@ export default function EventPage() {
               )}
               {eventData.user && (
                 <div className="flex flex-col gap-2">
+                  <span className="font-bold">My Details</span>
+                  <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
+                    <span className="font-bold">Shirt size</span>
+                    <span>{eventData.user.shirtSize}</span>
+                  </div>
+                  {userRole === "LEADER" && eventData.user.primaryLeaderRole && (
+                    <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
+                      <span className="font-bold">Primary role</span>
+                      <span>{eventData.user.primaryLeaderRole.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                    </div>
+                  )}
+                  {userRole === "LEADER" && eventData.user.secondaryLeaderRoles.length > 0 && (
+                    <div className="flex flex-col gap-2 p-4 rounded-lg border">
+                      <span className="font-bold">Secondary roles</span>
+                      {eventData.user.secondaryLeaderRoles.map((role) => (
+                        <span key={role}>{role.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                      ))}
+                    </div>
+                  )}
                   {eventData.user.room && (
                     <>
-                      <span className="font-bold">My Details</span>
                       <div className="flex flex-col gap-2 p-4 rounded-lg border">
                         <span className="font-bold">
                           {eventData.user.room.name}
@@ -1569,12 +1590,35 @@ export default function EventPage() {
                   {filteredRegistrants.map((r) => (
                     <div
                       key={r.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border p-3"
+                      className="rounded-lg border p-3"
                     >
-                      <Link className="font-semibold hover:underline" href={`/profiles/${r.id}`}>{r.name}</Link>
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
-                        {r.role.toLowerCase()}
-                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Link className="font-semibold hover:underline" href={`/profiles/${r.id}`}>{r.name}</Link>
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                            {r.role.toLowerCase()}
+                          </span>
+                        </div>
+                        <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
+                          {r.paid ? "Paid" : "Unpaid"}
+                        </span>
+                      </div>
+                      {userRole === "LEADER" && r.shirtSize && (
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span>Shirt: {r.shirtSize}</span>
+                          <span>Swimming: {r.swimming ? "Yes" : "No"}</span>
+                          {r.group && <span>Group: {r.group}</span>}
+                          {r.room && <span>Room: {r.room}</span>}
+                          {r.primaryLeaderRole && <span>Role: {r.primaryLeaderRole.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</span>}
+                          {r.secondaryLeaderRoles && r.secondaryLeaderRoles.length > 0 && (
+                            <span>Secondary: {r.secondaryLeaderRoles.map((s) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}</span>
+                          )}
+                          {r.allergies && r.allergies.length > 0 && <span className="text-red-600">Allergies: {r.allergies.join(", ")}</span>}
+                          {r.medications && r.medications.length > 0 && <span>Medications: {r.medications.join(", ")}</span>}
+                          {r.emergencyName && <span>Emergency: {r.emergencyName} ({r.emergencyPhone})</span>}
+                          {r.notes && <span>Notes: {r.notes}</span>}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

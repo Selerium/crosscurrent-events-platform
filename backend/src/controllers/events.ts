@@ -350,18 +350,20 @@ eventsHandler.get("/:id", async (req, res) => {
   }
 
   let user = null;
-  let registrants: { id: string; name: string; role: string }[] = [];
+  let registrants: Record<string, unknown>[] = [];
   if (req.user?.id) {
     const viewer = await prisma.profile.findUnique({
       where: { id: req.user.id },
-      select: { churchId: true, approved: true },
+      select: { churchId: true, approved: true, role: true },
     });
 
     if (viewer?.churchId && viewer.approved) {
+      const isLeader = viewer.role === "LEADER";
+
       const churchRegistrations = await prisma.registration.findMany({
         where: {
           eventId: event.id,
-          paid: true,
+          ...(isLeader ? {} : { paid: true }),
           profileId: { not: req.user.id },
           profile: { churchId: viewer.churchId },
         },
@@ -371,11 +373,33 @@ eventsHandler.get("/:id", async (req, res) => {
         orderBy: { createdAt: "asc" },
       });
 
-      registrants = churchRegistrations.map((r) => ({
-        id: r.profile.id,
-        name: r.profile.name,
-        role: r.profile.role || "STUDENT",
-      }));
+      if (isLeader) {
+        registrants = churchRegistrations.map((r) => ({
+          id: r.profile.id,
+          name: r.profile.name,
+          role: r.profile.role || "STUDENT",
+          paid: r.paid,
+          shirtSize: r.shirtSize,
+          swimming: r.swimming,
+          allergies: r.allergies,
+          medications: r.medications,
+          group: r.group,
+          room: r.room,
+          primaryLeaderRole: r.primaryLeaderRole || null,
+          secondaryLeaderRoles: r.secondaryLeaderRoles,
+          emergencyName: r.emergencyName,
+          emergencyPhone: r.emergencyPhone,
+          notes: r.notes || "",
+          selfPay: r.selfPay,
+        }));
+      } else {
+        registrants = churchRegistrations.map((r) => ({
+          id: r.profile.id,
+          name: r.profile.name,
+          role: r.profile.role || "STUDENT",
+          paid: r.paid,
+        }));
+      }
     }
 
     const registration = await prisma.registration.findFirst({
@@ -413,6 +437,9 @@ eventsHandler.get("/:id", async (req, res) => {
         swimming: registration.swimming,
         allergies: registration.allergies,
         medication: registration.medications,
+        shirtSize: registration.shirtSize,
+        primaryLeaderRole: registration.primaryLeaderRole || null,
+        secondaryLeaderRoles: registration.secondaryLeaderRoles,
       };
     }
   }

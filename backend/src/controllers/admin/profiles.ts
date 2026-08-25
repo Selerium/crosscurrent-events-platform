@@ -78,11 +78,11 @@ adminProfilesHandler.delete("/:id", async (req, res) => {
     await prisma.profile.delete({ where: { id: profile.id } });
     await prisma.user.delete({ where: { id: profile.userId } });
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.delete", targetType: "profile", targetId: req.params.id, details: { name: profile.name, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "profile.delete", targetType: "profile", targetId: req.params.id, details: { name: profile.name, error: String(err) }, success: false });
     throw err;
   }
 
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.delete", targetType: "profile", targetId: req.params.id, details: { name: profile.name }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "profile.delete", targetType: "profile", targetId: req.params.id, details: { name: profile.name }, success: true });
   res.status(200).json({ data: null, error: false, message: "" });
 });
 
@@ -184,12 +184,12 @@ adminProfilesHandler.patch("/:id", async (req, res) => {
     try {
       await prisma.profile.update({ where: { id: req.params.id }, data: profileData });
     } catch (err) {
-      logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.update", targetType: "profile", targetId: req.params.id, details: { ...profileData, error: String(err) }, success: false });
+      logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "profile.update", targetType: "profile", targetId: req.params.id, details: { ...profileData, error: String(err) }, success: false });
       throw err;
     }
   }
 
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "profile.update", targetType: "profile", targetId: req.params.id, details: profileData, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "profile.update", targetType: "profile", targetId: req.params.id, details: profileData, success: true });
   res.status(200).json({ data: {}, error: false, message: "Profile updated" });
 });
 

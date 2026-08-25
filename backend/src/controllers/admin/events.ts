@@ -43,11 +43,11 @@ adminEventsHandler.post("", async (req, res) => {
       },
     });
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.create", targetType: "event", details: { name, location, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.create", targetType: "event", details: { name, location, error: String(err) }, success: false });
     throw err;
   }
 
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.create", targetType: "event", targetId: event.id, details: { name, location, price, earlyBirdPrice }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.create", targetType: "event", targetId: event.id, details: { name, location, price, earlyBirdPrice }, success: true });
   res.status(201).json({ data: event, error: false, message: "Event created" });
 });
 
@@ -86,7 +86,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
       data,
     });
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus, error: String(err) }, success: false });
     throw err;
   }
 
@@ -105,7 +105,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     }
   );
 
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus }, success: true });
   res.status(200).json({ data: updated, error: false, message: "Event updated" });
 });
 

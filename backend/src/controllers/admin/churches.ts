@@ -19,11 +19,11 @@ adminChurchesHandler.post("", async (req, res) => {
       data: { name, country, state },
     });
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.create", targetType: "church", details: { name, country, state, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.create", targetType: "church", details: { name, country, state, error: String(err) }, success: false });
     throw err;
   }
 
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.create", targetType: "church", targetId: church.id, details: { name, country, state }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.create", targetType: "church", targetId: church.id, details: { name, country, state }, success: true });
   res.status(201).json({ data: church, error: false, message: "Church created" });
 });
 
@@ -64,7 +64,7 @@ adminChurchesHandler.patch("/:id", async (req, res) => {
       });
     }
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.update", targetType: "church", targetId: req.params.id, details: { name: name || undefined, country: country || undefined, state: state || undefined, primaryProfileId, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.update", targetType: "church", targetId: req.params.id, details: { name: name || undefined, country: country || undefined, state: state || undefined, primaryProfileId, error: String(err) }, success: false });
     throw err;
   }
 
@@ -95,7 +95,7 @@ adminChurchesHandler.patch("/:id", async (req, res) => {
     updatedAt: updated!.updatedAt,
   };
 
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.update", targetType: "church", targetId: req.params.id, details: { name: name || undefined, country: country || undefined, state: state || undefined, primaryProfileId }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.update", targetType: "church", targetId: req.params.id, details: { name: name || undefined, country: country || undefined, state: state || undefined, primaryProfileId }, success: true });
   res.status(200).json({ data, error: false, message: "Church updated" });
 });
 
@@ -116,11 +116,11 @@ adminChurchesHandler.delete("/:id", async (req, res) => {
   try {
     await prisma.church.delete({ where: { id: req.params.id } });
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.delete", targetType: "church", targetId: req.params.id, details: { name: church.name, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.delete", targetType: "church", targetId: req.params.id, details: { name: church.name, error: String(err) }, success: false });
     throw err;
   }
 
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.delete", targetType: "church", targetId: req.params.id, details: { name: church.name }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.delete", targetType: "church", targetId: req.params.id, details: { name: church.name }, success: true });
   res.status(200).json({ data: null, error: false, message: "" });
 });
 
@@ -291,12 +291,12 @@ adminChurchesHandler.post("/:id/members/:memberId/approve", async (req, res) => 
       data: { approved: true, approvedById: req.user.id },
     });
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.member.approve", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.member.approve", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name, error: String(err) }, success: false });
     throw err;
   }
 
   await createNotifications([req.params.memberId], { type: "membership_approved", title: "Membership Approved", message: "Your membership has been approved. You can now view the church page.", link: "/my-church" });
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.member.approve", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.member.approve", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name }, success: true });
 
   res.status(200).json({ data: {}, error: false, message: "Member approved" });
 });
@@ -316,12 +316,12 @@ adminChurchesHandler.post("/:id/members/:memberId/reject", async (req, res) => {
       data: { churchId: null },
     });
   } catch (err) {
-    logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.member.reject", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name, error: String(err) }, success: false });
+    logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.member.reject", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name, error: String(err) }, success: false });
     throw err;
   }
 
   await createNotifications([req.params.memberId], { type: "membership_rejected", title: "Membership Not Approved", message: "Your membership request was not approved. Please contact the church administrator.", link: "" });
-  logAdminAction({ adminId: req.user.id, adminName: req.user.profile.name, action: "church.member.reject", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name }, success: true });
+  logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "church.member.reject", targetType: "profile", targetId: req.params.memberId, details: { churchId: req.params.id, memberName: member.name }, success: true });
 
   res.status(200).json({ data: {}, error: false, message: "Member rejected" });
 });
