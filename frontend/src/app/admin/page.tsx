@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Church,
   Contact,
+  Download,
   Edit3,
   Plus,
   UserPlus,
@@ -48,6 +49,7 @@ export default function AdminDashboard() {
     phone: "",
   });
   const [addingAdmin, setAddingAdmin] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   async function handleAddAdmin(e: React.FormEvent) {
     e.preventDefault();
@@ -92,6 +94,25 @@ export default function AdminDashboard() {
       );
     } finally {
       setEvaluating(false);
+    }
+  }
+
+  async function handleDownload(endpoint: string, filename: string) {
+    setDownloading(true);
+    try {
+      const res = await api.get(endpoint, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Download failed");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -193,6 +214,9 @@ export default function AdminDashboard() {
             </h1>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => handleDownload("/admin/exports/all-data", "all-data.xlsx")} disabled={downloading}>
+              <Download /> {downloading ? "Downloading..." : "Download All Data (.xlsx)"}
+            </Button>
             <Button variant="outline" onClick={() => { setShowEvaluateJuniors(true); setEvalResult(null); }}>
               <Users /> Evaluate Juniors
             </Button>

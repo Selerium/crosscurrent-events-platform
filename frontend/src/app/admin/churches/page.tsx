@@ -1,6 +1,6 @@
 "use client";
 
-import { Church, Contact, MapPin, Plus, Search, Users } from "lucide-react";
+import { Church, Contact, Download, MapPin, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -30,6 +30,7 @@ function ChurchesContent() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setLocalSearch(search);
@@ -99,6 +100,25 @@ function ChurchesContent() {
     }
   }
 
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await api.get("/admin/exports/churches", { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "churches.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <main className="min-h-full bg-background px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -111,12 +131,17 @@ function ChurchesContent() {
               All churches
             </h1>
           </div>
-          <Button asChild>
-            <Link href="/admin/churches/create">
-              <Plus />
-              Add church
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDownload} disabled={downloading}>
+              <Download /> {downloading ? "Downloading..." : "Download Churches Data (.xlsx)"}
+            </Button>
+            <Button asChild>
+              <Link href="/admin/churches/create">
+                <Plus />
+                Add church
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <section className="rounded-lg border bg-card p-4 shadow-sm">

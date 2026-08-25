@@ -1,9 +1,10 @@
 "use client";
 
-import { CalendarDays, Plus, Search, Users } from "lucide-react";
+import { CalendarDays, Download, Plus, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
@@ -33,6 +34,7 @@ function EventsContent() {
   const [data, setData] = useState<PaginatedResponse<AdminEvent> | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setLocalSearch(search);
@@ -85,6 +87,25 @@ function EventsContent() {
     router.replace(`${pathname}?${params.toString()}`);
   }
 
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await api.get("/admin/exports/events", { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "events.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <main className="min-h-full bg-background px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -97,12 +118,17 @@ function EventsContent() {
               All events
             </h1>
           </div>
-          <Button asChild>
-            <Link href="/admin/events/create">
-              <Plus />
-              Create event
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDownload} disabled={downloading}>
+              <Download /> {downloading ? "Downloading..." : "Download Events Data (.xlsx)"}
+            </Button>
+            <Button asChild>
+              <Link href="/admin/events/create">
+                <Plus />
+                Create event
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <section className="rounded-lg border bg-card p-4 shadow-sm">
