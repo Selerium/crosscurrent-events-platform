@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Pagination } from "@/components/ui/pagination";
 import type { AdminLogRecord, PaginatedResponse } from "../data";
+import api from "@/lib/axios";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -37,7 +38,7 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     setLoading(true);
-    axios
+    api
       .get(`${API}/admin/logs`, { params: { page, limit: PAGE_SIZE } })
       .then((r) => {
         setLogs(r.data.data);
