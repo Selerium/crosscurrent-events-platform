@@ -89,7 +89,7 @@ churchesHandler.get("/my/scholarship-requests", async (req, res) => {
   if (profile.role !== "LEADER" || !profile.approved) {
     throw new AppError(
       "Only approved leaders can view scholarship requests",
-      403
+      403,
     );
   }
 
@@ -138,7 +138,9 @@ churchesHandler.get("/my/scholarship-requests", async (req, res) => {
     eventEndDate: r.event.endDate,
   }));
 
-  res.status(200).json({ data, events: activeEvents, error: false, message: "" });
+  res
+    .status(200)
+    .json({ data, events: activeEvents, error: false, message: "" });
 });
 
 churchesHandler.get("/my/members", async (req, res) => {
@@ -300,8 +302,8 @@ churchesHandler.post("/choose", async (req, res) => {
             applicantName: profile.name,
             applicantRole: isLeader ? "Leader" : "Student",
             churchName: church.name,
-          })
-        )
+          }),
+        ),
     );
   }
 
@@ -316,7 +318,7 @@ churchesHandler.post("/choose", async (req, res) => {
       churchId: profile.churchId ?? null,
     },
     jwtsecret,
-    { expiresIn: "15m", subject: profile.id }
+    { expiresIn: "15m", subject: profile.id },
   );
 
   res.cookie("access_token", accessToken, {
@@ -329,6 +331,76 @@ churchesHandler.post("/choose", async (req, res) => {
   });
 
   res.status(200).json({ data: {}, error: false, message: "Church selected" });
+});
+
+churchesHandler.post("/leave", async (req, res) => {
+  const user = (req as any).user;
+  if (!user?.id) {
+    throw new AppError("Not authenticated", 401);
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: user.id },
+  });
+
+  if (!profile?.churchId) {
+    throw new AppError("You are not a member of any church", 400);
+  }
+
+  if (profile.primaryForChurch) {
+    throw new AppError(
+      "The primary contact cannot leave the church. Transfer primary contact first or contact an admin.",
+      400,
+    );
+  }
+
+  const activeRegistrations = await prisma.registration.findFirst({
+    where: {
+      profileId: user.id,
+      event: {
+        eventStatus: {
+          in: ["OPEN", "CLOSED"],
+        },
+      },
+    },
+  });
+
+  if (activeRegistrations) {
+    throw new AppError(
+      "You cannot leave the church while registered for an active event. Unregister from unpaid events, and wait for paid events to complete.",
+      400,
+    );
+  }
+
+  const updated = await prisma.profile.update({
+    where: { id: user.id },
+    data: { churchId: null, approved: false },
+  });
+
+  const jwtsecret = process.env.JWT_SECRET || "";
+  const accessToken = jwt.sign(
+    {
+      id: updated.id,
+      name: updated.name,
+      role: updated.role,
+      firstTime: updated.firstTime,
+      approved: updated.approved,
+      churchId: null,
+    },
+    jwtsecret,
+    { expiresIn: "15m", subject: updated.id },
+  );
+
+  res.cookie("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    domain: process.env.COOKIE_DOMAIN ?? undefined,
+    path: "/",
+    maxAge: 15 * 60 * 1000,
+  });
+
+  res.status(200).json({ data: {}, error: false, message: "Left church" });
 });
 
 churchesHandler.post("/my/members/:memberId/reject", async (req, res) => {

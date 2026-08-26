@@ -35,6 +35,7 @@ export default function AdminDashboard() {
     useState<RevenuePeriod>("All time");
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [churches, setChurches] = useState<ChurchRecord[]>([]);
+  const [numChurches, setNumChurches] = useState(0);
   const [eventsError, setEventsError] = useState(false);
   const [churchesError, setChurchesError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -173,6 +174,7 @@ export default function AdminDashboard() {
 
       if (churchesRes.status === "fulfilled") {
         setChurches(churchesRes.value.data.data);
+        setNumChurches(churchesRes.value.data.total);
         if (typeof churchesRes.value.data.data === "undefined")
           setChurchesError(true);
       } else {
@@ -527,7 +529,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-3">
                       <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm font-medium text-muted-foreground">
                         <Church className="size-4" />
-                        {churches ? churches.length : 0} churches
+                        {numChurches} churches
                       </span>
                       <Button asChild size="sm">
                         <Link href="/admin/churches">View all</Link>

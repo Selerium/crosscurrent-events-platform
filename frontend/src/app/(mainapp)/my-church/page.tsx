@@ -6,6 +6,7 @@ import {
   Church,
   Contact,
   Flag,
+  LogOut,
   Mail,
   MailIcon,
   MapPin,
@@ -76,6 +77,8 @@ export default function MyChurchPage() {
   const [approving, setApproving] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [showLeaveChurch, setShowLeaveChurch] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -143,6 +146,21 @@ export default function MyChurchPage() {
       toast.error("Could not reject member");
     } finally {
       setRejecting(null);
+    }
+  }
+
+  async function leaveChurch() {
+    setLeaving(true);
+    try {
+      await api.post("/churches/leave");
+      toast.success("You have left the church.");
+      setShowLeaveChurch(false);
+      setChurch(null);
+      setProfile((prev) => prev ? { ...prev, churchId: null, approved: false } : prev);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Could not leave church.");
+    } finally {
+      setLeaving(false);
     }
   }
 
@@ -320,6 +338,44 @@ export default function MyChurchPage() {
         </div>
       )}
 
+      {showLeaveChurch && (
+        <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
+          <div className="flex flex-col p-6 m-4 relative border rounded-lg bg-card gap-4 w-full max-w-md">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-lg">Leave Church</span>
+              <button
+                onClick={() => setShowLeaveChurch(false)}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <p>
+              Are you sure you want to leave <strong>{church.name}</strong>?
+              You will need to choose a church again to rejoin.
+            </p>
+            <div className="flex flex-col gap-4">
+              <Button
+                onClick={() => setShowLeaveChurch(false)}
+                variant="outline"
+                className="w-full p-3 justify-center"
+                disabled={leaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={leaveChurch}
+                disabled={leaving}
+                className="w-full p-3 justify-center"
+              >
+                {leaving ? "Leaving..." : "Leave Church"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-center p-4 sm:px-6">
         <div className="flex w-full max-w-5xl flex-col gap-4 rounded-lg border p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -352,6 +408,15 @@ export default function MyChurchPage() {
                 <Button onClick={() => openApproveModal("leader")}>
                   <Shield />
                   Approve Leaders
+                </Button>
+              )}
+              {!profile?.primaryForChurch && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowLeaveChurch(true)}
+                >
+                  <LogOut />
+                  Leave Church
                 </Button>
               )}
             </div>
