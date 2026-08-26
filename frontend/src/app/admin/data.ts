@@ -44,6 +44,7 @@ export type ProfileRecord = {
   phone: string;
   role: string;
   gender: string;
+  dob: string;
   nationality: string;
   approved: boolean;
   primaryForChurch: boolean;

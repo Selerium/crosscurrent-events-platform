@@ -46,6 +46,7 @@ adminProfilesHandler.get("", async (req, res) => {
     phone: p.phone || "",
     role: p.role || "STUDENT",
     gender: p.gender || "",
+    dob: p.dob?.toISOString() || "",
     nationality: p.nationality || "",
     approved: p.approved,
     primaryForChurch: p.primaryForChurch,

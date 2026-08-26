@@ -289,6 +289,15 @@ export default function MyChurchPage() {
                               {m.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                             </span>
                           )}
+                          {m.gender && m.dob && (() => {
+                            const age = Math.floor((Date.now() - new Date(m.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                            const letter = m.gender === "MALE" ? "M" : "F";
+                            return (
+                              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${letter === "M" ? "bg-blue-900 text-blue-200" : "bg-pink-700 text-pink-200"}`}>
+                                {letter}{age}
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
                           {m.email && <p className="break-all"><MailIcon className="inline" width={16} height={16} /> {m.email}</p>}
@@ -531,6 +540,15 @@ export default function MyChurchPage() {
                               {member.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                             </span>
                           )}
+                          {member.gender && member.dob && (() => {
+                            const age = Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                            const letter = member.gender === "MALE" ? "M" : "F";
+                            return (
+                              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${letter === "M" ? "bg-blue-900 text-blue-200" : "bg-pink-700 text-pink-200"}`}>
+                                {letter}{age}
+                              </span>
+                            );
+                          })()}
                           {!member.approved && (
                             <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-sm font-medium text-yellow-800">
                               Pending

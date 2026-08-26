@@ -57,7 +57,7 @@ type EventData = {
     primaryLeaderRole: string | null;
     secondaryLeaderRoles: string[];
   } | null;
-  registrants: { id: string; name: string; role: string; ageCategory?: string | null; paid: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
+  registrants: { id: string; name: string; role: string; ageCategory?: string | null; gender?: string; age?: number | null; paid: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
 };
 
 type UserData = {
@@ -1607,6 +1607,14 @@ export default function EventPage() {
                               {r.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                             </span>
                           )}
+                          {r.gender && r.age != null && (() => {
+                            const letter = r.gender === "MALE" ? "M" : "F";
+                            return (
+                              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${letter === "M" ? "bg-blue-900 text-blue-200" : "bg-pink-700 text-pink-200"}`}>
+                                {letter}{r.age}
+                              </span>
+                            );
+                          })()}
                           <span className={`rounded-md px-2 py-0.5 text-sm font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
                             {r.paid ? "Paid" : "Unpaid"}
                           </span>

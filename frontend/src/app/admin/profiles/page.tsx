@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, Phone, Search, Users } from "lucide-react";
+import { Mail, Phone, Search, User, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -197,27 +197,21 @@ function ProfilesContent() {
                           {profile.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                         </span>
                       )}
+                      {profile.gender && profile.dob && (() => {
+                        const age = Math.floor((Date.now() - new Date(profile.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                        const letter = profile.gender === "MALE" ? "M" : "F";
+                        return (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${letter === "M" ? "bg-blue-900 text-blue-200" : "bg-pink-700 text-pink-200"}`}>
+                            {letter}{age}
+                          </span>
+                        );
+                      })()}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Mail className="size-3.5" />
-                        {profile.email}
-                      </span>
-                      {profile.phone && (
-                        <span className="inline-flex items-center gap-1.5">
-                          <Phone className="size-3.5" />
-                          {profile.phone}
-                        </span>
-                      )}
-                      {profile.churchName && (
-                        <span className="inline-flex items-center gap-1.5">
-                          {profile.churchName}
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1.5">
-                        <Users className="size-3.5" />
-                        {profile.registrations} registrations
-                      </span>
+                    <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
+                      {profile.email && <p className="break-all"><Mail className="inline size-4" /> {profile.email}</p>}
+                      {profile.phone && <p><Phone className="inline size-4" /> {profile.phone}</p>}
+                      {profile.gender && <p className="capitalize"><User className="inline size-4" /> {profile.gender.toLowerCase()}</p>}
+                      {profile.churchName && <p>{profile.churchName}</p>}
                     </div>
                   </Link>
 

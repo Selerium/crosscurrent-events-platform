@@ -781,6 +781,14 @@ export default function AdminEventPage() {
                           {p.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                         </span>
                       )}
+                      {p.gender && p.age != null && (() => {
+                        const letter = p.gender === "MALE" ? "M" : "F";
+                        return (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${letter === "M" ? "bg-blue-900 text-blue-200" : "bg-pink-700 text-pink-200"}`}>
+                            {letter}{p.age}
+                          </span>
+                        );
+                      })()}
                       {p.selfPay && (
                         <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
                           Scholarship
@@ -800,33 +808,34 @@ export default function AdminEventPage() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                      {p.church && <span>{p.church}</span>}
-                      {p.phone && <span>{p.phone}</span>}
-                      <span>Shirt: {p.shirtSize}</span>
-                      <span>Swimming: {p.swimming ? "Yes" : "No"}</span>
-                      <span>Swim Permit: {p.swimmingPermission ? "Yes" : "No"}</span>
-                      <span>Media: {p.mediaConsent ? "Yes" : "No"}</span>
-                      {p.spouse && <span>Spouse: {p.spouse}</span>}
+                    <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
+                      {p.church && <p>{p.church}</p>}
+                      {p.phone && <p>{p.phone}</p>}
+                      {p.gender && <p className="capitalize">{p.gender.toLowerCase()}</p>}
+                      <p>Shirt: {p.shirtSize}</p>
+                      <p>Swimming: {p.swimming ? "Yes" : "No"}</p>
+                      <p>Swim Permit: {p.swimmingPermission ? "Yes" : "No"}</p>
+                      <p>Media: {p.mediaConsent ? "Yes" : "No"}</p>
+                      {p.spouse && <p>Spouse: {p.spouse}</p>}
                       {p.emergencyName && (
-                        <span>
+                        <p>
                           Emergency: {p.emergencyName}
                           {p.emergencyPhone && ` (${p.emergencyPhone})`}
-                        </span>
+                        </p>
                       )}
-                      {p.notes && <span>Notes: {p.notes}</span>}
+                      {p.notes && <p>Notes: {p.notes}</p>}
                     </div>
                     {p.primaryLeaderRole && (
-                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span>
+                      <div className="mt-1 grid grid-cols-2 gap-0.5 text-xs text-muted-foreground">
+                        <p>
                           Primary:{" "}
                           {p.primaryLeaderRole
                             .replace(/_/g, " ")
                             .toLowerCase()
                             .replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </span>
+                        </p>
                         {p.secondaryLeaderRoles.length > 0 && (
-                          <span>
+                          <p>
                             Secondary:{" "}
                             {p.secondaryLeaderRoles
                               .map((r) =>
@@ -836,17 +845,17 @@ export default function AdminEventPage() {
                                   .replace(/\b\w/g, (c) => c.toUpperCase())
                               )
                               .join(", ")}
-                          </span>
+                          </p>
                         )}
                       </div>
                     )}
                     {(p.medications.length > 0 || p.allergies.length > 0) && (
-                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div className="mt-1 grid grid-cols-2 gap-0.5 text-xs text-muted-foreground">
                         {p.medications.length > 0 && (
-                          <span>Medications: {p.medications.join(", ")}</span>
+                          <p>Medications: {p.medications.join(", ")}</p>
                         )}
                         {p.allergies.length > 0 && (
-                          <span>Allergies: {p.allergies.join(", ")}</span>
+                          <p className="text-red-600">Allergies: {p.allergies.join(", ")}</p>
                         )}
                       </div>
                     )}

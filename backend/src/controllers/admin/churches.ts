@@ -205,6 +205,8 @@ adminChurchesHandler.get("/:id/members", async (req, res) => {
     name: m.name,
     email: m.user.email,
     phone: m.phone || "",
+    gender: m.gender || "",
+    dob: m.dob?.toISOString() || "",
     primary: m.primaryForChurch,
     role: m.role || "STUDENT",
     approved: m.approved,

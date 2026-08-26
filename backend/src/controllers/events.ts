@@ -368,39 +368,67 @@ eventsHandler.get("/:id", async (req, res) => {
           profile: { churchId: viewer.churchId },
         },
         include: {
-          profile: { select: { id: true, name: true, role: true, ageCategory: true } },
+          profile: { select: { id: true, name: true, role: true, ageCategory: true, gender: true, dob: true } },
         },
         orderBy: { createdAt: "asc" },
       });
 
       if (isLeader) {
-        registrants = churchRegistrations.map((r) => ({
-          id: r.profile.id,
-          name: r.profile.name,
-          role: r.profile.role || "STUDENT",
-          ageCategory: r.profile.ageCategory || null,
-          paid: r.paid,
-          shirtSize: r.shirtSize,
-          swimming: r.swimming,
-          allergies: r.allergies,
-          medications: r.medications,
-          group: r.group,
-          room: r.room,
-          primaryLeaderRole: r.primaryLeaderRole || null,
-          secondaryLeaderRoles: r.secondaryLeaderRoles,
-          emergencyName: r.emergencyName,
-          emergencyPhone: r.emergencyPhone,
-          notes: r.notes || "",
-          selfPay: r.selfPay,
-        }));
+        registrants = churchRegistrations.map((r) => {
+          let age: number | null = null;
+          if (r.profile.dob) {
+            const today = new Date();
+            const birthDate = new Date(r.profile.dob);
+            age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+          }
+          return {
+            id: r.profile.id,
+            name: r.profile.name,
+            role: r.profile.role || "STUDENT",
+            ageCategory: r.profile.ageCategory || null,
+            gender: r.profile.gender || "",
+            age,
+            paid: r.paid,
+            shirtSize: r.shirtSize,
+            swimming: r.swimming,
+            allergies: r.allergies,
+            medications: r.medications,
+            group: r.group,
+            room: r.room,
+            primaryLeaderRole: r.primaryLeaderRole || null,
+            secondaryLeaderRoles: r.secondaryLeaderRoles,
+            emergencyName: r.emergencyName,
+            emergencyPhone: r.emergencyPhone,
+            notes: r.notes || "",
+            selfPay: r.selfPay,
+          };
+        });
       } else {
-        registrants = churchRegistrations.map((r) => ({
-          id: r.profile.id,
-          name: r.profile.name,
-          role: r.profile.role || "STUDENT",
-          ageCategory: r.profile.ageCategory || null,
-          paid: r.paid,
-        }));
+        registrants = churchRegistrations.map((r) => {
+          let age: number | null = null;
+          if (r.profile.dob) {
+            const today = new Date();
+            const birthDate = new Date(r.profile.dob);
+            age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+          }
+          return {
+            id: r.profile.id,
+            name: r.profile.name,
+            role: r.profile.role || "STUDENT",
+            ageCategory: r.profile.ageCategory || null,
+            gender: r.profile.gender || "",
+            age,
+            paid: r.paid,
+          };
+        });
       }
     }
 

@@ -29,6 +29,8 @@ type Member = {
   name: string;
   email: string;
   phone: string;
+  gender: string;
+  dob: string;
   primary: boolean;
   role: string;
   approved: boolean;
@@ -416,6 +418,15 @@ export default function AdminChurchPage() {
                           {member.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                         </span>
                       )}
+                      {member.gender && member.dob && (() => {
+                        const age = Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                        const letter = member.gender === "MALE" ? "M" : "F";
+                        return (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${letter === "M" ? "bg-blue-900 text-blue-200" : "bg-pink-700 text-pink-200"}`}>
+                            {letter}{age}
+                          </span>
+                        );
+                      })()}
                       {!member.approved && (
                         <div className="flex gap-1">
                           <button
@@ -433,15 +444,9 @@ export default function AdminChurchPage() {
                         </div>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Mail className="size-3.5" />
-                        {member.email}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Phone className="size-3.5" />
-                        {member.phone}
-                      </span>
+                    <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
+                      {member.email && <p className="break-all"><Mail className="inline size-4" /> {member.email}</p>}
+                      {member.phone && <p><Phone className="inline size-4" /> {member.phone}</p>}
                     </div>
                   </div>
                 </div>
