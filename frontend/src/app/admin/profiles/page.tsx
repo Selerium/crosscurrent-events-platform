@@ -188,15 +188,19 @@ function ProfilesContent() {
                       <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                         {profile.role.toLowerCase()}
                       </span>
-                      {profile.role === "STUDENT" && profile.ageCategory && (
-                        <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                          profile.ageCategory === "SENIOR"
-                            ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
-                            : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
-                        }`}>
-                          {profile.ageCategory === "SENIOR" ? "Senior" : "Junior"}
-                        </span>
-                      )}
+                      {profile.role === "STUDENT" && (() => {
+                        const cat = profile.ageCategory || (profile.dob ? (Math.floor((Date.now() - new Date(profile.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) >= 16 ? "SENIOR" : "JUNIOR") : null);
+                        if (!cat) return null;
+                        return (
+                          <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                            cat === "SENIOR"
+                              ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                              : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                          }`}>
+                            {cat === "SENIOR" ? "Senior" : "Junior"}
+                          </span>
+                        );
+                      })()}
                       {profile.gender && profile.dob && (() => {
                         const age = Math.floor((Date.now() - new Date(profile.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
                         const letter = profile.gender === "MALE" ? "M" : "F";

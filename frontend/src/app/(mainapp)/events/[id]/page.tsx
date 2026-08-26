@@ -1595,18 +1595,22 @@ export default function EventPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Link className="font-semibold hover:underline" href={`/profiles/${r.id}`}>{r.name}</Link>
-                          <span className="rounded-md bg-muted px-2 py-0.5 text-sm font-medium capitalize text-muted-foreground">
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                             {r.role.toLowerCase()}
                           </span>
-                          {r.role === "STUDENT" && r.ageCategory && (
-                            <span className={`rounded-md px-2 py-0.5 text-sm font-medium ${
-                              r.ageCategory === "SENIOR"
-                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
-                                : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
-                            }`}>
-                              {r.ageCategory === "SENIOR" ? "Senior" : "Junior"}
-                            </span>
-                          )}
+                          {r.role === "STUDENT" && (() => {
+                            const cat = r.ageCategory || (r.age != null ? (r.age >= 16 ? "SENIOR" : "JUNIOR") : null);
+                            if (!cat) return null;
+                            return (
+                              <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                                cat === "SENIOR"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                                  : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                              }`}>
+                                {cat === "SENIOR" ? "Senior" : "Junior"}
+                              </span>
+                            );
+                          })()}
                           {r.gender && r.age != null && (() => {
                             const letter = r.gender === "MALE" ? "M" : "F";
                             return (
@@ -1615,7 +1619,7 @@ export default function EventPage() {
                               </span>
                             );
                           })()}
-                          <span className={`rounded-md px-2 py-0.5 text-sm font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
+                          <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
                             {r.paid ? "Paid" : "Unpaid"}
                           </span>
                         </div>

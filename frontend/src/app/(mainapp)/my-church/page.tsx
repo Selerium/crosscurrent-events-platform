@@ -277,18 +277,22 @@ export default function MyChurchPage() {
                       <div className="min-w-0">
                         <Link className="font-semibold hover:underline" href={`/profiles/${m.id}`}>{m.name}</Link>
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm text-muted-foreground capitalize italic">
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                             {m.role.toLowerCase()}
-                          </p>
-                          {m.role === "STUDENT" && m.ageCategory && (
-                            <span className={`rounded-md px-2 py-0.5 text-sm font-medium ${
-                              m.ageCategory === "SENIOR"
-                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
-                                : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
-                            }`}>
-                              {m.ageCategory === "SENIOR" ? "Senior" : "Junior"}
-                            </span>
-                          )}
+                          </span>
+                          {m.role === "STUDENT" && (() => {
+                            const cat = m.ageCategory || (m.dob ? (Math.floor((Date.now() - new Date(m.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) >= 16 ? "SENIOR" : "JUNIOR") : null);
+                            if (!cat) return null;
+                            return (
+                              <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                                cat === "SENIOR"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                                  : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                              }`}>
+                                {cat === "SENIOR" ? "Senior" : "Junior"}
+                              </span>
+                            );
+                          })()}
                           {m.gender && m.dob && (() => {
                             const age = Math.floor((Date.now() - new Date(m.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
                             const letter = m.gender === "MALE" ? "M" : "F";
@@ -524,22 +528,26 @@ export default function MyChurchPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <Link className="font-semibold hover:underline" href={`/profiles/${member.id}`}>{member.name}</Link>
                           {member.primary && (
-                            <span className="rounded-md bg-primary px-2 py-0.5 text-sm font-semibold text-primary-foreground">
+                            <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
                               Primary
                             </span>
                           )}
-                          <span className="rounded-md bg-muted px-2 py-0.5 text-sm font-medium capitalize text-muted-foreground">
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                             {member.role.toLowerCase()}
                           </span>
-                          {member.role === "STUDENT" && member.ageCategory && (
-                            <span className={`rounded-md px-2 py-0.5 text-sm font-medium ${
-                              member.ageCategory === "SENIOR"
-                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
-                                : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
-                            }`}>
-                              {member.ageCategory === "SENIOR" ? "Senior" : "Junior"}
-                            </span>
-                          )}
+                          {member.role === "STUDENT" && (() => {
+                            const cat = member.ageCategory || (member.dob ? (Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) >= 16 ? "SENIOR" : "JUNIOR") : null);
+                            if (!cat) return null;
+                            return (
+                              <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                                cat === "SENIOR"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                                  : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                              }`}>
+                                {cat === "SENIOR" ? "Senior" : "Junior"}
+                              </span>
+                            );
+                          })()}
                           {member.gender && member.dob && (() => {
                             const age = Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
                             const letter = member.gender === "MALE" ? "M" : "F";
@@ -550,7 +558,7 @@ export default function MyChurchPage() {
                             );
                           })()}
                           {!member.approved && (
-                            <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-sm font-medium text-yellow-800">
+                            <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
                               Pending
                             </span>
                           )}

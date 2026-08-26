@@ -772,15 +772,19 @@ export default function AdminEventPage() {
                           Student
                         </span>
                       )}
-                      {!isLeaderParticipant(p) && p.ageCategory && (
-                        <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                          p.ageCategory === "SENIOR"
-                            ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
-                            : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
-                        }`}>
-                          {p.ageCategory === "SENIOR" ? "Senior" : "Junior"}
-                        </span>
-                      )}
+                      {!isLeaderParticipant(p) && (() => {
+                        const cat = p.ageCategory || (p.age != null ? (p.age >= 16 ? "SENIOR" : "JUNIOR") : null);
+                        if (!cat) return null;
+                        return (
+                          <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                            cat === "SENIOR"
+                              ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
+                              : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+                          }`}>
+                            {cat === "SENIOR" ? "Senior" : "Junior"}
+                          </span>
+                        );
+                      })()}
                       {p.gender && p.age != null && (() => {
                         const letter = p.gender === "MALE" ? "M" : "F";
                         return (
