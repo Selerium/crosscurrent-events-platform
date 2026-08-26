@@ -1586,20 +1586,20 @@ export default function EventPage() {
                   No registered members match your search.
                 </p>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="mt-4 divide-y rounded-lg border">
                   {filteredRegistrants.map((r) => (
-                    <div
-                      key={r.id}
-                      className="rounded-lg border p-3"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 p-3" key={r.id}>
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                        <Users className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Link className="font-semibold hover:underline" href={`/profiles/${r.id}`}>{r.name}</Link>
-                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-sm font-medium capitalize text-muted-foreground">
                             {r.role.toLowerCase()}
                           </span>
                           {r.role === "STUDENT" && r.ageCategory && (
-                            <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                            <span className={`rounded-md px-2 py-0.5 text-sm font-medium ${
                               r.ageCategory === "SENIOR"
                                 ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200"
                                 : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
@@ -1607,27 +1607,27 @@ export default function EventPage() {
                               {r.ageCategory === "SENIOR" ? "Senior" : "Junior"}
                             </span>
                           )}
+                          <span className={`rounded-md px-2 py-0.5 text-sm font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
+                            {r.paid ? "Paid" : "Unpaid"}
+                          </span>
                         </div>
-                        <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
-                          {r.paid ? "Paid" : "Unpaid"}
-                        </span>
+                        {userRole === "LEADER" && (
+                          <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
+                            {r.shirtSize && <p>Shirt: {r.shirtSize}</p>}
+                            <p>Swimming: {r.swimming ? "Yes" : "No"}</p>
+                            {r.group && <p>Group: {r.group}</p>}
+                            {r.room && <p>Room: {r.room}</p>}
+                            {r.primaryLeaderRole && <p>Role: {r.primaryLeaderRole.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</p>}
+                            {r.secondaryLeaderRoles && r.secondaryLeaderRoles.length > 0 && (
+                              <p>Secondary: {r.secondaryLeaderRoles.map((s) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}</p>
+                            )}
+                            {r.allergies && r.allergies.length > 0 && <p className="text-red-600">Allergies: {r.allergies.join(", ")}</p>}
+                            {r.medications && r.medications.length > 0 && <p>Medications: {r.medications.join(", ")}</p>}
+                            {r.emergencyName && <p>Emergency: {r.emergencyName} ({r.emergencyPhone})</p>}
+                            {r.notes && <p>Notes: {r.notes}</p>}
+                          </div>
+                        )}
                       </div>
-                      {userRole === "LEADER" && r.shirtSize && (
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>Shirt: {r.shirtSize}</span>
-                          <span>Swimming: {r.swimming ? "Yes" : "No"}</span>
-                          {r.group && <span>Group: {r.group}</span>}
-                          {r.room && <span>Room: {r.room}</span>}
-                          {r.primaryLeaderRole && <span>Role: {r.primaryLeaderRole.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</span>}
-                          {r.secondaryLeaderRoles && r.secondaryLeaderRoles.length > 0 && (
-                            <span>Secondary: {r.secondaryLeaderRoles.map((s) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}</span>
-                          )}
-                          {r.allergies && r.allergies.length > 0 && <span className="text-red-600">Allergies: {r.allergies.join(", ")}</span>}
-                          {r.medications && r.medications.length > 0 && <span>Medications: {r.medications.join(", ")}</span>}
-                          {r.emergencyName && <span>Emergency: {r.emergencyName} ({r.emergencyPhone})</span>}
-                          {r.notes && <span>Notes: {r.notes}</span>}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
