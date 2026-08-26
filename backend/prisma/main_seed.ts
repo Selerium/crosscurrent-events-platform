@@ -6,7 +6,7 @@ const adminPass = process.env.ADMIN_PASS || "adminpass"
 
 const churches = {
   "Abu Dhabi": ["St. Andrew's Church", "Cornerstone", "Grace Church", "Igreja Brasileira de Abu Dhabi", "Saving Grace Global Ministries", "Evangelical Community Church", ],
-  "Al Ain": ["Al Ain Evangelical Church", "Redeemer Church", "Nepali Bible Sangati", ],
+  "Al Ain": ["United TECAA", ],
   "Dubai": ["Redeemer Church", "Fellowship Dubai", "Kingdomcity Church", "Edify Church", "Holy Trinity", ],
   "Fujairah": ["Assemblies of God Church", "Immanuel Church of Fujairah" ],
   "Sharjah": ["Servants of God Church", "St. Martin's Church"],

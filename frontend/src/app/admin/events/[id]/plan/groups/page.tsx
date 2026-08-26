@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, LayoutGrid, RotateCcw, X } from "lucide-react";
+import { ChevronLeft, LayoutGrid, RotateCcw, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -78,6 +78,7 @@ export default function PlanGroupsPage() {
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [autoAssigning, setAutoAssigning] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -223,6 +224,55 @@ export default function PlanGroupsPage() {
     }
   }
 
+  async function handleAutoAssign() {
+    const unslottedList = participants.filter((p) => !p.group);
+    if (unslottedList.length === 0) {
+      toast.info("No unslotted participants to assign");
+      return;
+    }
+
+    const sorted = [...unslottedList].sort((a, b) => {
+      if (a.age === null && b.age === null) return 0;
+      if (a.age === null) return 1;
+      if (b.age === null) return -1;
+      return a.age - b.age;
+    });
+
+    const totalCapacity = numGroups * maxPerGroup;
+    if (sorted.length > totalCapacity) {
+      toast.error(`Not enough capacity: ${sorted.length} participants but only ${totalCapacity} slots`);
+      return;
+    }
+
+    setAutoAssigning(true);
+    try {
+      const assignments: { id: string; group: string }[] = [];
+      for (let i = 0; i < sorted.length; i++) {
+        const groupIndex = i % numGroups;
+        const label = groupNames[groupIndex] || `Group ${groupIndex + 1}`;
+        assignments.push({ id: sorted[i].id, group: label });
+      }
+
+      await Promise.all(
+        assignments.map((a) =>
+          api.patch(`/admin/events/${params.id}/participants/${a.id}`, { group: a.group })
+        )
+      );
+
+      setParticipants((prev) =>
+        prev.map((p) => {
+          const assignment = assignments.find((a) => a.id === p.id);
+          return assignment ? { ...p, group: assignment.group } : p;
+        })
+      );
+      toast.success(`Assigned ${sorted.length} participants across ${numGroups} groups`);
+    } catch {
+      toast.error("Automatic assignment failed");
+    } finally {
+      setAutoAssigning(false);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-4 py-3">
@@ -303,7 +353,11 @@ export default function PlanGroupsPage() {
                 Click a slot to assign {participants.find((p) => p.id === selectedId)?.name}
               </div>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleAutoAssign} disabled={autoAssigning || resetting}>
+                <Wand2 className="h-3.5 w-3.5" />
+                {autoAssigning ? "Assigning…" : "Automatically assign"}
+              </Button>
               <Button variant="destructive" size="sm" onClick={handleResetAll} disabled={resetting}>
                 <RotateCcw className="h-3.5 w-3.5" />
                 {resetting ? "Resetting…" : "Reset All"}

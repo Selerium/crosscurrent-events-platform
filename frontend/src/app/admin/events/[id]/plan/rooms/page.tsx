@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, DoorOpen, RotateCcw, X } from "lucide-react";
+import { ChevronLeft, DoorOpen, RotateCcw, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -155,6 +155,16 @@ export default function PlanRoomsPage() {
     const selected = participants.find((p) => p.id === selectedId);
     if (!selected) return;
 
+    const occupants = participants.filter((p) => p.room === slotLabel && p.id !== selectedId);
+    if (selected.gender && occupants.some((o) => o.gender && o.gender !== selected.gender)) {
+      toast.error("Cannot assign: mixed-gender rooms are not allowed");
+      return;
+    }
+    if (occupants.some((o) => o.role !== selected.role)) {
+      toast.error("Cannot assign: leaders and students cannot share rooms");
+      return;
+    }
+
     setSavingId(selectedId);
     try {
       await api.patch(`/admin/events/${params.id}/participants/${selectedId}`, { room: slotLabel });
@@ -299,7 +309,11 @@ export default function PlanRoomsPage() {
                 Click a slot to assign {participants.find((p) => p.id === selectedId)?.name}
               </div>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => toast.info("Automatic assignment coming soon")}>
+                <Wand2 className="h-3.5 w-3.5" />
+                Automatically assign
+              </Button>
               <Button variant="destructive" size="sm" onClick={handleResetAll} disabled={resetting}>
                 <RotateCcw className="h-3.5 w-3.5" />
                 {resetting ? "Resetting…" : "Reset All"}
