@@ -34,6 +34,7 @@ export default function Profile() {
   const [selectedOption, setSelectedOption] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState({
+    name: "",
     phone: "",
     dob: "",
     nationality: "",
@@ -54,6 +55,7 @@ export default function Profile() {
       setProfile(res.data.data);
       const p = res.data.data;
       setForm({
+        name: p.user?.name || "",
         phone: p.phone || "",
         dob: p.dob ? new Date(p.dob).toISOString().split("T")[0] : "",
         nationality: p.nationality || "",
@@ -170,6 +172,17 @@ export default function Profile() {
                     disabled
                     className="w-full grow px-4 py-2 rounded-lg border capitalize"
                     value={profile.role.toLowerCase()}
+                  />
+                </div>
+                <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">
+                  <p className="shrink-0 sm:w-72">Name: </p>
+                  <Input
+                    disabled={!editMode}
+                    className="w-full grow px-4 py-2 rounded-lg border"
+                    value={editMode ? form.name : profile.user.name}
+                    onChange={(e) =>
+                      setForm({ ...form, name: e.target.value })
+                    }
                   />
                 </div>
                 <div className="flex w-full flex-col gap-2 rounded-lg sm:flex-row sm:items-center">

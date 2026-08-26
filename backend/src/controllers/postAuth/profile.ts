@@ -48,6 +48,7 @@ profileHandler.get("", async (req, res) => {
 
 profileHandler.put("", async (req, res) => {
   const {
+    name,
     phone,
     dob,
     gender,
@@ -59,6 +60,7 @@ profileHandler.put("", async (req, res) => {
   } = req.body;
 
   const data: Record<string, unknown> = {};
+  if (name !== undefined) data.name = name;
   if (phone !== undefined) data.phone = phone;
   if (dob !== undefined) data.dob = new Date(dob);
   if (gender !== undefined) data.gender = gender;
