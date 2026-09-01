@@ -140,6 +140,7 @@ paymentsHandler.post("/scholarship", async (req, res) => {
       churchId: true,
       role: true,
       name: true,
+      approved: true,
       user: { select: { email: true } },
     },
   });
