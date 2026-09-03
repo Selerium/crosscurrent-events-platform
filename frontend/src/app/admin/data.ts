@@ -55,6 +55,7 @@ export type ProfileRecord = {
 
 export type ProfileDetail = ProfileRecord & {
   dob: string;
+  emailVerified: boolean;
   firstTime: boolean;
   church: { id: string; name: string } | null;
   parentOneName: string;

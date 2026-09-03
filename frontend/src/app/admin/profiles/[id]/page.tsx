@@ -8,6 +8,7 @@ import {
   Mail,
   Phone,
   Save,
+  Send,
   User,
   Users,
   XIcon,
@@ -32,6 +33,7 @@ export default function AdminProfilePage() {
   const [showDelete, setShowDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendingVerification, setSendingVerification] = useState(false);
   const [churches, setChurches] = useState<ChurchRecord[]>([]);
 
   const [editName, setEditName] = useState("");
@@ -126,6 +128,19 @@ export default function AdminProfilePage() {
     }
   }
 
+  async function handleSendVerification() {
+    setSendingVerification(true);
+    try {
+      await api.post(`/admin/profiles/${params.id}/send-verification`);
+      setProfile({ ...profile!, emailVerified: false });
+      toast.success("Verification email sent");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Could not send verification email");
+    } finally {
+      setSendingVerification(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-4 sm:px-6">
@@ -166,6 +181,15 @@ export default function AdminProfilePage() {
                   >
                     {profile.approved ? "Approved" : "Pending"}
                   </span>
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-xs font-semibold capitalize ${
+                      profile.emailVerified
+                        ? "bg-green-800 text-white"
+                        : "bg-yellow-800 text-white"
+                    }`}
+                  >
+                    {profile.emailVerified ? "Email verified" : "Email unverified"}
+                  </span>
                   <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
                     {profile.role.toLowerCase()}
                   </span>
@@ -174,7 +198,17 @@ export default function AdminProfilePage() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {!profile.emailVerified && (
+              <Button
+                variant="outline"
+                onClick={handleSendVerification}
+                disabled={sendingVerification}
+              >
+                <Send />
+                {sendingVerification ? "Sending..." : "Send verification email"}
+              </Button>
+            )}
             <Button variant="destructive" onClick={() => setShowDelete(true)}>
               Delete
             </Button>

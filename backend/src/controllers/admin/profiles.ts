@@ -1,7 +1,9 @@
 import express from "express";
+import crypto from "crypto";
 import AppError from "../../lib/appError.ts";
 import { prisma } from "../../lib/prismaClient.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
+import { sendVerificationEmail } from "../../lib/email.ts";
 
 const adminProfilesHandler = express.Router();
 
@@ -92,7 +94,7 @@ adminProfilesHandler.get("/:id", async (req, res) => {
   const profile = await prisma.profile.findUnique({
     where: { id: req.params.id },
     include: {
-      user: { select: { email: true } },
+      user: { select: { email: true, emailVerified: true } },
       church: { select: { id: true, name: true } },
       registrations: {
         include: {
@@ -111,6 +113,7 @@ adminProfilesHandler.get("/:id", async (req, res) => {
     id: profile.id,
     name: profile.name,
     email: profile.user.email,
+    emailVerified: profile.user.emailVerified,
     phone: profile.phone || "",
     role: profile.role || "STUDENT",
     gender: profile.gender || "",
@@ -143,6 +146,48 @@ adminProfilesHandler.get("/:id", async (req, res) => {
   };
 
   res.status(200).json({ data, error: false, message: "" });
+});
+
+adminProfilesHandler.post("/:id/send-verification", async (req, res) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { id: true, email: true, emailVerified: true } } },
+  });
+
+  if (!profile) {
+    throw new AppError("Profile not found", 404);
+  }
+
+  if (profile.user.emailVerified) {
+    throw new AppError("Email is already verified", 400);
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await prisma.user.update({
+    where: { id: profile.user.id },
+    data: {
+      emailVerificationToken: tokenHash,
+      emailVerificationTokenExpiresAt: expiresAt,
+    },
+  });
+
+  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+  await sendVerificationEmail(profile.user.email, verificationUrl);
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "profile.send_verification",
+    targetType: "profile",
+    targetId: req.params.id,
+    details: { email: profile.user.email },
+    success: true,
+  });
+
+  res.status(200).json({ data: {}, message: "Verification email sent", error: false });
 });
 
 adminProfilesHandler.patch("/:id", async (req, res) => {

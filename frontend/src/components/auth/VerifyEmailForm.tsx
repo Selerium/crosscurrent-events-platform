@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 
-type VerifyState = "verifying" | "success" | "error";
+type VerifyState = "verifying" | "success" | "error" | "resent";
 
 export function VerifyEmailForm() {
   const searchParams = useSearchParams();
@@ -27,8 +27,13 @@ export function VerifyEmailForm() {
 
     api
       .post("/verify-email", { token })
-      .then(() => {
-        setState("success");
+      .then((res) => {
+        if (res.data.expired) {
+          setState("resent");
+          setMessage(res.data.message);
+        } else {
+          setState("success");
+        }
       })
       .catch((err: any) => {
         setState("error");
@@ -54,6 +59,20 @@ export function VerifyEmailForm() {
         </p>
         <Button asChild className="w-full justify-center">
           <Link href="/login">Sign in</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (state === "resent") {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <p className="text-xs text-muted-foreground">
+          Check your inbox for the new verification link.
+        </p>
+        <Button asChild className="w-full justify-center">
+          <Link href="/login">Back to sign in</Link>
         </Button>
       </div>
     );

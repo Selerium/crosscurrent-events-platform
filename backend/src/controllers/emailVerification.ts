@@ -2,6 +2,7 @@ import express from "express";
 import crypto from "crypto";
 import AppError from "../lib/appError.ts";
 import { prisma } from "../lib/prismaClient.ts";
+import { sendVerificationEmail } from "../lib/email.ts";
 
 const emailVerificationHandler = express.Router();
 
@@ -19,23 +20,54 @@ emailVerificationHandler.post("", async (req, res) => {
     },
   });
 
-  if (!user) {
-    throw new AppError(
-      "Invalid or expired verification token. Please register again or contact support.",
-      400
-    );
+  if (user) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationTokenExpiresAt: null,
+      },
+    });
+
+    return res.status(200).json({ data: {}, message: "Email verified", error: false });
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      emailVerified: true,
-      emailVerificationToken: null,
-      emailVerificationTokenExpiresAt: null,
+  const expiredUser = await prisma.user.findFirst({
+    where: {
+      emailVerificationToken: tokenHash,
+      emailVerificationTokenExpiresAt: { not: null },
     },
   });
 
-  res.status(200).json({ data: {}, message: "Email verified", error: false });
+  if (expiredUser) {
+    const newToken = crypto.randomBytes(32).toString("hex");
+    const newTokenHash = crypto.createHash("sha256").update(newToken).digest("hex");
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: expiredUser.id },
+      data: {
+        emailVerificationToken: newTokenHash,
+        emailVerificationTokenExpiresAt: expiresAt,
+      },
+    });
+
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${newToken}`;
+    await sendVerificationEmail(expiredUser.email, verificationUrl);
+
+    return res.status(200).json({
+      data: {},
+      message: "Verification link expired. A new verification email has been sent.",
+      error: false,
+      expired: true,
+    });
+  }
+
+  throw new AppError(
+    "Invalid verification token.",
+    400
+  );
 });
 
 export default emailVerificationHandler;
