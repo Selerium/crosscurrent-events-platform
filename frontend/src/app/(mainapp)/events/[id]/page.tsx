@@ -351,7 +351,7 @@ export default function EventPage() {
         ...data,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
-        earlyBirdDate: data.earlyBirdDate ? new Date(data.earlyBirdDate) : null,
+        earlyBirdDate: data.earlyBirdDate ? new Date(data.earlyBirdDate).setHours(23, 59, 59) : null,
         schedule: (data.schedule || []).map((day: ScheduleItem[]) =>
           day.map((item: ScheduleItem) => ({
             ...item,
