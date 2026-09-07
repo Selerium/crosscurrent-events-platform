@@ -53,7 +53,7 @@ export type ProfileRecord = {
   ageCategory: string | null;
 };
 
-export type ProfileDetail = ProfileRecord & {
+export type ProfileDetail = Omit<ProfileRecord, "registrations"> & {
   dob: string;
   emailVerified: boolean;
   firstTime: boolean;
