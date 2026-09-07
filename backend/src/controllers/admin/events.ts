@@ -379,6 +379,40 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
   res.status(200).json({ data: {}, error: false, message: "" });
 });
 
+adminEventsHandler.patch("/:id/registrations/:registrationId/pay", async (req, res) => {
+  const { id, registrationId } = req.params;
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) throw new AppError("Event not found", 404);
+
+  const registration = await prisma.registration.findFirst({
+    where: { id: registrationId, eventId: id },
+    include: { profile: { select: { name: true } } },
+  });
+  if (!registration) throw new AppError("Registration not found", 404);
+
+  if (registration.paid) {
+    throw new AppError("Registration is already paid", 400);
+  }
+
+  await prisma.registration.update({
+    where: { id: registrationId },
+    data: { paid: true },
+  });
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.mark_registration_paid",
+    targetType: "registration",
+    targetId: registrationId,
+    details: { eventId: id, profileName: registration.profile.name },
+    success: true,
+  });
+
+  res.status(200).json({ data: {}, error: false, message: "Registration marked as paid" });
+});
+
 adminEventsHandler.delete("/:id/registrations", async (req, res) => {
   const { id } = req.params;
   const { field } = req.query;

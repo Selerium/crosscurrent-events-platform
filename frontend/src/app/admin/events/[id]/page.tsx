@@ -4,6 +4,7 @@ import {
   Banknote,
   CalendarDays,
   CalendarIcon,
+  CheckCircle,
   ChevronLeft,
   Clock,
   DoorOpen,
@@ -107,6 +108,9 @@ export default function AdminEventPage() {
     useState<ParticipantFilter>("all");
   const [closing, setClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showPayConfirm, setShowPayConfirm] = useState(false);
+  const [payTarget, setPayTarget] = useState<Participant | null>(null);
+  const [markingPaid, setMarkingPaid] = useState(false);
 
   useEffect(() => {
     api.get(`/admin/events/${params.id}`)
@@ -158,6 +162,30 @@ export default function AdminEventPage() {
       toast.error("Could not reopen event");
     } finally {
       setClosing(false);
+    }
+  }
+
+  async function handleMarkPaid() {
+    if (!payTarget || !eventInfo) return;
+    setMarkingPaid(true);
+    try {
+      await api.patch(`/admin/events/${params.id}/registrations/${payTarget.id}/pay`);
+      setParticipants((prev) =>
+        prev.map((p) => (p.id === payTarget.id ? { ...p, paid: true } : p))
+      );
+      setEventInfo({
+        ...eventInfo,
+        paidSignUps: eventInfo.paidSignUps + 1,
+        unpaidSignUps: eventInfo.unpaidSignUps - 1,
+        revenue: eventInfo.revenue + eventInfo.price,
+      });
+      toast.success(`${payTarget.name} marked as paid`);
+    } catch {
+      toast.error("Could not mark as paid");
+    } finally {
+      setMarkingPaid(false);
+      setShowPayConfirm(false);
+      setPayTarget(null);
     }
   }
 
@@ -763,6 +791,19 @@ export default function AdminEventPage() {
                       >
                         {p.paid ? "PAID" : "UNPAID"}
                       </span>
+                      {!p.paid && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPayTarget(p);
+                            setShowPayConfirm(true);
+                          }}
+                          className="flex cursor-pointer items-center gap-1 rounded-md border border-green-700 px-2 py-0.5 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+                        >
+                          <CheckCircle className="size-3" />
+                          Mark as paid
+                        </button>
+                      )}
                       {isLeaderParticipant(p) ? (
                         <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
                           Leader
@@ -904,6 +945,35 @@ export default function AdminEventPage() {
               </Button>
               <Button variant="destructive" onClick={handleCloseEvent} disabled={closing}>
                 {closing ? "Closing..." : "Yes, close event"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPayConfirm && payTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold">Mark as Paid</span>
+              <button
+                type="button"
+                onClick={() => { setShowPayConfirm(false); setPayTarget(null); }}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to mark <strong>{payTarget.name}</strong>&apos;s registration as paid? This confirms that payment has been received.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowPayConfirm(false); setPayTarget(null); }}>
+                Cancel
+              </Button>
+              <Button onClick={handleMarkPaid} disabled={markingPaid} className="bg-green-700 hover:bg-green-800">
+                <CheckCircle />
+                {markingPaid ? "Marking..." : "Yes, mark as paid"}
               </Button>
             </div>
           </div>
