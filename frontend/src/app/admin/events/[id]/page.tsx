@@ -48,6 +48,7 @@ type ScheduleItem = {
 
 type Participant = {
   id: string;
+  profileId: string;
   name: string;
   phone: string;
   gender: string;
@@ -915,7 +916,7 @@ export default function AdminEventPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link className="font-semibold hover:underline" href={`/admin/profiles/${p.id}`}>{p.name}</Link>
+                      <Link className="font-semibold hover:underline" href={`/admin/profiles/${p.profileId}`}>{p.name}</Link>
                       <span
                         className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
                           p.paid

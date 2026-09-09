@@ -289,6 +289,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
 
     return {
       id: r.id,
+      profileId: r.profile.id,
       name: r.profile.name,
       phone: r.profile.phone || "",
       gender: r.profile.gender || "",
