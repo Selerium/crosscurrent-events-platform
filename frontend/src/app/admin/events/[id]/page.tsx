@@ -73,6 +73,9 @@ type Participant = {
   safeguardingDoc: string;
   parentVerified: boolean;
   ageCategory: string | null;
+  parentOneName: string;
+  parentOneEmail: string;
+  parentOnePhone: string;
   group: string;
   room: string;
 };
@@ -1024,6 +1027,24 @@ export default function AdminEventPage() {
                       )}
                       {p.notes && <p>Notes: {p.notes}</p>}
                     </div>
+                    {(p.parentOneName ||
+                      p.parentOneEmail ||
+                      p.parentOnePhone) && (
+                      <>
+                        <hr className="my-2 border-border" />
+                        <div className="grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
+                          <p>
+                            Parent: {p.parentOneName || "N/A"}
+                          </p>
+                          {p.parentOneEmail && (
+                            <p>Email: {p.parentOneEmail}</p>
+                          )}
+                          {p.parentOnePhone && (
+                            <p>Contact: {p.parentOnePhone}</p>
+                          )}
+                        </div>
+                      </>
+                    )}
                     {p.primaryLeaderRole && (
                       <div className="mt-1 grid grid-cols-2 gap-0.5 text-xs text-muted-foreground">
                         <p>
