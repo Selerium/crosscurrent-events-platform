@@ -199,6 +199,30 @@ export default function AdminEventPage() {
     }
   }
 
+  async function handleToggleEarlyBird(p: Participant) {
+    const next = !p.earlyBird;
+    try {
+      await api.patch(`/admin/events/${params.id}/participants/${p.id}`, {
+        earlyBird: next,
+      });
+      setParticipants((prev) =>
+        prev.map((x) => (x.id === p.id ? { ...x, earlyBird: next } : x))
+      );
+      setEventInfo((prev) => {
+        if (!prev || prev.earlyBirdPrice == null) return prev;
+        const delta = next
+          ? prev.earlyBirdPrice - prev.price
+          : prev.price - prev.earlyBirdPrice;
+        return { ...prev, revenue: prev.revenue + delta };
+      });
+      toast.success(
+        `${p.name} marked as ${next ? "early bird" : "regular"}`
+      );
+    } catch {
+      toast.error("Could not update early bird status");
+    }
+  }
+
   function startEditing() {
     if (!eventInfo) return;
     setEditName(eventInfo.name);
@@ -819,10 +843,19 @@ export default function AdminEventPage() {
                           Mark as paid
                         </button>
                       )}
-                      {p.paid && p.earlyBird && (
-                        <span className="rounded-md bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-900/40 dark:text-teal-200">
-                          Early Bird
-                        </span>
+                      {p.paid && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleEarlyBird(p)}
+                          className={cn(
+                            "flex cursor-pointer items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold transition-colors",
+                            p.earlyBird
+                              ? "border-teal-700 bg-teal-100 text-teal-800 hover:bg-teal-200 dark:border-teal-500 dark:bg-teal-900/40 dark:text-teal-200 dark:hover:bg-teal-900/60"
+                              : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                          )}
+                        >
+                          {p.earlyBird ? "Early Bird" : "Regular"}
+                        </button>
                       )}
                       {isLeaderParticipant(p) ? (
                         <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">

@@ -349,7 +349,7 @@ adminEventsHandler.get(
 
 adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) => {
   const { id, participantId } = req.params;
-  const { group, room } = req.body;
+  const { group, room, earlyBird } = req.body;
 
   const event = await prisma.event.findUnique({ where: { id } });
   if (!event) throw new AppError("Event not found", 404);
@@ -362,6 +362,7 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
   const data: Record<string, unknown> = {};
   if (group !== undefined) data.group = group || null;
   if (room !== undefined) data.room = room || null;
+  if (earlyBird !== undefined) data.earlyBird = earlyBird;
 
   await prisma.registration.update({
     where: { id: participantId },
@@ -374,7 +375,7 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
     action: "event.update_registration",
     targetType: "registration",
     targetId: participantId,
-    details: { eventId: id, group, room },
+    details: { eventId: id, group, room, earlyBird },
     success: true,
   });
 
