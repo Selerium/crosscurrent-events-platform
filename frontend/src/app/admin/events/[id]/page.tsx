@@ -79,6 +79,7 @@ type Participant = {
 type ParticipantFilter = "all" | "leaders" | "students";
 type PaidFilter = "all" | "paid" | "unpaid";
 type EarlyBirdFilter = "all" | "earlyBird" | "regular";
+type ParticipantSort = "name" | "age";
 
 function isLeaderParticipant(p: Participant): boolean {
   return Boolean(p.primaryLeaderRole) || p.secondaryLeaderRoles.length > 0;
@@ -114,6 +115,8 @@ export default function AdminEventPage() {
   const [paidFilter, setPaidFilter] = useState<PaidFilter>("all");
   const [earlyBirdFilter, setEarlyBirdFilter] =
     useState<EarlyBirdFilter>("all");
+  const [participantSort, setParticipantSort] =
+    useState<ParticipantSort>("name");
   const [closing, setClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showPayConfirm, setShowPayConfirm] = useState(false);
@@ -134,23 +137,31 @@ export default function AdminEventPage() {
       .finally(() => setParticipantsLoading(false));
   }, [params.id]);
 
-  const filteredParticipants = participants.filter((p) => {
-    if (participantFilter !== "all") {
-      const leader = isLeaderParticipant(p);
-      if (participantFilter === "leaders" ? !leader : leader) return false;
-    }
-    if (
-      participantSearch.trim() &&
-      !p.name.toLowerCase().includes(participantSearch.trim().toLowerCase())
-    ) {
-      return false;
-    }
-    if (paidFilter === "paid" && !p.paid) return false;
-    if (paidFilter === "unpaid" && p.paid) return false;
-    if (earlyBirdFilter === "earlyBird" && !p.earlyBird) return false;
-    if (earlyBirdFilter === "regular" && p.earlyBird) return false;
-    return true;
-  });
+  const filteredParticipants = participants
+    .filter((p) => {
+      if (participantFilter !== "all") {
+        const leader = isLeaderParticipant(p);
+        if (participantFilter === "leaders" ? !leader : leader) return false;
+      }
+      if (
+        participantSearch.trim() &&
+        !p.name.toLowerCase().includes(participantSearch.trim().toLowerCase())
+      ) {
+        return false;
+      }
+      if (paidFilter === "paid" && !p.paid) return false;
+      if (paidFilter === "unpaid" && p.paid) return false;
+      if (earlyBirdFilter === "earlyBird" && !p.earlyBird) return false;
+      if (earlyBirdFilter === "regular" && p.earlyBird) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (participantSort === "name") return a.name.localeCompare(b.name);
+      if (a.age == null && b.age == null) return 0;
+      if (a.age == null) return 1;
+      if (b.age == null) return -1;
+      return a.age - b.age;
+    });
 
   function participantDocUrl(p: Participant) {
     const base = api.defaults.baseURL?.replace(/\/$/, "") ?? "";
@@ -865,6 +876,24 @@ export default function AdminEventPage() {
                   )}
                 >
                   {f === "earlyBird" ? "early bird" : f}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-1 rounded-lg border p-1">
+              {(["name", "age"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setParticipantSort(s)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+                    participantSort === s
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {s}
                 </button>
               ))}
             </div>
