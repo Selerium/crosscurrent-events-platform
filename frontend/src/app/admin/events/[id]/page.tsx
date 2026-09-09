@@ -15,6 +15,7 @@ import {
   MapPin,
   Plus,
   Save,
+  Search,
   Trash2,
   Users,
   XIcon,
@@ -76,6 +77,8 @@ type Participant = {
 };
 
 type ParticipantFilter = "all" | "leaders" | "students";
+type PaidFilter = "all" | "paid" | "unpaid";
+type EarlyBirdFilter = "all" | "earlyBird" | "regular";
 
 function isLeaderParticipant(p: Participant): boolean {
   return Boolean(p.primaryLeaderRole) || p.secondaryLeaderRoles.length > 0;
@@ -107,6 +110,10 @@ export default function AdminEventPage() {
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const [participantFilter, setParticipantFilter] =
     useState<ParticipantFilter>("all");
+  const [participantSearch, setParticipantSearch] = useState("");
+  const [paidFilter, setPaidFilter] = useState<PaidFilter>("all");
+  const [earlyBirdFilter, setEarlyBirdFilter] =
+    useState<EarlyBirdFilter>("all");
   const [closing, setClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showPayConfirm, setShowPayConfirm] = useState(false);
@@ -128,9 +135,21 @@ export default function AdminEventPage() {
   }, [params.id]);
 
   const filteredParticipants = participants.filter((p) => {
-    if (participantFilter === "all") return true;
-    const leader = isLeaderParticipant(p);
-    return participantFilter === "leaders" ? leader : !leader;
+    if (participantFilter !== "all") {
+      const leader = isLeaderParticipant(p);
+      if (participantFilter === "leaders" ? !leader : leader) return false;
+    }
+    if (
+      participantSearch.trim() &&
+      !p.name.toLowerCase().includes(participantSearch.trim().toLowerCase())
+    ) {
+      return false;
+    }
+    if (paidFilter === "paid" && !p.paid) return false;
+    if (paidFilter === "unpaid" && p.paid) return false;
+    if (earlyBirdFilter === "earlyBird" && !p.earlyBird) return false;
+    if (earlyBirdFilter === "regular" && p.earlyBird) return false;
+    return true;
   });
 
   function participantDocUrl(p: Participant) {
@@ -780,6 +799,22 @@ export default function AdminEventPage() {
         <section className="rounded-lg border p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-bold">Registered Participants</h2>
+            <p className="text-sm text-muted-foreground">
+              {filteredParticipants.length} of {participants.length}
+            </p>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <label className="relative min-w-56 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
+                onChange={(e) => setParticipantSearch(e.target.value)}
+                placeholder="Search by name"
+                type="search"
+                value={participantSearch}
+              />
+            </label>
+
             <div className="flex gap-1 rounded-lg border p-1">
               {(["all", "leaders", "students"] as const).map((f) => (
                 <button
@@ -797,6 +832,42 @@ export default function AdminEventPage() {
                 </button>
               ))}
             </div>
+
+            <div className="flex gap-1 rounded-lg border p-1">
+              {(["all", "paid", "unpaid"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setPaidFilter(f)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+                    paidFilter === f
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-1 rounded-lg border p-1">
+              {(["all", "earlyBird", "regular"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setEarlyBirdFilter(f)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+                    earlyBirdFilter === f
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f === "earlyBird" ? "early bird" : f}
+                </button>
+              ))}
+            </div>
           </div>
           {participantsLoading ? (
             <p className="mt-4 text-muted-foreground">Loading participants...</p>
@@ -804,7 +875,7 @@ export default function AdminEventPage() {
             <p className="mt-4 text-muted-foreground">No participants registered</p>
           ) : filteredParticipants.length === 0 ? (
             <p className="mt-4 text-muted-foreground">
-              No {participantFilter} registered for this event
+              No participants match the current filters
             </p>
           ) : (
             <div className="mt-4 divide-y rounded-lg border">

@@ -272,7 +272,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
       },
       spouse: { select: { name: true } },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { profile: { name: "asc" } },
   });
 
   const data = registrations.map((r) => {
