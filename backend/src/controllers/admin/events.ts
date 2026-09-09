@@ -6,6 +6,7 @@ import { prisma } from "../../lib/prismaClient.ts";
 import { uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
+import { isEarlyBirdPayment } from "../../lib/earlyBird.ts";
 
 const statusMap: Record<string, string> = {
   OPEN: "active",
@@ -143,7 +144,7 @@ adminEventsHandler.get("", async (req, res) => {
       take: limit,
       include: {
         _count: { select: { registrations: true } },
-        registrations: { select: { paid: true, createdAt: true } },
+        registrations: { select: { paid: true, createdAt: true, earlyBird: true } },
       },
       orderBy,
     }),
@@ -160,7 +161,7 @@ adminEventsHandler.get("", async (req, res) => {
         take: limit,
         include: {
           _count: { select: { registrations: true } },
-          registrations: { select: { paid: true, createdAt: true } },
+          registrations: { select: { paid: true, createdAt: true, earlyBird: true } },
         },
         orderBy,
       })
@@ -169,7 +170,7 @@ adminEventsHandler.get("", async (req, res) => {
   const data = pagedEvents.map((e) => {
     const paidRegistrations = e.registrations.filter((r) => r.paid);
     const revenue = paidRegistrations.reduce((sum, r) => {
-      if (e.earlyBirdDate && e.earlyBirdPrice && r.createdAt <= e.earlyBirdDate) {
+      if (r.earlyBird && e.earlyBirdPrice) {
         return sum + e.earlyBirdPrice;
       }
       return sum + e.price;
@@ -203,7 +204,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
     include: {
       _count: { select: { registrations: true } },
       registrations: {
-        select: { paid: true, createdAt: true },
+        select: { paid: true, createdAt: true, earlyBird: true },
       },
     },
   });
@@ -214,7 +215,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
 
   const paidRegistrations = event.registrations.filter((r) => r.paid);
   const revenue = paidRegistrations.reduce((sum, r) => {
-    if (event.earlyBirdDate && event.earlyBirdPrice && r.createdAt <= event.earlyBirdDate) {
+    if (r.earlyBird && event.earlyBirdPrice) {
       return sum + event.earlyBirdPrice;
     }
     return sum + event.price;
@@ -295,6 +296,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
       role: r.profile.role || "STUDENT",
       church: r.profile.church?.name || "",
       paid: r.paid,
+      earlyBird: r.earlyBird,
       shirtSize: r.shirtSize,
       swimming: r.swimming,
       selfPay: r.selfPay,
@@ -395,9 +397,18 @@ adminEventsHandler.patch("/:id/registrations/:registrationId/pay", async (req, r
     throw new AppError("Registration is already paid", 400);
   }
 
+  const earlyBird =
+    typeof req.body.earlyBird === "boolean"
+      ? req.body.earlyBird
+      : isEarlyBirdPayment(
+          event.earlyBirdDate,
+          event.earlyBirdPrice,
+          new Date()
+        );
+
   await prisma.registration.update({
     where: { id: registrationId },
-    data: { paid: true },
+    data: { paid: true, earlyBird },
   });
 
   logAdminAction({
@@ -406,7 +417,7 @@ adminEventsHandler.patch("/:id/registrations/:registrationId/pay", async (req, r
     action: "event.mark_registration_paid",
     targetType: "registration",
     targetId: registrationId,
-    details: { eventId: id, profileName: registration.profile.name },
+    details: { eventId: id, profileName: registration.profile.name, earlyBird },
     success: true,
   });
 

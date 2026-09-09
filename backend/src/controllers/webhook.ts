@@ -1,6 +1,7 @@
 import express from "express";
 import { prisma } from "../lib/prismaClient.ts";
 import AppError from "../lib/appError.ts";
+import { isEarlyBirdPayment } from "../lib/earlyBird.ts";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
@@ -37,7 +38,7 @@ webhookHandler.post(
       const scholarshipPayment = await prisma.scholarshipPayment.findUnique({
         where: { sessionId: session.id },
         include: {
-          event: { select: { name: true } },
+          event: { select: { name: true, earlyBirdDate: true, earlyBirdPrice: true } },
         },
       });
 
@@ -52,13 +53,19 @@ webhookHandler.post(
               },
             });
 
+            const earlyBird = isEarlyBirdPayment(
+              scholarshipPayment.event.earlyBirdDate,
+              scholarshipPayment.event.earlyBirdPrice,
+              new Date()
+            );
+
             await tx.registration.updateMany({
               where: {
                 profileId: { in: scholarshipPayment.profileIds },
                 eventId: scholarshipPayment.eventId,
                 selfPay: true,
               },
-              data: { paid: true },
+              data: { paid: true, earlyBird },
             });
 
             await tx.notification.createMany({
@@ -76,14 +83,20 @@ webhookHandler.post(
         const registration = await prisma.registration.findFirst({
           where: { paymentSession: session.id },
           include: {
-            event: { select: { name: true } },
+            event: { select: { name: true, earlyBirdDate: true, earlyBirdPrice: true } },
           },
         });
 
         if (registration && !registration.paid) {
+          const earlyBird = isEarlyBirdPayment(
+            registration.event.earlyBirdDate,
+            registration.event.earlyBirdPrice,
+            new Date()
+          );
+
           await prisma.registration.update({
             where: { id: registration.id },
-            data: { paid: true },
+            data: { paid: true, earlyBird },
           });
 
           await prisma.notification.create({

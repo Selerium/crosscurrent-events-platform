@@ -54,6 +54,7 @@ type Participant = {
   role: string;
   church: string;
   paid: boolean;
+  earlyBird: boolean;
   shirtSize: string;
   swimming: boolean;
   selfPay: boolean;
@@ -110,6 +111,7 @@ export default function AdminEventPage() {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showPayConfirm, setShowPayConfirm] = useState(false);
   const [payTarget, setPayTarget] = useState<Participant | null>(null);
+  const [payEarlyBird, setPayEarlyBird] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
 
   useEffect(() => {
@@ -169,15 +171,23 @@ export default function AdminEventPage() {
     if (!payTarget || !eventInfo) return;
     setMarkingPaid(true);
     try {
-      await api.patch(`/admin/events/${params.id}/registrations/${payTarget.id}/pay`);
+      await api.patch(`/admin/events/${params.id}/registrations/${payTarget.id}/pay`, {
+        earlyBird: payEarlyBird,
+      });
       setParticipants((prev) =>
-        prev.map((p) => (p.id === payTarget.id ? { ...p, paid: true } : p))
+        prev.map((p) =>
+          p.id === payTarget.id ? { ...p, paid: true, earlyBird: payEarlyBird } : p
+        )
       );
       setEventInfo({
         ...eventInfo,
         paidSignUps: eventInfo.paidSignUps + 1,
         unpaidSignUps: eventInfo.unpaidSignUps - 1,
-        revenue: eventInfo.revenue + eventInfo.price,
+        revenue:
+          eventInfo.revenue +
+          (payEarlyBird && eventInfo.earlyBirdPrice
+            ? eventInfo.earlyBirdPrice
+            : eventInfo.price),
       });
       toast.success(`${payTarget.name} marked as paid`);
     } catch {
@@ -796,6 +806,11 @@ export default function AdminEventPage() {
                           type="button"
                           onClick={() => {
                             setPayTarget(p);
+                            setPayEarlyBird(
+                              !!eventInfo?.earlyBirdPrice &&
+                                !!eventInfo?.earlyBirdDate &&
+                                new Date() <= new Date(eventInfo.earlyBirdDate)
+                            );
                             setShowPayConfirm(true);
                           }}
                           className="flex cursor-pointer items-center gap-1 rounded-md border border-green-700 px-2 py-0.5 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
@@ -803,6 +818,11 @@ export default function AdminEventPage() {
                           <CheckCircle className="size-3" />
                           Mark as paid
                         </button>
+                      )}
+                      {p.paid && p.earlyBird && (
+                        <span className="rounded-md bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-900/40 dark:text-teal-200">
+                          Early Bird
+                        </span>
                       )}
                       {isLeaderParticipant(p) ? (
                         <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
@@ -967,6 +987,46 @@ export default function AdminEventPage() {
             <p className="text-sm text-muted-foreground">
               Are you sure you want to mark <strong>{payTarget.name}</strong>&apos;s registration as paid? This confirms that payment has been received.
             </p>
+            <div className="flex flex-col gap-2">
+              <Label>Price type</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayEarlyBird(true)}
+                  disabled={!eventInfo?.earlyBirdPrice}
+                  className={cn(
+                    "flex flex-col rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    payEarlyBird
+                      ? "border-green-700 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300"
+                      : "border-border bg-muted text-muted-foreground hover:bg-muted/70",
+                    !eventInfo?.earlyBirdPrice &&
+                      "cursor-not-allowed opacity-50"
+                  )}
+                >
+                  Early bird
+                  <span className="text-xs font-normal">
+                    {eventInfo?.earlyBirdPrice
+                      ? currencyFormatter.format(eventInfo.earlyBirdPrice)
+                      : "Not configured"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayEarlyBird(false)}
+                  className={cn(
+                    "flex flex-col rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    !payEarlyBird
+                      ? "border-green-700 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300"
+                      : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                  )}
+                >
+                  Regular
+                  <span className="text-xs font-normal">
+                    {eventInfo ? currencyFormatter.format(eventInfo.price) : ""}
+                  </span>
+                </button>
+              </div>
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setShowPayConfirm(false); setPayTarget(null); }}>
                 Cancel

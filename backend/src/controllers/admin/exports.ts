@@ -28,7 +28,7 @@ adminExportsHandler.get("/all-data", async (req, res) => {
     prisma.event.findMany({
       include: {
         _count: { select: { registrations: true } },
-        registrations: { select: { paid: true, createdAt: true } },
+        registrations: { select: { paid: true, createdAt: true, earlyBird: true } },
       },
       orderBy: { startDate: "asc" },
     }),
@@ -118,7 +118,7 @@ adminExportsHandler.get("/all-data", async (req, res) => {
   for (const e of events) {
     const paid = e.registrations.filter((r) => r.paid);
     const revenue = paid.reduce((sum, r) => {
-      if (e.earlyBirdDate && e.earlyBirdPrice && r.createdAt <= e.earlyBirdDate) {
+      if (r.earlyBird && e.earlyBirdPrice) {
         return sum + e.earlyBirdPrice;
       }
       return sum + e.price;
@@ -253,6 +253,7 @@ adminExportsHandler.get("/events", async (req, res) => {
       { header: "Role", key: "role", width: 12 },
       { header: "Age Category", key: "ageCategory", width: 14 },
       { header: "Paid", key: "paid", width: 8 },
+      { header: "Early Bird", key: "earlyBird", width: 10 },
       { header: "Shirt Size", key: "shirtSize", width: 12 },
       { header: "Swimming", key: "swimming", width: 10 },
       { header: "Self Pay", key: "selfPay", width: 10 },
@@ -278,6 +279,7 @@ adminExportsHandler.get("/events", async (req, res) => {
         role: r.profile.role || "STUDENT",
         ageCategory: r.profile.ageCategory || "",
         paid: r.paid ? "Yes" : "No",
+        earlyBird: r.earlyBird ? "Yes" : "No",
         shirtSize: r.shirtSize,
         swimming: r.swimming ? "Yes" : "No",
         selfPay: r.selfPay ? "Yes" : "No",

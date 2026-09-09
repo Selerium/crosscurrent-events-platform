@@ -141,6 +141,7 @@ model Registration {
   parentTokenExpiresAt DateTime?
 
   paid           Boolean
+  earlyBird      Boolean @default(false)
   paymentSession String?
 }
 
