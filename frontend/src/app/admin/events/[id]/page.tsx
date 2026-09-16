@@ -57,6 +57,7 @@ type Participant = {
   church: string;
   paid: boolean;
   earlyBird: boolean;
+  paymentMethod: string;
   shirtSize: string;
   swimming: boolean;
   selfPay: boolean;
@@ -126,6 +127,7 @@ export default function AdminEventPage() {
   const [showPayConfirm, setShowPayConfirm] = useState(false);
   const [payTarget, setPayTarget] = useState<Participant | null>(null);
   const [payEarlyBird, setPayEarlyBird] = useState(false);
+  const [payMethod, setPayMethod] = useState<"STRIPE" | "SELF">("SELF");
   const [markingPaid, setMarkingPaid] = useState(false);
 
   useEffect(() => {
@@ -207,10 +209,13 @@ export default function AdminEventPage() {
     try {
       await api.patch(`/admin/events/${params.id}/registrations/${payTarget.id}/pay`, {
         earlyBird: payEarlyBird,
+        paymentMethod: payMethod,
       });
       setParticipants((prev) =>
         prev.map((p) =>
-          p.id === payTarget.id ? { ...p, paid: true, earlyBird: payEarlyBird } : p
+          p.id === payTarget.id
+            ? { ...p, paid: true, earlyBird: payEarlyBird, paymentMethod: payMethod }
+            : p
         )
       );
       setEventInfo({
@@ -222,6 +227,20 @@ export default function AdminEventPage() {
           (payEarlyBird && eventInfo.earlyBirdPrice
             ? eventInfo.earlyBirdPrice
             : eventInfo.price),
+        revenueStripe:
+          eventInfo.revenueStripe +
+          (payMethod === "STRIPE"
+            ? payEarlyBird && eventInfo.earlyBirdPrice
+              ? eventInfo.earlyBirdPrice
+              : eventInfo.price
+            : 0),
+        revenueSelf:
+          eventInfo.revenueSelf +
+          (payMethod === "SELF"
+            ? payEarlyBird && eventInfo.earlyBirdPrice
+              ? eventInfo.earlyBirdPrice
+              : eventInfo.price
+            : 0),
       });
       toast.success(`${payTarget.name} marked as paid`);
     } catch {
@@ -247,7 +266,14 @@ export default function AdminEventPage() {
         const delta = next
           ? prev.earlyBirdPrice - prev.price
           : prev.price - prev.earlyBirdPrice;
-        return { ...prev, revenue: prev.revenue + delta };
+        return {
+          ...prev,
+          revenue: prev.revenue + delta,
+          revenueStripe:
+            prev.revenueStripe + (p.paymentMethod === "STRIPE" ? delta : 0),
+          revenueSelf:
+            prev.revenueSelf + (p.paymentMethod === "SELF" ? delta : 0),
+        };
       });
       toast.success(
         `${p.name} marked as ${next ? "early bird" : "regular"}`
@@ -804,6 +830,16 @@ export default function AdminEventPage() {
                   label="Revenue"
                   value={currencyFormatter.format(eventInfo.revenue)}
                 />
+                <InfoBlock
+                  icon={<Banknote width={20} height={20} />}
+                  label="Stripe Revenue"
+                  value={currencyFormatter.format(eventInfo.revenueStripe)}
+                />
+                <InfoBlock
+                  icon={<Banknote width={20} height={20} />}
+                  label="Other Revenue"
+                  value={currencyFormatter.format(eventInfo.revenueSelf)}
+                />
               </>
             )}
           </div>
@@ -929,11 +965,24 @@ export default function AdminEventPage() {
                       >
                         {p.paid ? "PAID" : "UNPAID"}
                       </span>
+                      {p.paid && (
+                        <span
+                          className={cn(
+                            "rounded-md px-2 py-0.5 text-xs font-semibold",
+                            p.paymentMethod === "STRIPE"
+                              ? "bg-purple-800 text-white"
+                              : "bg-slate-600 text-white"
+                          )}
+                        >
+                          {p.paymentMethod === "STRIPE" ? "STRIPE" : "OTHER"}
+                        </span>
+                      )}
                       {!p.paid && (
                         <button
                           type="button"
                           onClick={() => {
                             setPayTarget(p);
+                            setPayMethod("SELF");
                             setPayEarlyBird(
                               !!eventInfo?.earlyBirdPrice &&
                                 !!eventInfo?.earlyBirdDate &&
@@ -1178,6 +1227,41 @@ export default function AdminEventPage() {
                   Regular
                   <span className="text-xs font-normal">
                     {eventInfo ? currencyFormatter.format(eventInfo.price) : ""}
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Payment method</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayMethod("STRIPE")}
+                  className={cn(
+                    "flex flex-col rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    payMethod === "STRIPE"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                  )}
+                >
+                  Stripe
+                  <span className="text-xs font-normal">
+                    Received via Stripe
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayMethod("SELF")}
+                  className={cn(
+                    "flex flex-col rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    payMethod === "SELF"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                  )}
+                >
+                  Other
+                  <span className="text-xs font-normal">
+                    Paid outside Stripe
                   </span>
                 </button>
               </div>

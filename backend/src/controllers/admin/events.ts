@@ -2,7 +2,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import AppError from "../../lib/appError.ts";
-import { prisma } from "../../lib/prismaClient.ts";
+import { prisma, PaymentMethod } from "../../lib/prismaClient.ts";
 import { uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
@@ -144,7 +144,7 @@ adminEventsHandler.get("", async (req, res) => {
       take: limit,
       include: {
         _count: { select: { registrations: true } },
-        registrations: { select: { paid: true, createdAt: true, earlyBird: true } },
+        registrations: { select: { paid: true, createdAt: true, earlyBird: true, paymentMethod: true } },
       },
       orderBy,
     }),
@@ -161,7 +161,7 @@ adminEventsHandler.get("", async (req, res) => {
         take: limit,
         include: {
           _count: { select: { registrations: true } },
-          registrations: { select: { paid: true, createdAt: true, earlyBird: true } },
+          registrations: { select: { paid: true, createdAt: true, earlyBird: true, paymentMethod: true } },
         },
         orderBy,
       })
@@ -175,6 +175,22 @@ adminEventsHandler.get("", async (req, res) => {
       }
       return sum + e.price;
     }, 0);
+    const revenueStripe = paidRegistrations
+      .filter((r) => r.paymentMethod === "STRIPE")
+      .reduce((sum, r) => {
+        if (r.earlyBird && e.earlyBirdPrice) {
+          return sum + e.earlyBirdPrice;
+        }
+        return sum + e.price;
+      }, 0);
+    const revenueSelf = paidRegistrations
+      .filter((r) => r.paymentMethod === "SELF")
+      .reduce((sum, r) => {
+        if (r.earlyBird && e.earlyBirdPrice) {
+          return sum + e.earlyBirdPrice;
+        }
+        return sum + e.price;
+      }, 0);
     return {
       id: e.id,
       name: e.name,
@@ -191,6 +207,8 @@ adminEventsHandler.get("", async (req, res) => {
       earlyBirdPrice: e.earlyBirdPrice,
       earlyBirdDate: e.earlyBirdDate,
       revenue,
+      revenueStripe,
+      revenueSelf,
       schedule: e.schedule,
     };
   });
@@ -204,7 +222,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
     include: {
       _count: { select: { registrations: true } },
       registrations: {
-        select: { paid: true, createdAt: true, earlyBird: true },
+        select: { paid: true, createdAt: true, earlyBird: true, paymentMethod: true },
       },
     },
   });
@@ -220,6 +238,22 @@ adminEventsHandler.get("/:id", async (req, res) => {
     }
     return sum + event.price;
   }, 0);
+  const revenueStripe = paidRegistrations
+    .filter((r) => r.paymentMethod === "STRIPE")
+    .reduce((sum, r) => {
+      if (r.earlyBird && event.earlyBirdPrice) {
+        return sum + event.earlyBirdPrice;
+      }
+      return sum + event.price;
+    }, 0);
+  const revenueSelf = paidRegistrations
+    .filter((r) => r.paymentMethod === "SELF")
+    .reduce((sum, r) => {
+      if (r.earlyBird && event.earlyBirdPrice) {
+        return sum + event.earlyBirdPrice;
+      }
+      return sum + event.price;
+    }, 0);
   const data = {
     id: event.id,
     name: event.name,
@@ -236,6 +270,8 @@ adminEventsHandler.get("/:id", async (req, res) => {
     earlyBirdPrice: event.earlyBirdPrice,
     earlyBirdDate: event.earlyBirdDate,
     revenue,
+    revenueStripe,
+    revenueSelf,
     schedule: event.schedule,
     groups: event.groups,
     maxInGroup: event.maxInGroup,
@@ -301,6 +337,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
       church: r.profile.church?.name || "",
       paid: r.paid,
       earlyBird: r.earlyBird,
+      paymentMethod: r.paymentMethod,
       shirtSize: r.shirtSize,
       swimming: r.swimming,
       selfPay: r.selfPay,
@@ -414,9 +451,15 @@ adminEventsHandler.patch("/:id/registrations/:registrationId/pay", async (req, r
           new Date()
         );
 
+  const paymentMethod: "STRIPE" | "SELF" =
+    req.body.paymentMethod === PaymentMethod.STRIPE ||
+    req.body.paymentMethod === PaymentMethod.SELF
+      ? req.body.paymentMethod
+      : "SELF";
+
   await prisma.registration.update({
     where: { id: registrationId },
-    data: { paid: true, earlyBird },
+    data: { paid: true, earlyBird, paymentMethod },
   });
 
   logAdminAction({
@@ -425,7 +468,12 @@ adminEventsHandler.patch("/:id/registrations/:registrationId/pay", async (req, r
     action: "event.mark_registration_paid",
     targetType: "registration",
     targetId: registrationId,
-    details: { eventId: id, profileName: registration.profile.name, earlyBird },
+    details: {
+      eventId: id,
+      profileName: registration.profile.name,
+      earlyBird,
+      paymentMethod,
+    },
     success: true,
   });
 

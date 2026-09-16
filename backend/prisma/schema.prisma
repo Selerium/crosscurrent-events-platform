@@ -142,6 +142,7 @@ model Registration {
 
   paid           Boolean
   earlyBird      Boolean @default(false)
+  paymentMethod  PaymentMethod @default(STRIPE)
   paymentSession String?
 }
 
@@ -215,6 +216,11 @@ enum Role {
   STUDENT
   LEADER
   ADMIN
+}
+
+enum PaymentMethod {
+  STRIPE
+  SELF
 }
 
 enum EventStatus {

@@ -29,10 +29,18 @@ import {
 import api from "@/lib/axios";
 
 type RevenuePeriod = "All time" | "Monthly" | "Yearly";
+type RevenueMethod = "all" | "stripe" | "self";
+
+const REVENUE_METHODS: { value: RevenueMethod; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "stripe", label: "Stripe" },
+  { value: "self", label: "Other" },
+];
 
 export default function AdminDashboard() {
   const [selectedRevenuePeriod, setSelectedRevenuePeriod] =
     useState<RevenuePeriod>("All time");
+  const [revenueMethod, setRevenueMethod] = useState<RevenueMethod>("all");
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [churches, setChurches] = useState<ChurchRecord[]>([]);
   const [numChurches, setNumChurches] = useState(0);
@@ -117,8 +125,17 @@ export default function AdminDashboard() {
     }
   }
 
+  const revenueFor = (e: AdminEvent) =>
+    revenueMethod === "stripe"
+      ? e.revenueStripe ?? 0
+      : revenueMethod === "self"
+        ? e.revenueSelf ?? 0
+        : e.revenue;
+
   const revenueByPeriod: Record<RevenuePeriod, number> = {
-    "All time": events ? events.reduce((sum, e) => sum + e.revenue, 0) : 0,
+    "All time": events
+      ? events.reduce((sum, e) => sum + revenueFor(e), 0)
+      : 0,
     Monthly: events
       ? events
           .filter((e) => {
@@ -129,7 +146,7 @@ export default function AdminDashboard() {
               d.getFullYear() === now.getFullYear()
             );
           })
-          .reduce((sum, e) => sum + e.revenue, 0)
+          .reduce((sum, e) => sum + revenueFor(e), 0)
       : 0,
     Yearly: events
       ? events
@@ -137,7 +154,7 @@ export default function AdminDashboard() {
             const d = new Date(e.startDate);
             return d.getFullYear() === new Date().getFullYear();
           })
-          .reduce((sum, e) => sum + e.revenue, 0)
+          .reduce((sum, e) => sum + revenueFor(e), 0)
       : 0,
   };
 
@@ -391,23 +408,42 @@ export default function AdminDashboard() {
                       )}
                     </p>
                   </div>
-                  <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
-                    {(Object.keys(revenueByPeriod) as RevenuePeriod[]).map(
-                      (period) => (
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="grid grid-cols-3 rounded-lg border bg-background p-1">
+                      {(Object.keys(revenueByPeriod) as RevenuePeriod[]).map(
+                        (period) => (
+                          <button
+                            key={period}
+                            className={`h-8 rounded-md px-3 text-sm font-medium transition-colors ${
+                              period === selectedRevenuePeriod
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                            onClick={() => setSelectedRevenuePeriod(period)}
+                            type="button"
+                          >
+                            {period}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                    <div className="flex h-7 items-center gap-1 rounded-lg border bg-background p-1 text-xs">
+                      <span className="px-2 text-muted-foreground">Method</span>
+                      {REVENUE_METHODS.map((method) => (
                         <button
-                          key={period}
-                          className={`h-8 rounded-md px-3 text-sm font-medium transition-colors ${
-                            period === selectedRevenuePeriod
+                          key={method.value}
+                          className={`h-5 rounded-md px-2.5 text-xs font-medium transition-colors ${
+                            method.value === revenueMethod
                               ? "bg-primary text-primary-foreground"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           }`}
-                          onClick={() => setSelectedRevenuePeriod(period)}
+                          onClick={() => setRevenueMethod(method.value)}
                           type="button"
                         >
-                          {period}
+                          {method.label}
                         </button>
-                      ),
-                    )}
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">

@@ -65,7 +65,7 @@ webhookHandler.post(
                 eventId: scholarshipPayment.eventId,
                 selfPay: true,
               },
-              data: { paid: true, earlyBird },
+              data: { paid: true, earlyBird, paymentMethod: "STRIPE" },
             });
 
             await tx.notification.createMany({
@@ -96,7 +96,7 @@ webhookHandler.post(
 
           await prisma.registration.update({
             where: { id: registration.id },
-            data: { paid: true, earlyBird },
+            data: { paid: true, earlyBird, paymentMethod: "STRIPE" },
           });
 
           await prisma.notification.create({
