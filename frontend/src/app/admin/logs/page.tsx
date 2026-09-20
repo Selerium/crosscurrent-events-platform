@@ -19,6 +19,7 @@ const actionLabels: Record<string, string> = {
   "profile.delete": "Profile Deleted",
   "profile.update": "Profile Updated",
   "admin.create": "Admin Created",
+  "email.bulk_send": "Bulk Email Sent",
 };
 
 const targetTypeLabels: Record<string, string> = {
@@ -26,6 +27,7 @@ const targetTypeLabels: Record<string, string> = {
   event: "Event",
   profile: "Profile",
   user: "User",
+  email: "Email",
 };
 
 const PAGE_SIZE = 15;

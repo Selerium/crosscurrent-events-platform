@@ -314,3 +314,86 @@ export const sendPasswordResetEmail = async (
     throw new Error(error.message);
   }
 };
+
+export const BULK_EMAIL_FROM = "do-not-reply@crosscurrent.ae";
+
+const RESEND_BATCH_LIMIT = 100;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export const buildBulkEmailHtml = (title: string, description: string) => {
+  const safeTitle = escapeHtml(title);
+  const safeBody = escapeHtml(description).replace(/\r?\n/g, "<br />");
+
+  return `
+      <div style="font-family: Arial, sans-serif; padding: 24px;">
+        <h2 style="color: #1a1a1a;">${safeTitle}</h2>
+        <p style="color: #333; font-size: 15px; line-height: 1.6;">${safeBody}</p>
+        <p style="color: #777; font-size: 12px; margin-top: 24px;">You are receiving this email because you have an account with CrossCurrent.</p>
+      </div>
+    `;
+};
+
+export const sendBulkEmails = async (
+  recipients: string[],
+  subject: string,
+  html: string,
+  text: string
+): Promise<{ sent: number; failed: number }> => {
+  let sent = 0;
+  let failed = 0;
+
+  for (let i = 0; i < recipients.length; i += RESEND_BATCH_LIMIT) {
+    const chunk = recipients.slice(i, i + RESEND_BATCH_LIMIT);
+
+    try {
+      const { error } = await resend.batch.send(
+        chunk.map((to) => ({
+          from: BULK_EMAIL_FROM,
+          to,
+          subject,
+          html,
+          text,
+        }))
+      );
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      sent += chunk.length;
+    } catch (err) {
+      console.error("[email] bulk chunk failed, retrying individually:", err);
+
+      for (const to of chunk) {
+        try {
+          const { error } = await resend.emails.send({
+            from: BULK_EMAIL_FROM,
+            to,
+            subject,
+            html,
+            text,
+          });
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          sent += 1;
+        } catch (individualErr) {
+          console.error(`[email] failed to send bulk email to ${to}:`, individualErr);
+          failed += 1;
+        }
+      }
+    }
+  }
+
+  return { sent, failed };
+};

@@ -15,6 +15,7 @@ import adminAdminsHandler from "./admin/admins.ts";
 import adminLogsHandler from "./admin/logs.ts";
 import adminEvaluateJuniorsHandler from "./admin/evaluateJuniors.ts";
 import adminExportsHandler from "./admin/exports.ts";
+import adminEmailsHandler from "./admin/emails.ts";
 import checkTokens from "../middleware/checkTokens.ts";
 import requireAdmin from "../middleware/requireAdmin.ts";
 
@@ -29,6 +30,7 @@ adminRouter.use('/admins', adminAdminsHandler);
 adminRouter.use('/logs', adminLogsHandler);
 adminRouter.use('/evaluate-juniors', adminEvaluateJuniorsHandler);
 adminRouter.use('/exports', adminExportsHandler);
+adminRouter.use('/emails', adminEmailsHandler);
 
 protectedRouter.use(checkTokens)
 protectedRouter.use('/me', meHandler)
