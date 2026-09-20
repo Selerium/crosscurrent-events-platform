@@ -10,8 +10,6 @@ type Audience = "all" | "leaders" | "students" | "event" | "not-in-event" | "chu
 
 const AUDIENCES: Audience[] = ["all", "leaders", "students", "event", "not-in-event", "church"];
 
-const PREVIEW_LIMIT = 20;
-
 type Recipient = {
   profileId: string;
   name: string;
@@ -194,7 +192,7 @@ adminEmailsHandler.post("/recipients", async (req, res) => {
     data: {
       total: recipients.length,
       summary,
-      preview: recipients.slice(0, PREVIEW_LIMIT).map((r) => ({
+      preview: recipients.map((r) => ({
         name: r.name,
         email: r.email,
         age: r.age,

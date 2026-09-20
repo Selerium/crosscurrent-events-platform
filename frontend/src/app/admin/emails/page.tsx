@@ -344,7 +344,7 @@ export default function AdminEmailsPage() {
               {preview.summary}
             </p>
             {preview.preview.length > 0 ? (
-              <ul className="max-h-60 divide-y overflow-y-auto rounded-lg border bg-background">
+              <ul className="max-h-96 divide-y overflow-y-auto rounded-lg border bg-background">
                 {preview.preview.map((r) => (
                   <li
                     key={r.email}
@@ -369,11 +369,6 @@ export default function AdminEmailsPage() {
             ) : (
               <p className="text-sm text-muted-foreground">
                 No users match the selected filters.
-              </p>
-            )}
-            {preview.total > preview.preview.length && (
-              <p className="text-xs text-muted-foreground">
-                Showing first {preview.preview.length} of {preview.total}
               </p>
             )}
           </section>
