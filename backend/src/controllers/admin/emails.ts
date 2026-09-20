@@ -6,9 +6,9 @@ import { buildBulkEmailHtml, sendBulkEmails } from "../../lib/email.ts";
 
 const adminEmailsHandler = express.Router();
 
-type Audience = "all" | "leaders" | "students" | "event" | "church";
+type Audience = "all" | "leaders" | "students" | "event" | "not-in-event" | "church";
 
-const AUDIENCES: Audience[] = ["all", "leaders", "students", "event", "church"];
+const AUDIENCES: Audience[] = ["all", "leaders", "students", "event", "not-in-event", "church"];
 
 const PREVIEW_LIMIT = 20;
 
@@ -65,8 +65,9 @@ async function resolveRecipients(input: {
 
   let eventName: string | null = null;
   let profileIds: string[] | null = null;
+  let excludedProfileIds: string[] | null = null;
 
-  if (audience === "event") {
+  if (audience === "event" || audience === "not-in-event") {
     if (!eventId) {
       throw new AppError("An event must be selected for this audience", 400);
     }
@@ -82,9 +83,14 @@ async function resolveRecipients(input: {
       where: { eventId },
       select: { profileId: true },
     });
-    profileIds = [...new Set(registrations.map((r) => r.profileId))];
-    if (profileIds.length === 0) {
-      return { recipients: [], summary: `Nobody registered for ${eventName}` };
+    const registeredIds = [...new Set(registrations.map((r) => r.profileId))];
+    if (audience === "event") {
+      profileIds = registeredIds;
+      if (profileIds.length === 0) {
+        return { recipients: [], summary: `Nobody registered for ${eventName}` };
+      }
+    } else {
+      excludedProfileIds = registeredIds;
     }
   }
 
@@ -109,6 +115,9 @@ async function resolveRecipients(input: {
   };
   if (profileIds) {
     where.id = { in: profileIds };
+  }
+  if (excludedProfileIds && excludedProfileIds.length > 0) {
+    where.id = { notIn: excludedProfileIds };
   }
   if (churchId && audience === "church") {
     where.churchId = churchId;
@@ -150,7 +159,9 @@ async function resolveRecipients(input: {
         ? "students"
         : audience === "event"
           ? `users registered for ${eventName}`
-          : audience === "church"
+          : audience === "not-in-event"
+            ? `users not registered for ${eventName}`
+            : audience === "church"
             ? `members of ${churchName}`
             : "students and leaders";
 

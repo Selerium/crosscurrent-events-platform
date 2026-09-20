@@ -18,13 +18,14 @@ import {
 import type { AdminEvent, ChurchRecord } from "../data";
 import api from "@/lib/axios";
 
-type Audience = "all" | "leaders" | "students" | "event" | "church";
+type Audience = "all" | "leaders" | "students" | "event" | "not-in-event" | "church";
 
 const AUDIENCE_OPTIONS: { value: Audience; label: string }[] = [
   { value: "all", label: "All users (students & leaders)" },
   { value: "leaders", label: "All leaders" },
   { value: "students", label: "All students" },
   { value: "event", label: "Users registered for an event" },
+  { value: "not-in-event", label: "All users not registered for an event" },
   { value: "church", label: "Users of a particular church" },
 ];
 
@@ -87,7 +88,7 @@ export default function AdminEmailsPage() {
 
   function buildFilters() {
     const filters: Record<string, unknown> = { audience };
-    if (audience === "event") filters.eventId = eventId;
+    if (audience === "event" || audience === "not-in-event") filters.eventId = eventId;
     if (audience === "church") filters.churchId = churchId;
     if (minAge !== "") filters.minAge = Number(minAge);
     if (maxAge !== "") filters.maxAge = Number(maxAge);
@@ -95,7 +96,7 @@ export default function AdminEmailsPage() {
   }
 
   function validateFilters(): string | null {
-    if (audience === "event" && !eventId) {
+    if ((audience === "event" || audience === "not-in-event") && !eventId) {
       return "Please select an event";
     }
     if (audience === "church" && !churchId) {
@@ -195,7 +196,7 @@ export default function AdminEmailsPage() {
             </Select>
           </div>
 
-          {audience === "event" && (
+          {(audience === "event" || audience === "not-in-event") && (
             <div className="flex flex-col gap-2">
               <Label>Event</Label>
               <Select
