@@ -233,7 +233,8 @@ const registerForEvent = async (req: any, res: any) => {
     });
 
     const formatDate = (d: Date) =>
-      new Date(d).toLocaleDateString("en-GB", {
+      d.toLocaleDateString("en-GB", {
+        timeZone: "Asia/Dubai",
         day: "2-digit",
         month: "short",
         year: "numeric",

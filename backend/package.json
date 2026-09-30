@@ -2,7 +2,8 @@
   "scripts": {
     "build": "",
     "start": "node src/index.ts",
-    "dev": "node --watch src/index.ts"
+    "dev": "node --watch src/index.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/formatDate.test.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
