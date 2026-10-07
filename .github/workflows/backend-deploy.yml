@@ -23,5 +23,5 @@ jobs:
             cd /root/crosscurrent-events-platform
             git pull origin main
 
-            npm ci
-            docker compose up -d --build backend
+            cd backend && npm ci
+            cd .. && docker compose up -d --build backend
