@@ -20,7 +20,7 @@ jobs:
           script: |
             set -e
 
-            cd /crosscurrent-events-platform
+            cd /root/crosscurrent-events-platform
             git pull origin main
 
             npm ci
