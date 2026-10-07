@@ -57,7 +57,7 @@ type EventData = {
     primaryLeaderRole: string | null;
     secondaryLeaderRoles: string[];
   } | null;
-  registrants: { id: string; name: string; role: string; ageCategory?: string | null; gender?: string; age?: number | null; paid: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
+  registrants: { id: string; name: string; role: string; ageCategory?: string | null; gender?: string; age?: number | null; paid: boolean; earlyBird?: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
 };
 
 type UserData = {
@@ -324,6 +324,13 @@ export default function EventPage() {
     "all" | "LEADER" | "STUDENT"
   >("all");
   const [registrantSearch, setRegistrantSearch] = useState("");
+  const [registrantPaidFilter, setRegistrantPaidFilter] = useState<
+    "all" | "paid" | "unpaid"
+  >("all");
+  const [registrantEarlyBirdFilter, setRegistrantEarlyBirdFilter] = useState<
+    "all" | "earlyBird" | "regular"
+  >("all");
+  const [registrantSort, setRegistrantSort] = useState<"name" | "age">("name");
   const { control, handleSubmit, reset } = useForm<RegistrationForm>({
     defaultValues: {
       shirtSize: "",
@@ -551,13 +558,35 @@ export default function EventPage() {
   const filteredRegistrants = useMemo(() => {
     const registrants = eventData?.registrants || [];
     const query = registrantSearch.trim().toLowerCase();
-    return registrants.filter((r) => {
+    const filtered = registrants.filter((r) => {
       const matchesFilter =
         registrantFilter === "all" || r.role === registrantFilter;
       const matchesSearch = !query || r.name.toLowerCase().includes(query);
-      return matchesFilter && matchesSearch;
+      const matchesPaid =
+        registrantPaidFilter === "all" ||
+        (registrantPaidFilter === "paid" ? r.paid : !r.paid);
+      const matchesEarlyBird =
+        registrantEarlyBirdFilter === "all" ||
+        (registrantEarlyBirdFilter === "earlyBird"
+          ? !!r.earlyBird
+          : !r.earlyBird);
+      return matchesFilter && matchesSearch && matchesPaid && matchesEarlyBird;
     });
-  }, [eventData, registrantFilter, registrantSearch]);
+    return filtered.sort((a, b) => {
+      if (registrantSort === "name") return a.name.localeCompare(b.name);
+      if (a.age == null && b.age == null) return 0;
+      if (a.age == null) return 1;
+      if (b.age == null) return -1;
+      return a.age - b.age;
+    });
+  }, [
+    eventData,
+    registrantFilter,
+    registrantSearch,
+    registrantPaidFilter,
+    registrantEarlyBirdFilter,
+    registrantSort,
+  ]);
 
   const { displayPrice, isEarlyBird } = useMemo(() => {
     const earlyBirdDate = eventData?.earlyBirdDate
@@ -1579,11 +1608,66 @@ export default function EventPage() {
                       </button>
                     ))}
                   </div>
+                  {userRole === "LEADER" && (
+                    <>
+                      <div className="flex gap-1 rounded-lg border p-1">
+                        {(["all", "paid", "unpaid"] as const).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setRegistrantPaidFilter(f)}
+                            className={cn(
+                              "cursor-pointer rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+                              registrantPaidFilter === f
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1 rounded-lg border p-1">
+                        {(["all", "earlyBird", "regular"] as const).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setRegistrantEarlyBirdFilter(f)}
+                            className={cn(
+                              "cursor-pointer rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+                              registrantEarlyBirdFilter === f
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            {f === "earlyBird" ? "early bird" : f}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1 rounded-lg border p-1">
+                        {(["name", "age"] as const).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setRegistrantSort(s)}
+                            className={cn(
+                              "cursor-pointer rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+                              registrantSort === s
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               {filteredRegistrants.length === 0 ? (
                 <p className="text-muted-foreground">
-                  No registered members match your search.
+                  No registered members match the current filters.
                 </p>
               ) : (
                 <div className="mt-4 divide-y rounded-lg border">

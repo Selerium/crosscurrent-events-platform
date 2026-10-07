@@ -394,6 +394,7 @@ eventsHandler.get("/:id", async (req, res) => {
             gender: r.profile.gender || "",
             age,
             paid: r.paid,
+            earlyBird: r.earlyBird,
             shirtSize: r.shirtSize,
             swimming: r.swimming,
             allergies: r.allergies,
