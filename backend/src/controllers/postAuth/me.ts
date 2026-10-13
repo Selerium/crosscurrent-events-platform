@@ -49,6 +49,7 @@ meHandler.get("", async (req, res) => {
       firstTime: user.profile.firstTime,
       approved: user.profile.approved ?? false,
       churchId: user.profile.churchId ?? null,
+      primaryForChurch: user.profile.primaryForChurch ?? false,
     },
     error: false,
     message: "",

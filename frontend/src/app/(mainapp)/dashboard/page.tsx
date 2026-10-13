@@ -3,6 +3,7 @@ import {
   Banknote,
   CalendarDays,
   ChevronRight,
+  Download,
   FileWarning,
   MapPinned,
   Users,
@@ -15,8 +16,11 @@ import {
   type NotificationRecord,
 } from "@/components/notifications/NotificationItem";
 import { useEffect, useState } from "react";
+import { Suspense } from "react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import { downloadBlob } from "@/lib/downloadFile";
+import RequiredActionsCard from "@/components/required-actions/RequiredActionsCard";
 
 export default function DashboardPage() {
   type Event = {
@@ -46,6 +50,8 @@ export default function DashboardPage() {
   const [usersEventsError, setUsersEventsError] = useState(false);
   const [name, setName] = useState("User");
   const [approved, setApproved] = useState(true);
+  const [isPrimary, setIsPrimary] = useState(false);
+  const [downloadingMembers, setDownloadingMembers] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [unseenCount, setUnseenCount] = useState(0);
@@ -69,6 +75,11 @@ export default function DashboardPage() {
           res.data.data["approved"] ? "true" : "false",
         );
         localStorage.setItem("churchId", res.data.data["churchId"] ?? "");
+        localStorage.setItem(
+          "primaryForChurch",
+          res.data.data["primaryForChurch"] ? "true" : "false"
+        );
+        setIsPrimary(res.data.data["primaryForChurch"] ?? false);
       })
       .catch(() => {});
 
@@ -111,13 +122,39 @@ export default function DashboardPage() {
       .finally(() => setNotificationsLoading(false));
   }, []);
 
+  const handleDownloadMembers = async () => {
+    setDownloadingMembers(true);
+    try {
+      await downloadBlob("/churches/my/export", "my-church-members.xlsx");
+    } catch {
+      toast.error("Download failed");
+    } finally {
+      setDownloadingMembers(false);
+    }
+  };
+
   return (
     <div className="flex min-h-full flex-col">
       <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
         <div className="w-full max-w-6xl px-4 sm:px-6 flex flex-col gap-4">
-          <h1 className="text-2xl font-semibold text-foreground">
-            Hello, {name}!
-          </h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold text-foreground">
+              Hello, {name}!
+            </h1>
+            {isPrimary && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadMembers}
+                disabled={downloadingMembers}
+              >
+                <Download width={16} height={16} />
+                {downloadingMembers
+                  ? "Downloading…"
+                  : "Church members (.xlsx)"}
+              </Button>
+            )}
+          </div>
           {!approved && (
             <div className="flex gap-2 p-4 rounded-lg border border-yellow-500">
               <FileWarning className="text-yellow-500" />
@@ -130,6 +167,9 @@ export default function DashboardPage() {
             </div>
           )}
           <hr></hr>
+          <Suspense>
+            <RequiredActionsCard />
+          </Suspense>
           <div className="grid gap-8 lg:grid-cols-5">
             <div className="flex flex-col gap-4 lg:col-span-3">
               <h2 className="font-semibold text-foreground">

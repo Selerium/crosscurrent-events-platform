@@ -12,6 +12,7 @@ import {
 } from "../lib/uploads.ts";
 import { sendParentVerificationEmail, sendScholarshipRequestEmail } from "../lib/email.ts";
 import { createNotifications } from "../lib/notifications.ts";
+import { fanOutCompletionsForProfile } from "../lib/requiredActions.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -316,6 +317,9 @@ const registerForEvent = async (req: any, res: any) => {
     }
   }
 
+  // Assign any required actions already attached to this event.
+  await fanOutCompletionsForProfile(event.id, req.user!.id);
+
   res.status(201).json({ data: registration, error: false, message: "" });
 };
 
@@ -334,6 +338,14 @@ eventsHandler.delete("/:id/register", async (req, res) => {
 
   deleteUploadedFile(registration.safeguardingDoc);
   await prisma.registration.delete({ where: { id: registration.id } });
+
+  // Registration gone → pending required actions for this event no longer apply.
+  await prisma.requiredActionCompletion.deleteMany({
+    where: {
+      profileId: req.user!.id,
+      action: { eventId: req.params.id },
+    },
+  });
 
   res.status(200).json({ data: null, error: false, message: "" });
 });

@@ -83,6 +83,7 @@ model Profile {
   spouseOf      Registration[] @relation("RegistrationSpouse")
 
   notifications Notification[]
+  requiredActionCompletions RequiredActionCompletion[]
 }
 
 model Church {
@@ -170,6 +171,8 @@ model Event {
 
   registrations       Registration[]
   scholarshipPayments ScholarshipPayment[]
+
+  requiredActions RequiredAction[]
 }
 
 model ScholarshipPayment {
@@ -277,4 +280,89 @@ model AdminLog {
   @@index([adminId])
   @@index([createdAt])
   @@index([targetType, targetId])
+}
+
+enum RequiredActionType {
+  DOCUMENT
+  VIDEO
+  FORM
+}
+
+enum RequiredActionAudience {
+  ALL
+  LEADERS
+  STUDENTS
+}
+
+enum RequiredActionStatus {
+  PENDING
+  COMPLETED
+}
+
+model RequiredAction {
+  id          String                 @id @default(uuid())
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  deletedAt   DateTime?
+
+  eventId     String
+  event       Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  type        RequiredActionType     @default(VIDEO)
+  audience    RequiredActionAudience @default(ALL)
+  title       String
+  description String?
+
+  // Type-specific payload (nullable so one table covers all three kinds):
+  markdown    String? // DOCUMENT: md text to read + agree
+  videoUrl    String? // VIDEO: direct mp4/webm link
+  formFileUrl String? // FORM: template download URL
+
+  createdById String
+
+  completions RequiredActionCompletion[]
+
+  @@index([eventId, audience])
+}
+
+model RequiredActionCompletion {
+  // id doubles as the player's `videoWatchedId` for VIDEO actions
+  id              String               @id @default(uuid())
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  actionId        String
+  action          RequiredAction       @relation(fields: [actionId], references: [id], onDelete: Cascade)
+
+  profileId       String
+  profile         Profile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  status          RequiredActionStatus @default(PENDING)
+
+  // VIDEO progress (cheat-proof unique seconds merged client-side)
+  watchedSeconds  Float                @default(0)
+  furthestSeconds Float                @default(0)
+  lastPosition    Float                @default(0)
+  duration        Float?
+  completedAt     DateTime?
+
+  @@unique([actionId, profileId])
+  @@index([profileId, status])
+}
+
+// Global library of admin-uploaded videos (Vercel Blob, public).
+// Required actions reference a row; the dropdown lists titles.
+model VideoAsset {
+  id           String   @id @default(uuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  title        String
+  url          String   @unique
+  mimeType     String?
+  sizeBytes    Int?
+
+  uploadedById String
+
+  @@index([createdAt])
 }

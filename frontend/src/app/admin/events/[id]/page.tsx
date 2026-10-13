@@ -34,6 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data";
+import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -1145,6 +1146,8 @@ export default function AdminEventPage() {
             </div>
           )}
         </section>
+
+        <RequiredActionsManager eventId={params.id} />
       </div>
 
       {showCloseConfirm && (
