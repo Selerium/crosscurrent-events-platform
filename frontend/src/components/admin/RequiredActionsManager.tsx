@@ -71,11 +71,16 @@ export default function RequiredActionsManager({
 
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [expanded, setExpanded] = useState<string | null>(null);
   const [completions, setCompletions] = useState<Record<string, CompletionRow[]>>({});
   const [completionsLoading, setCompletionsLoading] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  // The open form always stays visible so the top "Add required action"
+  // button never scrolls to a hidden form.
+  const bodyVisible = !collapsed || formOpen;
 
   const fetchActions = useCallback(() => {
     api
@@ -110,6 +115,7 @@ export default function RequiredActionsManager({
       return;
     }
     setUploading(true);
+    setUploadPercent(0);
     try {
       const form = new FormData();
       form.append("video", file);
@@ -117,6 +123,14 @@ export default function RequiredActionsManager({
       const res = await api.post("/admin/videos", form, {
         headers: { "Content-Type": "multipart/form-data" },
         timeout: 0,
+        onUploadProgress: (e) => {
+          if (e.total && e.total > 0) {
+            setUploadPercent(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+          } else {
+            // Total unknown: indeterminate state.
+            setUploadPercent(-1);
+          }
+        },
       });
       const asset: VideoAsset = res.data.data;
       setLibrary((prev) => [asset, ...prev]);
@@ -192,7 +206,25 @@ export default function RequiredActionsManager({
   return (
     <section className="rounded-lg border p-4" id="required-actions-manager">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">Required Actions</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="font-bold">Required Actions</h2>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label={collapsed ? "Expand required actions" : "Collapse required actions"}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((v) => !v)}
+          >
+            <ChevronDown
+              width={16}
+              height={16}
+              className={cn(
+                "transition-transform",
+                !collapsed && "rotate-180"
+              )}
+            />
+          </Button>
+        </div>
         {actions.length > 0 && (
           <p className="text-sm text-muted-foreground">
             {actions.length} action{actions.length !== 1 ? "s" : ""}
@@ -200,6 +232,8 @@ export default function RequiredActionsManager({
         )}
       </div>
 
+      {bodyVisible && (
+        <>
       {formOpen && (
         <div className="mt-3 grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
@@ -263,6 +297,26 @@ export default function RequiredActionsManager({
               Uploaded to public storage (max 1GB). The link is generated
               automatically and the video is selected above.
             </p>
+            {uploading && (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {uploadPercent < 0
+                      ? "Uploading…"
+                      : uploadPercent >= 100
+                        ? "Processing video…"
+                        : `Uploading… ${uploadPercent}%`}
+                  </span>
+                  {uploadPercent >= 0 && <span>{uploadPercent}%</span>}
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full bg-primary transition-all ${uploadPercent < 0 ? "w-full animate-pulse" : ""}`}
+                    style={uploadPercent < 0 ? undefined : { width: `${uploadPercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="ra-desc">Description (optional)</Label>
@@ -410,6 +464,8 @@ export default function RequiredActionsManager({
           ))
         )}
       </div>
+        </>
+      )}
     </section>
   );
 }
