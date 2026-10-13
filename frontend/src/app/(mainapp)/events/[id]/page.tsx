@@ -1,6 +1,7 @@
 "use client";
 
 import api from "@/lib/axios";
+import { downloadBlob } from "@/lib/downloadFile";
 import { Button } from "@/components/ui/button";
 import {
   Banknote,
@@ -8,6 +9,7 @@ import {
   ChevronLeft,
   CircleDollarSign,
   Clock,
+  Download,
   MapPin,
   Phone,
   Search,
@@ -306,6 +308,8 @@ export default function EventPage() {
   const [allergyDraft, setAllergyDraft] = useState("");
   const [userApproved, setUserApproved] = useState(true);
   const [userRole, setUserRole] = useState("");
+  const [isPrimary, setIsPrimary] = useState(false);
+  const [downloadingRegs, setDownloadingRegs] = useState(false);
   const [safeguardingFile, setSafeguardingFile] = useState<File | null>(null);
   const [showScholarships, setShowScholarships] = useState(false);
   const [scholarshipRequests, setScholarshipRequests] = useState<
@@ -377,6 +381,20 @@ export default function EventPage() {
     }
   };
 
+  const handleDownloadRegistrations = async () => {
+    setDownloadingRegs(true);
+    try {
+      await downloadBlob(
+        `/churches/my/events/${params.id}/export`,
+        "church-event-registrations.xlsx"
+      );
+    } catch {
+      toast.error("Download failed");
+    } finally {
+      setDownloadingRegs(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     let registerModal = new URLSearchParams(window.location.search).get(
@@ -392,6 +410,7 @@ export default function EventPage() {
       const role = meRes?.data?.data?.role ?? "";
       setUserApproved(approved);
       setUserRole(role);
+      setIsPrimary(meRes?.data?.data?.primaryForChurch ?? false);
       if (
         approved &&
         registerModal === "true" &&
@@ -1583,6 +1602,17 @@ export default function EventPage() {
                   Who&apos;s signed up from your church
                 </span>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  {isPrimary && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadRegistrations}
+                      disabled={downloadingRegs}
+                    >
+                      <Download width={16} height={16} />
+                      {downloadingRegs ? "Downloading…" : "Download (.xlsx)"}
+                    </Button>
+                  )}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input

@@ -99,7 +99,9 @@ async function main() {
             role: u.role,
             gender: u.gender,
             churchId: u.churchId,
-            primaryForChurch: u.role === Role.ADMIN || u.role === Role.LEADER,
+            // Only one primary per church (see unique_primary_per_church
+            // migration): the admin stays primary, leaders do not.
+            primaryForChurch: u.role === Role.ADMIN,
             firstTime: false,
             nationality: u.churchId === citylight.id ? "American" : u.churchId === harbour.id ? "Australian" : "British",
             phone: "+1-555-0100",
@@ -358,10 +360,57 @@ async function main() {
   ];
 
   for (const reg of registrationsData) {
-    await prisma.registration.create({ data: reg });
+    await prisma.registration.create({
+      data: {
+        // Required since the make_emergency_fields_required migration.
+        emergencyName: "Test Contact",
+        emergencyPhone: "+1-555-0100",
+        ...reg,
+      },
+    });
   }
 
   console.log("Registrations created");
+
+  // --- Required Actions (video) ---
+  // Seeded test action on Summer Camp (audience ALL, so every registrant
+  // gets it). Log in as e.g. emma@crosscurrent.com / password123 and the
+  // "Required actions" card on the dashboard will show this video.
+  // Stable id doubles as the player's videoId (storage key + WS key).
+  const seedVideoAction = await prisma.requiredAction.upsert({
+    where: { id: "seed-test-video-001" },
+    update: {
+      videoUrl:
+        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4",
+      deletedAt: null,
+    },
+    create: {
+      id: "seed-test-video-001",
+      eventId: summerCamp.id,
+      type: "VIDEO",
+      audience: "ALL",
+      title: "Test video — please watch",
+      description:
+        "Seeded test action: 10-second clip, finishes at 95% watched.",
+      videoUrl:
+        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4",
+      createdById: createdProfiles[0].id,
+    },
+  });
+
+  // Assign to everyone registered for Summer Camp (Sarah, Emma, Jake).
+  const summerCampProfileIds = registrationsData
+    .filter((r) => r.eventId === summerCamp.id)
+    .map((r) => r.profileId);
+  await prisma.requiredActionCompletion.createMany({
+    data: summerCampProfileIds.map((profileId) => ({
+      actionId: seedVideoAction.id,
+      profileId,
+    })),
+    skipDuplicates: true,
+  });
+
+  console.log("Required actions created");
   console.log("Seeding complete!");
 }
 

@@ -1,6 +1,7 @@
 import express from "express";
 import meHandler from "./postAuth/me.ts";
 import meEventsHandler from "./postAuth/meEvents.ts";
+import meRequiredActionsHandler from "./postAuth/requiredActions.ts";
 import notificationsHandler from "./postAuth/notifications.ts";
 import profileHandler from "./postAuth/profile.ts";
 import firstTimeHandler from "./postAuth/firstTime.ts";
@@ -9,6 +10,7 @@ import churchHandler from "./churches.ts";
 import paymentsHandler from "./postAuth/payments.ts";
 import profilesHandler from "./postAuth/profiles.ts";
 import adminEventsHandler from "./admin/events.ts";
+import adminRequiredActionsHandler from "./admin/requiredActions.ts";
 import adminChurchesHandler from "./admin/churches.ts";
 import adminProfilesHandler from "./admin/profiles.ts";
 import adminAdminsHandler from "./admin/admins.ts";
@@ -16,6 +18,7 @@ import adminLogsHandler from "./admin/logs.ts";
 import adminEvaluateJuniorsHandler from "./admin/evaluateJuniors.ts";
 import adminExportsHandler from "./admin/exports.ts";
 import adminEmailsHandler from "./admin/emails.ts";
+import adminVideosHandler from "./admin/videos.ts";
 import checkTokens from "../middleware/checkTokens.ts";
 import requireAdmin from "../middleware/requireAdmin.ts";
 
@@ -24,6 +27,7 @@ const protectedRouter = express.Router();
 const adminRouter = express.Router();
 adminRouter.use(requireAdmin);
 adminRouter.use('/events', adminEventsHandler);
+adminRouter.use('/events/:eventId/required-actions', adminRequiredActionsHandler);
 adminRouter.use('/churches', adminChurchesHandler);
 adminRouter.use('/profiles', adminProfilesHandler);
 adminRouter.use('/admins', adminAdminsHandler);
@@ -31,10 +35,12 @@ adminRouter.use('/logs', adminLogsHandler);
 adminRouter.use('/evaluate-juniors', adminEvaluateJuniorsHandler);
 adminRouter.use('/exports', adminExportsHandler);
 adminRouter.use('/emails', adminEmailsHandler);
+adminRouter.use('/videos', adminVideosHandler);
 
 protectedRouter.use(checkTokens)
 protectedRouter.use('/me', meHandler)
 protectedRouter.use('/me/events', meEventsHandler)
+protectedRouter.use('/me/required-actions', meRequiredActionsHandler)
 protectedRouter.use('/notifications', notificationsHandler)
 protectedRouter.use('/profile', profileHandler)
 protectedRouter.use('/profile/first-time', firstTimeHandler)
