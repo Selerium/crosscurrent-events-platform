@@ -123,6 +123,8 @@ export default function AdminEventPage() {
     useState<EarlyBirdFilter>("all");
   const [participantSort, setParticipantSort] =
     useState<ParticipantSort>("name");
+  const [participantPage, setParticipantPage] = useState(1);
+  const [showActionForm, setShowActionForm] = useState(false);
   const [closing, setClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showPayConfirm, setShowPayConfirm] = useState(false);
@@ -169,6 +171,42 @@ export default function AdminEventPage() {
       if (b.age == null) return -1;
       return a.age - b.age;
     });
+
+  const PARTICIPANT_PAGE_SIZE = 20;
+  const totalParticipantPages = Math.max(
+    1,
+    Math.ceil(filteredParticipants.length / PARTICIPANT_PAGE_SIZE)
+  );
+  const safeParticipantPage = Math.min(participantPage, totalParticipantPages);
+  const pagedParticipants = filteredParticipants.slice(
+    (safeParticipantPage - 1) * PARTICIPANT_PAGE_SIZE,
+    safeParticipantPage * PARTICIPANT_PAGE_SIZE
+  );
+
+  // Reset to the first page whenever the list itself changes (render-time
+  // adjustment, so no effect is needed).
+  const [prevParticipantSig, setPrevParticipantSig] = useState("");
+  const participantSig = JSON.stringify([
+    participantFilter,
+    participantSearch,
+    paidFilter,
+    earlyBirdFilter,
+    participantSort,
+    participants.length,
+  ]);
+  if (participantSig !== prevParticipantSig) {
+    setPrevParticipantSig(participantSig);
+    setParticipantPage(1);
+  }
+
+  function handleAddRequiredAction() {
+    setShowActionForm(true);
+    requestAnimationFrame(() => {
+      document
+        .getElementById("required-actions-manager")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   function participantDocUrl(p: Participant) {
     const base = api.defaults.baseURL?.replace(/\/$/, "") ?? "";
@@ -507,6 +545,10 @@ export default function AdminEventPage() {
                 <Button onClick={startEditing}>
                   <Edit3 />
                   Edit event
+                </Button>
+                <Button variant="outline" onClick={handleAddRequiredAction}>
+                  <Plus />
+                  Add required action
                 </Button>
               </>
             )}
@@ -949,7 +991,7 @@ export default function AdminEventPage() {
             </p>
           ) : (
             <div className="mt-4 divide-y rounded-lg border">
-              {filteredParticipants.map((p) => (
+              {pagedParticipants.map((p) => (
                 <div className="flex items-start gap-3 p-3" key={p.id}>
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                     <Users className="size-4" />
@@ -1145,9 +1187,39 @@ export default function AdminEventPage() {
               ))}
             </div>
           )}
+          {filteredParticipants.length > PARTICIPANT_PAGE_SIZE && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Page {safeParticipantPage} of {totalParticipantPages} ·{" "}
+                {filteredParticipants.length} participants
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safeParticipantPage <= 1}
+                  onClick={() => setParticipantPage(safeParticipantPage - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safeParticipantPage >= totalParticipantPages}
+                  onClick={() => setParticipantPage(safeParticipantPage + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
 
-        <RequiredActionsManager eventId={params.id} />
+        <RequiredActionsManager
+          eventId={params.id}
+          formOpen={showActionForm}
+          onFormOpenChange={setShowActionForm}
+        />
       </div>
 
       {showCloseConfirm && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, Plus, Trash2, Upload, Video } from "lucide-react";
+import { ChevronDown, Trash2, Upload, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
@@ -51,20 +51,23 @@ type CompletionRow = {
 
 export default function RequiredActionsManager({
   eventId,
+  formOpen,
+  onFormOpenChange,
 }: {
   eventId: string;
+  formOpen: boolean;
+  onFormOpenChange: (open: boolean) => void;
 }) {
   const [actions, setActions] = useState<RequiredAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [showForm, setShowForm] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [audience, setAudience] = useState<"ALL" | "LEADERS" | "STUDENTS">("ALL");
   const [selectedVideoId, setSelectedVideoId] = useState("");
   const [library, setLibrary] = useState<VideoAsset[]>([]);
-  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryLoading, setLibraryLoading] = useState(true);
 
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -82,18 +85,18 @@ export default function RequiredActionsManager({
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  useEffect(() => {
-    fetchActions();
-  }, [fetchActions]);
-
   const fetchLibrary = useCallback(() => {
-    setLibraryLoading(true);
     api
       .get("/admin/videos")
       .then((res) => setLibrary(res.data.data || []))
       .catch(() => toast.error("Could not load video library."))
       .finally(() => setLibraryLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchActions();
+    fetchLibrary();
+  }, [fetchActions, fetchLibrary]);
 
   async function handleUpload() {
     const file = fileRef.current?.files?.[0];
@@ -147,7 +150,7 @@ export default function RequiredActionsManager({
       setDescription("");
       setSelectedVideoId("");
       setAudience("ALL");
-      setShowForm(false);
+      onFormOpenChange(false);
       fetchActions();
     } catch {
       toast.error("Could not create required action.");
@@ -187,24 +190,17 @@ export default function RequiredActionsManager({
   }
 
   return (
-    <section className="rounded-lg border p-4">
+    <section className="rounded-lg border p-4" id="required-actions-manager">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-bold">Required Actions</h2>
-        <Button
-          size="sm"
-          variant={showForm ? "outline" : "default"}
-          onClick={() => {
-            const next = !showForm;
-            setShowForm(next);
-            if (next) fetchLibrary();
-          }}
-        >
-          <Plus width={16} height={16} />
-          {showForm ? "Cancel" : "Add video action"}
-        </Button>
+        {actions.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {actions.length} action{actions.length !== 1 ? "s" : ""}
+          </p>
+        )}
       </div>
 
-      {showForm && (
+      {formOpen && (
         <div className="mt-3 grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="ra-title">Title</Label>
@@ -297,9 +293,16 @@ export default function RequiredActionsManager({
               ))}
             </div>
           </div>
-          <div className="sm:col-span-2">
+          <div className="flex gap-2 sm:col-span-2">
             <Button onClick={handleCreate} disabled={creating}>
               {creating ? "Adding…" : "Add required action"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => onFormOpenChange(false)}
+              disabled={creating}
+            >
+              Cancel
             </Button>
           </div>
         </div>
