@@ -110,7 +110,12 @@ export async function fanOutCompletionsForProfile(
 export function completionPercent(c: {
   watchedSeconds: number;
   duration: number | null;
+  status?: string;
 }): number {
+  // A finished video reads 100% even when duration was never recorded
+  // (the player's WS payload carries no duration) or the finish came from
+  // reaching the end after seeks with low unique-seconds coverage.
+  if (c.status === "COMPLETED") return 100;
   if (!c.duration || c.duration <= 0) return 0;
   return Math.min(100, (c.watchedSeconds / c.duration) * 100);
 }

@@ -83,3 +83,16 @@ test("completionPercent guards missing duration", () => {
   assert.equal(none, 0);
   assert.equal(missing, 0);
 });
+
+test("completionPercent reads 100 when completed", () => {
+  // Completed rows report 100% even with no recorded duration (the player's
+  // WS payload carries none) or low unique-seconds coverage from seeks.
+  const [noDuration, lowCoverage, pending] = evaluate([
+    { fn: "completionPercent", completion: { watchedSeconds: 3, duration: null, status: "COMPLETED" } },
+    { fn: "completionPercent", completion: { watchedSeconds: 3, duration: 10, status: "COMPLETED" } },
+    { fn: "completionPercent", completion: { watchedSeconds: 3, duration: 10, status: "PENDING" } },
+  ]);
+  assert.equal(noDuration, 100);
+  assert.equal(lowCoverage, 100);
+  assert.equal(pending, 30);
+});

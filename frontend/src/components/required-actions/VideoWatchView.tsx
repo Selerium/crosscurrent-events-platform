@@ -88,10 +88,11 @@ export default function VideoWatchView({
     });
 
     const offProgress = player.on("progress", () => {
-      setPercent(player.getCoveragePercent());
+      // Never downgrade a finished video back below 100%.
+      if (!completedRef.current) setPercent(player.getCoveragePercent());
     });
     const offComplete = player.on("complete", () => {
-      setPercent(player.getCoveragePercent());
+      setPercent(100);
       handleCompleted(player.getWatchedSeconds(), player.getDuration());
     });
     const offSeekBlocked = player.on("seek-blocked", ({ attempted, clampedTo }) => {
