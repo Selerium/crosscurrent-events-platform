@@ -1,11 +1,16 @@
 "use client";
 
-import { ChevronLeft, LayoutGrid, RotateCcw, Wand2, X } from "lucide-react";
+import { ChevronLeft, Church, LayoutGrid, RotateCcw, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
 import { type AdminEvent } from "../../../../data";
@@ -19,8 +24,16 @@ type Participant = {
   age: number | null;
   role: string;
   church: string;
+  churchId: string;
   group: string;
   paid: boolean;
+};
+
+type PlanSnapshot = {
+  numGroups: number;
+  maxPerGroup: number;
+  groupNames: string[];
+  assignments: Record<string, string>;
 };
 
 function genderAgeChip(p: Participant) {
@@ -73,38 +86,52 @@ export default function PlanGroupsPage() {
   const [numGroups, setNumGroups] = useState(1);
   const [maxPerGroup, setMaxPerGroup] = useState(4);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [savingId, setSavingId] = useState<string | null>(null);
   const [groupNames, setGroupNames] = useState<string[]>([]);
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [resetting, setResetting] = useState(false);
-  const [autoAssigning, setAutoAssigning] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Church ids excluded from auto-assign. Empty = everyone included.
+  const [excludedChurchIds, setExcludedChurchIds] = useState<string[]>([]);
+
+  // Pristine server state. Everything above is a local draft until Save:
+  // no request leaves the browser (and no user is notified) beforehand.
+  const [snapshot, setSnapshot] = useState<PlanSnapshot | null>(null);
 
   useEffect(() => {
     Promise.all([
-      api.get(`/admin/events/${params.id}`).then((res) => setEventInfo(res.data.data)),
-      api.get(`/admin/events/${params.id}/participants`)
-        .then((res) => setParticipants((res.data.data || []).filter((p: Participant) => p.paid)))
-        .catch(() => toast.error("Failed to load participants")),
-    ]).finally(() => setLoading(false));
+      api.get(`/admin/events/${params.id}`).then((res) => res.data.data),
+      api.get(`/admin/events/${params.id}/participants`).then((res) =>
+        (res.data.data || []).filter((p: Participant) => p.paid)
+      ),
+    ])
+      .then(([info, parts]: [AdminEvent, Participant[]]) => {
+        setEventInfo(info);
+        const ng = info.groups || 1;
+        const mpg = info.maxInGroup || 1;
+        setNumGroups(ng);
+        setMaxPerGroup(mpg);
+        setParticipants(parts);
+        setExcludedChurchIds([]);
+        setSnapshot({
+          numGroups: ng,
+          maxPerGroup: mpg,
+          groupNames: Array.from({ length: ng }, (_, i) => `Group ${i + 1}`),
+          assignments: Object.fromEntries(parts.map((p) => [p.id, p.group || ""])),
+        });
+      })
+      .catch(() => toast.error("Failed to load planning data"))
+      .finally(() => setLoading(false));
   }, [params.id]);
 
-  useEffect(() => {
-    if (eventInfo) {
-      setNumGroups(eventInfo.groups || 1);
-      setMaxPerGroup(eventInfo.maxInGroup || 1);
-    }
-  }, [eventInfo]);
-
-  const syncToServer = useCallback((groups: number, maxInGroup: number) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      api.patch(`/admin/events/${params.id}`, { groups, maxInGroup }).catch(() => {
-        toast.error("Failed to save group settings");
-      });
-    }, 600);
-  }, [params.id]);
+  // Reset draft state when navigating between events (render-time
+  // adjustment, so no effect is needed).
+  const [prevEventId, setPrevEventId] = useState(params.id);
+  if (params.id !== prevEventId) {
+    setPrevEventId(params.id);
+    setSnapshot(null);
+    setDirty(false);
+  }
 
   useEffect(() => {
     setGroupNames((prev) => {
@@ -138,41 +165,96 @@ export default function PlanGroupsPage() {
     return slots;
   }, [participants, numGroups, maxPerGroup, groupNames]);
 
-  const handleRemoveFromSlot = useCallback(async (participantId: string, slotLabel: string) => {
-    setSavingId(participantId);
+  // Warn about unsaved draft work on reload / tab close.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  function snapshotAssignments(list: Participant[]): [string, string][] {
+    return list.map((p) => [p.id, p.group || ""] as [string, string]);
+  }
+
+  async function handleSave() {
+    const snap = snapshot;
+    if (!snap || !dirty || saving) return;
+    setSaving(true);
     try {
-      await api.patch(`/admin/events/${params.id}/participants/${participantId}`, { group: "" });
-      setParticipants((prev) =>
-        prev.map((p) => (p.id === participantId ? { ...p, group: "" } : p))
+      // The settings save is the only call that notifies users (existing
+      // backend behavior) — assignment saves never notify. So a save with
+      // only assignment changes stays silent, as before.
+      const settingsChanged =
+        numGroups !== snap.numGroups || maxPerGroup !== snap.maxPerGroup;
+      const changed = participants.filter(
+        (p) => (p.group || "") !== (snap.assignments[p.id] ?? "")
       );
-      toast.success("Removed from slot");
+      if (settingsChanged) {
+        await api.patch(`/admin/events/${params.id}`, {
+          groups: numGroups,
+          maxInGroup: maxPerGroup,
+        });
+      }
+      await Promise.all(
+        changed.map((p) =>
+          api.patch(`/admin/events/${params.id}/participants/${p.id}`, {
+            group: p.group || "",
+          })
+        )
+      );
+      setEventInfo((prev) =>
+        prev ? { ...prev, groups: numGroups, maxInGroup: maxPerGroup } : prev
+      );
+      setSnapshot({
+        numGroups,
+        maxPerGroup,
+        groupNames: [...groupNames],
+        assignments: Object.fromEntries(snapshotAssignments(participants)),
+      });
+      setDirty(false);
+      toast.success(
+        settingsChanged ? "Plan saved — users have been notified" : "Plan saved"
+      );
     } catch {
-      toast.error("Failed to remove from slot");
+      toast.error("Failed to save plan");
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
-  }, [params.id]);
+  }
 
-  async function handleSlotClick(slotLabel: string, occupant?: Participant) {
-    if (occupant) return;
+  function handleDiscard() {
+    const snap = snapshot;
+    if (!snap) return;
+    setNumGroups(snap.numGroups);
+    setMaxPerGroup(snap.maxPerGroup);
+    setGroupNames([...snap.groupNames]);
+    setParticipants((prev) =>
+      prev.map((p) => ({
+        ...p,
+        group: snap.assignments[p.id] ?? p.group,
+      }))
+    );
+    setSelectedId(null);
+    setDirty(false);
+  }
 
+  function handleRemoveFromSlot(participantId: string) {
+    setParticipants((prev) =>
+      prev.map((p) => (p.id === participantId ? { ...p, group: "" } : p))
+    );
+    setDirty(true);
+  }
+
+  function handleSlotClick(slotLabel: string) {
     if (!selectedId) return;
-    const selected = participants.find((p) => p.id === selectedId);
-    if (!selected) return;
-
-    setSavingId(selectedId);
-    try {
-      await api.patch(`/admin/events/${params.id}/participants/${selectedId}`, { group: slotLabel });
-      setParticipants((prev) =>
-        prev.map((p) => (p.id === selectedId ? { ...p, group: slotLabel } : p))
-      );
-      toast.success(`${selected.name} assigned to ${slotLabel}`);
-    } catch {
-      toast.error("Failed to assign to group");
-    } finally {
-      setSavingId(null);
-      setSelectedId(null);
-    }
+    setParticipants((prev) =>
+      prev.map((p) => (p.id === selectedId ? { ...p, group: slotLabel } : p))
+    );
+    setSelectedId(null);
+    setDirty(true);
   }
 
   function startRename(index: number) {
@@ -180,7 +262,7 @@ export default function PlanGroupsPage() {
     setRenameValue(groupNames[index] || `Group ${index + 1}`);
   }
 
-  async function confirmRename() {
+  function confirmRename() {
     if (renamingIndex === null || !renameValue.trim()) {
       setRenamingIndex(null);
       return;
@@ -192,46 +274,45 @@ export default function PlanGroupsPage() {
       return;
     }
 
-    const affected = participants.filter((p) => p.group === oldLabel);
     setRenamingIndex(null);
     setGroupNames((prev) => prev.map((n, i) => (i === renamingIndex ? newLabel : n)));
-
-    for (const p of affected) {
-      try {
-        await api.patch(`/admin/events/${params.id}/participants/${p.id}`, { group: newLabel });
-      } catch {
-        toast.error(`Failed to rename group for ${p.name}`);
-      }
-    }
     setParticipants((prev) =>
       prev.map((p) => (p.group === oldLabel ? { ...p, group: newLabel } : p))
     );
-    if (affected.length > 0) {
-      toast.success(`Renamed ${oldLabel} → ${newLabel}`);
-    }
+    setDirty(true);
   }
 
-  async function handleResetAll() {
-    setResetting(true);
-    try {
-      await api.delete(`/admin/events/${params.id}/registrations?field=group`);
-      setParticipants((prev) => prev.map((p) => ({ ...p, group: "" })));
-      toast.success("All groups cleared");
-    } catch {
-      toast.error("Failed to reset groups");
-    } finally {
-      setResetting(false);
-    }
+  function handleResetAll() {
+    setParticipants((prev) => prev.map((p) => ({ ...p, group: "" })));
+    setDirty(true);
   }
 
-  async function handleAutoAssign() {
-    const unslottedList = participants.filter((p) => !p.group);
-    if (unslottedList.length === 0) {
-      toast.info("No unslotted participants to assign");
+  // Churches available for auto-assign, derived from loaded participants.
+  const churchOptions = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string; count: number }>();
+    for (const p of participants) {
+      const id = p.churchId || "";
+      const entry = byId.get(id) || { id, name: p.church || "No church", count: 0 };
+      entry.count += 1;
+      byId.set(id, entry);
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [participants]);
+
+  function handleAutoAssign() {
+    const eligible = participants.filter(
+      (p) => !p.group && !excludedChurchIds.includes(p.churchId || "")
+    );
+    if (eligible.length === 0) {
+      toast.info(
+        excludedChurchIds.length > 0 && participants.some((p) => !p.group)
+          ? "No unslotted participants from the selected churches"
+          : "No unslotted participants to assign"
+      );
       return;
     }
 
-    const sorted = [...unslottedList].sort((a, b) => {
+    const sorted = [...eligible].sort((a, b) => {
       if (a.age === null && b.age === null) return 0;
       if (a.age === null) return 1;
       if (b.age === null) return -1;
@@ -244,33 +325,20 @@ export default function PlanGroupsPage() {
       return;
     }
 
-    setAutoAssigning(true);
-    try {
-      const assignments: { id: string; group: string }[] = [];
-      for (let i = 0; i < sorted.length; i++) {
-        const groupIndex = i % numGroups;
-        const label = groupNames[groupIndex] || `Group ${groupIndex + 1}`;
-        assignments.push({ id: sorted[i].id, group: label });
-      }
-
-      await Promise.all(
-        assignments.map((a) =>
-          api.patch(`/admin/events/${params.id}/participants/${a.id}`, { group: a.group })
-        )
-      );
-
-      setParticipants((prev) =>
-        prev.map((p) => {
-          const assignment = assignments.find((a) => a.id === p.id);
-          return assignment ? { ...p, group: assignment.group } : p;
-        })
-      );
-      toast.success(`Assigned ${sorted.length} participants across ${numGroups} groups`);
-    } catch {
-      toast.error("Automatic assignment failed");
-    } finally {
-      setAutoAssigning(false);
+    const assignments: { id: string; group: string }[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const groupIndex = i % numGroups;
+      const label = groupNames[groupIndex] || `Group ${groupIndex + 1}`;
+      assignments.push({ id: sorted[i].id, group: label });
     }
+
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const assignment = assignments.find((a) => a.id === p.id);
+        return assignment ? { ...p, group: assignment.group } : p;
+      })
+    );
+    setDirty(true);
   }
 
   return (
@@ -283,6 +351,21 @@ export default function PlanGroupsPage() {
         </Button>
         <LayoutGrid className="h-5 w-5 text-muted-foreground" />
         <h1 className="text-lg font-semibold">Plan Groups</h1>
+        {dirty && !loading && (
+          <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">
+            Unsaved changes
+          </span>
+        )}
+        <div className="ml-auto flex gap-2">
+          {dirty && (
+            <Button variant="outline" size="sm" onClick={handleDiscard} disabled={saving}>
+              Discard
+            </Button>
+          )}
+          <Button size="sm" onClick={handleSave} disabled={!dirty || saving || loading}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -328,7 +411,7 @@ export default function PlanGroupsPage() {
                 onChange={(e) => {
                   const v = Math.max(1, parseInt(e.target.value) || 1);
                   setNumGroups(v);
-                  syncToServer(v, maxPerGroup);
+                  setDirty(true);
                 }}
                 className="mt-1"
               />
@@ -343,7 +426,7 @@ export default function PlanGroupsPage() {
                 onChange={(e) => {
                   const v = Math.max(1, parseInt(e.target.value) || 1);
                   setMaxPerGroup(v);
-                  syncToServer(numGroups, v);
+                  setDirty(true);
                 }}
                 className="mt-1"
               />
@@ -354,13 +437,79 @@ export default function PlanGroupsPage() {
               </div>
             )}
             <div className="ml-auto flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleAutoAssign} disabled={autoAssigning || resetting}>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={saving}>
+                    <Church className="h-3.5 w-3.5" />
+                    Churches
+                    {excludedChurchIds.length > 0 && (
+                      <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                        {churchOptions.length - excludedChurchIds.length}/{churchOptions.length}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="end">
+                  <div className="flex items-center justify-between border-b px-2 pb-2">
+                    <span className="text-xs font-semibold">
+                      Include in auto-assign
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setExcludedChurchIds([])}
+                        className="cursor-pointer rounded px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-muted"
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExcludedChurchIds(churchOptions.map((c) => c.id))
+                        }
+                        className="cursor-pointer rounded px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-muted"
+                      >
+                        None
+                      </button>
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {churchOptions.map((c) => {
+                      const included = !excludedChurchIds.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={included}
+                            onChange={() =>
+                              setExcludedChurchIds((prev) =>
+                                included
+                                  ? [...prev, c.id]
+                                  : prev.filter((id) => id !== c.id)
+                              )
+                            }
+                            className="size-4 cursor-pointer accent-primary"
+                          />
+                          <span className="flex-1 truncate">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {c.count}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button variant="outline" size="sm" onClick={handleAutoAssign} disabled={saving}>
                 <Wand2 className="h-3.5 w-3.5" />
-                {autoAssigning ? "Assigning…" : "Automatically assign"}
+                Automatically assign
               </Button>
-              <Button variant="destructive" size="sm" onClick={handleResetAll} disabled={resetting}>
+              <Button variant="destructive" size="sm" onClick={handleResetAll} disabled={saving}>
                 <RotateCcw className="h-3.5 w-3.5" />
-                {resetting ? "Resetting…" : "Reset All"}
+                Reset All
               </Button>
             </div>
           </div>
@@ -402,15 +551,15 @@ export default function PlanGroupsPage() {
                         selectedId === p.id
                           ? "border-red-400 bg-red-50 dark:bg-red-900/20"
                           : "border-primary/30 bg-primary/5"
-                      } ${savingId === p.id ? "opacity-50" : ""}`}
+                      } ${saving ? "opacity-50" : ""}`}
                     >
                       <div className="flex flex-1 flex-col px-3 py-2 text-left text-xs font-medium">
                         <div className="truncate">{p.name}</div>
                         <ParticipantChips p={p} />
                       </div>
                       <button
-                        onClick={() => handleRemoveFromSlot(p.id, slot.label)}
-                        disabled={savingId !== null}
+                        onClick={() => handleRemoveFromSlot(p.id)}
+                        disabled={saving}
                         className="flex items-center px-2 text-muted-foreground hover:text-destructive"
                         title="Remove from slot"
                       >
@@ -422,7 +571,7 @@ export default function PlanGroupsPage() {
                     <button
                       key={`empty-${j}`}
                       onClick={() => handleSlotClick(slot.label)}
-                      disabled={!selectedId || savingId !== null}
+                      disabled={!selectedId || saving}
                       className="rounded-md border-2 border-dashed border-muted-foreground/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-muted-foreground/50 disabled:opacity-40"
                     >
                       Empty

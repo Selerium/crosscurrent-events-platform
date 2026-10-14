@@ -3,7 +3,7 @@
 import { ChevronLeft, DoorOpen, RotateCcw, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -21,6 +21,13 @@ type Participant = {
   church: string;
   room: string;
   paid: boolean;
+};
+
+type PlanSnapshot = {
+  numRooms: number;
+  maxPerRoom: number;
+  roomNames: string[];
+  assignments: Record<string, string>;
 };
 
 function genderAgeChip(p: Participant) {
@@ -73,37 +80,49 @@ export default function PlanRoomsPage() {
   const [numRooms, setNumRooms] = useState(1);
   const [maxPerRoom, setMaxPerRoom] = useState(4);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [savingId, setSavingId] = useState<string | null>(null);
   const [roomNames, setRoomNames] = useState<string[]>([]);
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [resetting, setResetting] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Pristine server state. Everything above is a local draft until Save:
+  // no request leaves the browser (and no user is notified) beforehand.
+  const [snapshot, setSnapshot] = useState<PlanSnapshot | null>(null);
 
   useEffect(() => {
     Promise.all([
-      api.get(`/admin/events/${params.id}`).then((res) => setEventInfo(res.data.data)),
-      api.get(`/admin/events/${params.id}/participants`)
-        .then((res) => setParticipants((res.data.data || []).filter((p: Participant) => p.paid)))
-        .catch(() => toast.error("Failed to load participants")),
-    ]).finally(() => setLoading(false));
+      api.get(`/admin/events/${params.id}`).then((res) => res.data.data),
+      api.get(`/admin/events/${params.id}/participants`).then((res) =>
+        (res.data.data || []).filter((p: Participant) => p.paid)
+      ),
+    ])
+      .then(([info, parts]: [AdminEvent, Participant[]]) => {
+        setEventInfo(info);
+        const nr = info.room || 1;
+        const mpr = info.maxInRoom || 1;
+        setNumRooms(nr);
+        setMaxPerRoom(mpr);
+        setParticipants(parts);
+        setSnapshot({
+          numRooms: nr,
+          maxPerRoom: mpr,
+          roomNames: Array.from({ length: nr }, (_, i) => `Room ${i + 1}`),
+          assignments: Object.fromEntries(parts.map((p) => [p.id, p.room || ""])),
+        });
+      })
+      .catch(() => toast.error("Failed to load planning data"))
+      .finally(() => setLoading(false));
   }, [params.id]);
 
-  useEffect(() => {
-    if (eventInfo) {
-      setNumRooms(eventInfo.room || 1);
-      setMaxPerRoom(eventInfo.maxInRoom || 1);
-    }
-  }, [eventInfo]);
-
-  const syncToServer = useCallback((room: number, maxInRoom: number) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      api.patch(`/admin/events/${params.id}`, { room, maxInRoom }).catch(() => {
-        toast.error("Failed to save room settings");
-      });
-    }, 600);
-  }, [params.id]);
+  // Reset draft state when navigating between events (render-time
+  // adjustment, so no effect is needed).
+  const [prevEventId, setPrevEventId] = useState(params.id);
+  if (params.id !== prevEventId) {
+    setPrevEventId(params.id);
+    setSnapshot(null);
+    setDirty(false);
+  }
 
   useEffect(() => {
     setRoomNames((prev) => {
@@ -133,24 +152,90 @@ export default function PlanRoomsPage() {
     return slots;
   }, [participants, numRooms, maxPerRoom, roomNames]);
 
-  const handleRemoveFromSlot = useCallback(async (participantId: string) => {
-    setSavingId(participantId);
+  // Warn about unsaved draft work on reload / tab close.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  function snapshotAssignments(list: Participant[]): [string, string][] {
+    return list.map((p) => [p.id, p.room || ""] as [string, string]);
+  }
+
+  async function handleSave() {
+    const snap = snapshot;
+    if (!snap || !dirty || saving) return;
+    setSaving(true);
     try {
-      await api.patch(`/admin/events/${params.id}/participants/${participantId}`, { room: "" });
-      setParticipants((prev) =>
-        prev.map((p) => (p.id === participantId ? { ...p, room: "" } : p))
+      // The settings save is the only call that notifies users (existing
+      // backend behavior) — assignment saves never notify. So a save with
+      // only assignment changes stays silent, as before.
+      const settingsChanged =
+        numRooms !== snap.numRooms || maxPerRoom !== snap.maxPerRoom;
+      const changed = participants.filter(
+        (p) => (p.room || "") !== (snap.assignments[p.id] ?? "")
       );
-      toast.success("Removed from slot");
+      if (settingsChanged) {
+        await api.patch(`/admin/events/${params.id}`, {
+          room: numRooms,
+          maxInRoom: maxPerRoom,
+        });
+      }
+      await Promise.all(
+        changed.map((p) =>
+          api.patch(`/admin/events/${params.id}/participants/${p.id}`, {
+            room: p.room || "",
+          })
+        )
+      );
+      setEventInfo((prev) =>
+        prev ? { ...prev, room: numRooms, maxInRoom: maxPerRoom } : prev
+      );
+      setSnapshot({
+        numRooms,
+        maxPerRoom,
+        roomNames: [...roomNames],
+        assignments: Object.fromEntries(snapshotAssignments(participants)),
+      });
+      setDirty(false);
+      toast.success(
+        settingsChanged ? "Plan saved — users have been notified" : "Plan saved"
+      );
     } catch {
-      toast.error("Failed to remove from slot");
+      toast.error("Failed to save plan");
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
-  }, [params.id]);
+  }
 
-  async function handleSlotClick(slotLabel: string, occupant?: Participant) {
-    if (occupant) return;
+  function handleDiscard() {
+    const snap = snapshot;
+    if (!snap) return;
+    setNumRooms(snap.numRooms);
+    setMaxPerRoom(snap.maxPerRoom);
+    setRoomNames([...snap.roomNames]);
+    setParticipants((prev) =>
+      prev.map((p) => ({
+        ...p,
+        room: snap.assignments[p.id] ?? p.room,
+      }))
+    );
+    setSelectedId(null);
+    setDirty(false);
+  }
 
+  function handleRemoveFromSlot(participantId: string) {
+    setParticipants((prev) =>
+      prev.map((p) => (p.id === participantId ? { ...p, room: "" } : p))
+    );
+    setDirty(true);
+  }
+
+  function handleSlotClick(slotLabel: string) {
     if (!selectedId) return;
     const selected = participants.find((p) => p.id === selectedId);
     if (!selected) return;
@@ -165,19 +250,11 @@ export default function PlanRoomsPage() {
       return;
     }
 
-    setSavingId(selectedId);
-    try {
-      await api.patch(`/admin/events/${params.id}/participants/${selectedId}`, { room: slotLabel });
-      setParticipants((prev) =>
-        prev.map((p) => (p.id === selectedId ? { ...p, room: slotLabel } : p))
-      );
-      toast.success(`${selected.name} assigned to ${slotLabel}`);
-    } catch {
-      toast.error("Failed to assign to room");
-    } finally {
-      setSavingId(null);
-      setSelectedId(null);
-    }
+    setParticipants((prev) =>
+      prev.map((p) => (p.id === selectedId ? { ...p, room: slotLabel } : p))
+    );
+    setSelectedId(null);
+    setDirty(true);
   }
 
   function startRename(index: number) {
@@ -185,7 +262,7 @@ export default function PlanRoomsPage() {
     setRenameValue(roomNames[index] || `Room ${index + 1}`);
   }
 
-  async function confirmRename() {
+  function confirmRename() {
     if (renamingIndex === null || !renameValue.trim()) {
       setRenamingIndex(null);
       return;
@@ -197,36 +274,80 @@ export default function PlanRoomsPage() {
       return;
     }
 
-    const affected = participants.filter((p) => p.room === oldLabel);
     setRenamingIndex(null);
     setRoomNames((prev) => prev.map((n, i) => (i === renamingIndex ? newLabel : n)));
-
-    for (const p of affected) {
-      try {
-        await api.patch(`/admin/events/${params.id}/participants/${p.id}`, { room: newLabel });
-      } catch {
-        toast.error(`Failed to rename room for ${p.name}`);
-      }
-    }
     setParticipants((prev) =>
       prev.map((p) => (p.room === oldLabel ? { ...p, room: newLabel } : p))
     );
-    if (affected.length > 0) {
-      toast.success(`Renamed ${oldLabel} → ${newLabel}`);
-    }
+    setDirty(true);
   }
 
-  async function handleResetAll() {
-    setResetting(true);
-    try {
-      await api.delete(`/admin/events/${params.id}/registrations?field=room`);
-      setParticipants((prev) => prev.map((p) => ({ ...p, room: "" })));
-      toast.success("All rooms cleared");
-    } catch {
-      toast.error("Failed to reset rooms");
-    } finally {
-      setResetting(false);
+  function handleResetAll() {
+    setParticipants((prev) => prev.map((p) => ({ ...p, room: "" })));
+    setDirty(true);
+  }
+
+  function handleAutoAssign() {
+    const eligible = participants.filter((p) => !p.room);
+    if (eligible.length === 0) {
+      toast.info("No unslotted participants to assign");
+      return;
     }
+
+    // Cohort by role + gender so no room ever mixes leaders/students or
+    // genders (same rules as manual assignment). Within a cohort, sort by
+    // age then church so same-age churchmates land next to each other.
+    const cohorts = new Map<string, Participant[]>();
+    for (const p of eligible) {
+      const key = `${p.role || "STUDENT"}|${p.gender || ""}`;
+      const list = cohorts.get(key);
+      if (list) list.push(p);
+      else cohorts.set(key, [p]);
+    }
+    const ordered = [...cohorts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, list]) =>
+        [...list].sort((a, b) => {
+          if (a.age === null && b.age === null) {
+            return a.church.localeCompare(b.church);
+          }
+          if (a.age === null) return 1;
+          if (b.age === null) return -1;
+          if (a.age !== b.age) return a.age - b.age;
+          return a.church.localeCompare(b.church);
+        })
+      );
+
+    const roomsNeeded = ordered.reduce(
+      (sum, list) => sum + Math.ceil(list.length / maxPerRoom),
+      0
+    );
+    if (roomsNeeded > numRooms) {
+      toast.error(
+        `Not enough rooms: ${eligible.length} participants need ${roomsNeeded} rooms but only ${numRooms} available`
+      );
+      return;
+    }
+
+    const assignments: { id: string; room: string }[] = [];
+    let roomIndex = 0;
+    for (const list of ordered) {
+      for (let i = 0; i < list.length; i += maxPerRoom) {
+        const label = roomNames[roomIndex] || `Room ${roomIndex + 1}`;
+        for (const p of list.slice(i, i + maxPerRoom)) {
+          assignments.push({ id: p.id, room: label });
+        }
+        roomIndex += 1;
+      }
+    }
+
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const assignment = assignments.find((a) => a.id === p.id);
+        return assignment ? { ...p, room: assignment.room } : p;
+      })
+    );
+    setDirty(true);
   }
 
   return (
@@ -239,6 +360,21 @@ export default function PlanRoomsPage() {
         </Button>
         <DoorOpen className="h-5 w-5 text-muted-foreground" />
         <h1 className="text-lg font-semibold">Plan Rooms</h1>
+        {dirty && !loading && (
+          <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">
+            Unsaved changes
+          </span>
+        )}
+        <div className="ml-auto flex gap-2">
+          {dirty && (
+            <Button variant="outline" size="sm" onClick={handleDiscard} disabled={saving}>
+              Discard
+            </Button>
+          )}
+          <Button size="sm" onClick={handleSave} disabled={!dirty || saving || loading}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -284,7 +420,7 @@ export default function PlanRoomsPage() {
                 onChange={(e) => {
                   const v = Math.max(1, parseInt(e.target.value) || 1);
                   setNumRooms(v);
-                  syncToServer(v, maxPerRoom);
+                  setDirty(true);
                 }}
                 className="mt-1"
               />
@@ -299,7 +435,7 @@ export default function PlanRoomsPage() {
                 onChange={(e) => {
                   const v = Math.max(1, parseInt(e.target.value) || 1);
                   setMaxPerRoom(v);
-                  syncToServer(numRooms, v);
+                  setDirty(true);
                 }}
                 className="mt-1"
               />
@@ -310,13 +446,13 @@ export default function PlanRoomsPage() {
               </div>
             )}
             <div className="ml-auto flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => toast.info("Automatic assignment coming soon")}>
+              <Button variant="outline" size="sm" onClick={handleAutoAssign} disabled={saving}>
                 <Wand2 className="h-3.5 w-3.5" />
                 Automatically assign
               </Button>
-              <Button variant="destructive" size="sm" onClick={handleResetAll} disabled={resetting}>
+              <Button variant="destructive" size="sm" onClick={handleResetAll} disabled={saving}>
                 <RotateCcw className="h-3.5 w-3.5" />
-                {resetting ? "Resetting…" : "Reset All"}
+                Reset All
               </Button>
             </div>
           </div>
@@ -358,7 +494,7 @@ export default function PlanRoomsPage() {
                         selectedId === p.id
                           ? "border-red-400 bg-red-50 dark:bg-red-900/20"
                           : "border-primary/30 bg-primary/5"
-                      } ${savingId === p.id ? "opacity-50" : ""}`}
+                      } ${saving ? "opacity-50" : ""}`}
                     >
                       <div className="flex flex-1 flex-col px-3 py-2 text-left text-xs font-medium">
                         <div className="truncate">{p.name}</div>
@@ -366,7 +502,7 @@ export default function PlanRoomsPage() {
                       </div>
                       <button
                         onClick={() => handleRemoveFromSlot(p.id)}
-                        disabled={savingId !== null}
+                        disabled={saving}
                         className="flex items-center px-2 text-muted-foreground hover:text-destructive"
                         title="Remove from slot"
                       >
@@ -378,7 +514,7 @@ export default function PlanRoomsPage() {
                     <button
                       key={`empty-${j}`}
                       onClick={() => handleSlotClick(slot.label)}
-                      disabled={!selectedId || savingId !== null}
+                      disabled={!selectedId || saving}
                       className="rounded-md border-2 border-dashed border-muted-foreground/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-muted-foreground/50 disabled:opacity-40"
                     >
                       Empty
