@@ -18,7 +18,7 @@ import {
 import type { AdminEvent, ChurchRecord } from "../data";
 import api from "@/lib/axios";
 
-type Audience = "all" | "leaders" | "students" | "event" | "not-in-event" | "church";
+type Audience = "all" | "leaders" | "students" | "event" | "not-in-event" | "church" | "parents" | "event-parents";
 
 const AUDIENCE_OPTIONS: { value: Audience; label: string }[] = [
   { value: "all", label: "All users (students & leaders)" },
@@ -27,6 +27,8 @@ const AUDIENCE_OPTIONS: { value: Audience; label: string }[] = [
   { value: "event", label: "Users registered for an event" },
   { value: "not-in-event", label: "All users not registered for an event" },
   { value: "church", label: "Users of a particular church" },
+  { value: "parents", label: "Parents of all students" },
+  { value: "event-parents", label: "Parents of students registered for an event" },
 ];
 
 type PreviewRecipient = {
@@ -88,7 +90,7 @@ export default function AdminEmailsPage() {
 
   function buildFilters() {
     const filters: Record<string, unknown> = { audience };
-    if (audience === "event" || audience === "not-in-event") filters.eventId = eventId;
+    if (audience === "event" || audience === "not-in-event" || audience === "event-parents") filters.eventId = eventId;
     if (audience === "church") filters.churchId = churchId;
     if (minAge !== "") filters.minAge = Number(minAge);
     if (maxAge !== "") filters.maxAge = Number(maxAge);
@@ -96,7 +98,7 @@ export default function AdminEmailsPage() {
   }
 
   function validateFilters(): string | null {
-    if ((audience === "event" || audience === "not-in-event") && !eventId) {
+    if ((audience === "event" || audience === "not-in-event" || audience === "event-parents") && !eventId) {
       return "Please select an event";
     }
     if (audience === "church" && !churchId) {
@@ -166,8 +168,10 @@ export default function AdminEmailsPage() {
             Send email
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Emails are sent from do-not-reply@crosscurrent.ae to verified user
-            email addresses only.
+            Emails are sent from do-not-reply@crosscurrent.ae to
+            {audience === "parents" || audience === "event-parents"
+              ? " parent email addresses."
+              : " verified user email addresses only."}
           </p>
         </div>
 
@@ -196,7 +200,7 @@ export default function AdminEmailsPage() {
             </Select>
           </div>
 
-          {(audience === "event" || audience === "not-in-event") && (
+          {(audience === "event" || audience === "not-in-event" || audience === "event-parents") && (
             <div className="flex flex-col gap-2">
               <Label>Event</Label>
               <Select

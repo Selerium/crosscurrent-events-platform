@@ -6,9 +6,9 @@ import { buildBulkEmailHtml, sendBulkEmails } from "../../lib/email.ts";
 
 const adminEmailsHandler = express.Router();
 
-type Audience = "all" | "leaders" | "students" | "event" | "not-in-event" | "church";
+type Audience = "all" | "leaders" | "students" | "event" | "not-in-event" | "church" | "parents" | "event-parents";
 
-const AUDIENCES: Audience[] = ["all", "leaders", "students", "event", "not-in-event", "church"];
+const AUDIENCES: Audience[] = ["all", "leaders", "students", "event", "not-in-event", "church", "parents", "event-parents"];
 
 type Recipient = {
   profileId: string;
@@ -54,18 +54,20 @@ async function resolveRecipients(input: {
   }
 
   // Admins are never targeted by bulk emails.
+  // Parent audiences target students only (via their parent email).
+  const toParents = audience === "parents" || audience === "event-parents";
   const roleFilter =
-    audience === "leaders"
-      ? "LEADER"
-      : audience === "students"
-        ? "STUDENT"
+    toParents || audience === "students"
+      ? "STUDENT"
+      : audience === "leaders"
+        ? "LEADER"
         : { in: ["STUDENT", "LEADER"] };
 
   let eventName: string | null = null;
   let profileIds: string[] | null = null;
   let excludedProfileIds: string[] | null = null;
 
-  if (audience === "event" || audience === "not-in-event") {
+  if (audience === "event" || audience === "not-in-event" || audience === "event-parents") {
     if (!eventId) {
       throw new AppError("An event must be selected for this audience", 400);
     }
@@ -82,7 +84,7 @@ async function resolveRecipients(input: {
       select: { profileId: true },
     });
     const registeredIds = [...new Set(registrations.map((r) => r.profileId))];
-    if (audience === "event") {
+    if (audience === "event" || audience === "event-parents") {
       profileIds = registeredIds;
       if (profileIds.length === 0) {
         return { recipients: [], summary: `Nobody registered for ${eventName}` };
@@ -132,7 +134,11 @@ async function resolveRecipients(input: {
   const recipients: Recipient[] = [];
 
   for (const p of profiles) {
-    const email = p.user.email.toLowerCase();
+    // Parent audiences email the student's parent instead of the user.
+    // Parent addresses can't be verified — only empty ones are skipped.
+    const rawEmail = toParents ? (p.parentOneEmail || "") : p.user.email;
+    if (!rawEmail) continue;
+    const email = rawEmail.toLowerCase();
     if (seen.has(email)) continue;
 
     let age: number | null = null;
@@ -147,7 +153,7 @@ async function resolveRecipients(input: {
     if (maxAge !== undefined && (age === null || age > maxAge)) continue;
 
     seen.add(email);
-    recipients.push({ profileId: p.id, name: p.name, email: p.user.email, age });
+    recipients.push({ profileId: p.id, name: p.name, email: rawEmail, age });
   }
 
   const base =
@@ -155,13 +161,17 @@ async function resolveRecipients(input: {
       ? "leaders"
       : audience === "students"
         ? "students"
-        : audience === "event"
-          ? `users registered for ${eventName}`
-          : audience === "not-in-event"
-            ? `users not registered for ${eventName}`
-            : audience === "church"
-            ? `members of ${churchName}`
-            : "students and leaders";
+        : audience === "parents"
+          ? "parents of students"
+          : audience === "event-parents"
+            ? `parents of students registered for ${eventName}`
+            : audience === "event"
+              ? `users registered for ${eventName}`
+              : audience === "not-in-event"
+                ? `users not registered for ${eventName}`
+                : audience === "church"
+                ? `members of ${churchName}`
+                : "students and leaders";
 
   const agePart =
     minAge !== undefined && maxAge !== undefined
