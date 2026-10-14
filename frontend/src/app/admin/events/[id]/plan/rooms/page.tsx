@@ -19,6 +19,7 @@ type Participant = {
   age: number | null;
   role: string;
   church: string;
+  churchId: string;
   room: string;
   paid: boolean;
 };
@@ -295,8 +296,16 @@ export default function PlanRoomsPage() {
     }
 
     // Cohort by role + gender so no room ever mixes leaders/students or
-    // genders (same rules as manual assignment). Within a cohort, sort by
-    // age then church so same-age churchmates land next to each other.
+    // genders (same rules as manual assignment). Within a cohort, pack
+    // church-major: fill whole rooms from one church (youngest first,
+    // spilling into next ages rather than borrowing same-age kids from
+    // another church), then mix the leftover oldest kids across churches.
+    const byAgeAsc = (a: Participant, b: Participant) => {
+      if (a.age === null && b.age === null) return 0;
+      if (a.age === null) return 1;
+      if (b.age === null) return -1;
+      return a.age - b.age;
+    };
     const cohorts = new Map<string, Participant[]>();
     for (const p of eligible) {
       const key = `${p.role || "STUDENT"}|${p.gender || ""}`;
@@ -304,42 +313,50 @@ export default function PlanRoomsPage() {
       if (list) list.push(p);
       else cohorts.set(key, [p]);
     }
-    const ordered = [...cohorts.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, list]) =>
-        [...list].sort((a, b) => {
-          if (a.age === null && b.age === null) {
-            return a.church.localeCompare(b.church);
-          }
-          if (a.age === null) return 1;
-          if (b.age === null) return -1;
-          if (a.age !== b.age) return a.age - b.age;
-          return a.church.localeCompare(b.church);
-        })
-      );
 
-    const roomsNeeded = ordered.reduce(
-      (sum, list) => sum + Math.ceil(list.length / maxPerRoom),
-      0
-    );
-    if (roomsNeeded > numRooms) {
+    const plan: Participant[][] = [];
+    for (const key of [...cohorts.keys()].sort()) {
+      const byChurch = new Map<string, { name: string; members: Participant[] }>();
+      for (const p of cohorts.get(key)!) {
+        const id = p.churchId || "";
+        const entry = byChurch.get(id) || { name: p.church || "No church", members: [] };
+        entry.members.push(p);
+        byChurch.set(id, entry);
+      }
+      const churches = [...byChurch.values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((entry) => [...entry.members].sort(byAgeAsc));
+
+      // Whole rooms from a single church, youngest first.
+      const leftovers: Participant[] = [];
+      for (const list of churches) {
+        while (list.length >= maxPerRoom) {
+          plan.push(list.splice(0, maxPerRoom));
+        }
+        leftovers.push(...list);
+      }
+      // Leftover oldest kids mix across churches, youngest of them first.
+      leftovers.sort(byAgeAsc);
+      for (let i = 0; i < leftovers.length; i += maxPerRoom) {
+        plan.push(leftovers.slice(i, i + maxPerRoom));
+      }
+    }
+
+    if (plan.length > numRooms) {
+      const shortBy = plan.length - numRooms;
       toast.error(
-        `Not enough rooms: ${eligible.length} participants need ${roomsNeeded} rooms but only ${numRooms} available`
+        `Not enough rooms: the plan needs ${plan.length} rooms but only ${numRooms} available (short by ${shortBy})`
       );
       return;
     }
 
     const assignments: { id: string; room: string }[] = [];
-    let roomIndex = 0;
-    for (const list of ordered) {
-      for (let i = 0; i < list.length; i += maxPerRoom) {
-        const label = roomNames[roomIndex] || `Room ${roomIndex + 1}`;
-        for (const p of list.slice(i, i + maxPerRoom)) {
-          assignments.push({ id: p.id, room: label });
-        }
-        roomIndex += 1;
+    plan.forEach((members, roomIndex) => {
+      const label = roomNames[roomIndex] || `Room ${roomIndex + 1}`;
+      for (const p of members) {
+        assignments.push({ id: p.id, room: label });
       }
-    }
+    });
 
     setParticipants((prev) =>
       prev.map((p) => {
