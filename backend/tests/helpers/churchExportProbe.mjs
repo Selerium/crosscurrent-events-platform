@@ -114,6 +114,11 @@ try {
   ids.student = student.id;
   ids.outsider = outsider.id;
 
+  await prisma.profile.update({
+    where: { id: student.id },
+    data: { parentOneName: `Parent ${tag}`, parentOnePhone: "+1-555-0199" },
+  });
+
   const event = await prisma.event.create({
     data: {
       name: `Export Event ${tag}`,
@@ -127,7 +132,8 @@ try {
   });
   ids.event = event.id;
 
-  for (const p of [student, outsider]) {
+  // The leader registration exercises the student-only parent columns.
+  for (const p of [student, outsider, primary]) {
     await prisma.registration.create({
       data: {
         eventId: event.id,
@@ -194,21 +200,33 @@ try {
     fail("membersExport", e.message);
   }
 
-  // 4. Primary event export: own church registrations only.
+  // 4. Primary event export: own church registrations only, with parent
+  //    contact columns filled for students and blank for leaders.
   try {
     const r = await get(`/churches/my/events/${event.id}/export`, primaryToken);
     const { headers, rows } = await readWorkbook(r);
     const names = rows.map((row) => row[0]);
+    const parentNameIdx = headers.indexOf("Parent Name");
+    const parentPhoneIdx = headers.indexOf("Parent Phone");
+    const rowFor = (name) => rows.find((row) => row[0] === name);
+    const leaderRow = rowFor("Primary Contact");
+    const studentRow = rowFor("Church Student");
     summary.steps.eventExport = {
       ok:
         r.status === 200 &&
         headers[0] === "Name" &&
         headers.includes("Emergency Phone") &&
         headers.includes("Registered At") &&
+        parentNameIdx > -1 &&
+        parentPhoneIdx > -1 &&
         names.includes("Church Student") &&
         !names.includes("Outsider Member") &&
-        rows.length === 1,
-      detail: `status=${r.status} rows=${JSON.stringify(names)}`,
+        rows.length === 2 &&
+        studentRow?.[parentNameIdx] === `Parent ${tag}` &&
+        studentRow?.[parentPhoneIdx] === "+1-555-0199" &&
+        !leaderRow?.[parentNameIdx] &&
+        !leaderRow?.[parentPhoneIdx],
+      detail: `status=${r.status} rows=${JSON.stringify(names)} studentParent=${JSON.stringify([studentRow?.[parentNameIdx], studentRow?.[parentPhoneIdx]])} leaderParent=${JSON.stringify([leaderRow?.[parentNameIdx], leaderRow?.[parentPhoneIdx]])}`,
     };
   } catch (e) {
     fail("eventExport", e.message);

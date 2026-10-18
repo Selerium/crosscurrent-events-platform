@@ -328,6 +328,8 @@ churchesHandler.get("/my/events/:eventId/export", async (req, res) => {
     { header: "Notes", key: "notes", width: 30 },
     { header: "Media Consent", key: "mediaConsent", width: 14 },
     { header: "Swimming Permission", key: "swimmingPermission", width: 18 },
+    { header: "Parent Name", key: "parentName", width: 25 },
+    { header: "Parent Phone", key: "parentPhone", width: 18 },
     { header: "Parent Verified", key: "parentVerified", width: 16 },
     { header: "Group", key: "group", width: 15 },
     { header: "Room", key: "room", width: 15 },
@@ -337,6 +339,8 @@ churchesHandler.get("/my/events/:eventId/export", async (req, res) => {
     { header: "Registered At", key: "createdAt", width: 20 },
   ];
   for (const r of event.registrations) {
+    // Parent contact details only apply to student registrants.
+    const isStudent = (r.profile.role ?? "STUDENT") === "STUDENT";
     sheet.addRow({
       name: r.profile.name,
       email: r.profile.user?.email || "",
@@ -355,6 +359,8 @@ churchesHandler.get("/my/events/:eventId/export", async (req, res) => {
       notes: r.notes || "",
       mediaConsent: r.mediaConsent ? "Yes" : "No",
       swimmingPermission: r.swimmingPermission ? "Yes" : "No",
+      parentName: isStudent ? r.profile.parentOneName || "" : "",
+      parentPhone: isStudent ? r.profile.parentOnePhone || "" : "",
       parentVerified: r.parentVerified ? "Yes" : "No",
       group: r.group || "",
       room: r.room || "",
