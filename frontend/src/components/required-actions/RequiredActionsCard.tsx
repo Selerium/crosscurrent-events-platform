@@ -49,7 +49,8 @@ export default function RequiredActionsCard() {
   const handleCompleted = useCallback(
     (actionId: string) => {
       // Keep the item visible (it may be shown via the completed checkbox);
-      // flip its status in place, then sync with the server.
+      // flip its status in place, then sync with the server. The modal stays
+      // open — the user closes it when they are ready.
       setItems((prev) =>
         prev.map((i) =>
           i.action.id === actionId
@@ -57,7 +58,6 @@ export default function RequiredActionsCard() {
             : i
         )
       );
-      setActive(null);
       fetchActions();
     },
     [fetchActions]

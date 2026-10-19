@@ -1,10 +1,10 @@
 /**
  * Integration test for the admin video upload flow
- * (POST /admin/videos/upload-token, POST /admin/videos, DELETE /admin/videos/:id).
+ * (POST /admin/videos, GET /uploads/videos/..., DELETE /admin/videos/:id).
  *
- * Boots the real app against the database in DATABASE_URL and uploads a
- * real blob with the real VIDEO_READ_WRITE_TOKEN, so it is skipped when
- * either is missing:
+ * Boots the real app against the database in DATABASE_URL and writes real
+ * files under backend/uploads/videos, so it is skipped when the database is
+ * unreachable:
  *
  *   DATABASE_URL="postgres://user:password@localhost:5434/mydb" npm test
  */
@@ -44,10 +44,10 @@ async function dbReachable() {
   });
 }
 
-const reachable = (await dbReachable()) && Boolean(process.env.VIDEO_READ_WRITE_TOKEN);
+const reachable = await dbReachable();
 
 test(
-  "admin video uploads go direct to the blob bucket via client tokens",
+  "admin video uploads are stored on disk and served over HTTP",
   { skip: !reachable },
   () => {
     const { status, stdout, stderr } = spawnSync(

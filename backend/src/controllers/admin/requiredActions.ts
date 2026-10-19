@@ -150,8 +150,15 @@ adminRequiredActionsHandler.patch("/:actionId", async (req, res) => {
   });
   if (!action) throw new AppError("Required action not found", 404);
 
-  const { title, description, audience, videoUrl, markdown, formFileUrl } =
-    req.body ?? {};
+  const {
+    title,
+    description,
+    audience,
+    videoUrl,
+    videoAssetId,
+    markdown,
+    formFileUrl,
+  } = req.body ?? {};
   const data: Record<string, unknown> = {};
   if (title !== undefined) {
     if (!String(title).trim()) throw new AppError("Title cannot be empty", 400);
@@ -164,8 +171,22 @@ adminRequiredActionsHandler.patch("/:actionId", async (req, res) => {
       throw new AppError("Invalid audience", 400);
     data.audience = audience;
   }
-  if (videoUrl !== undefined)
-    data.videoUrl = videoUrl ? String(videoUrl).trim() : null;
+  // Swap only the video link. Completions (and therefore every user's watch
+  // status) are left exactly as they are — nobody re-watches or loses credit.
+  if (action.type !== "VIDEO" && (videoUrl !== undefined || videoAssetId !== undefined)) {
+    throw new AppError("Only video required actions have a video link", 400);
+  }
+  if (videoAssetId !== undefined) {
+    const asset = await prisma.videoAsset.findUnique({
+      where: { id: String(videoAssetId) },
+    });
+    if (!asset) throw new AppError("Selected video not found", 404);
+    data.videoUrl = asset.url;
+  } else if (videoUrl !== undefined) {
+    const next = videoUrl ? String(videoUrl).trim() : "";
+    if (!next) throw new AppError("A video is required for video actions", 400);
+    data.videoUrl = next;
+  }
   if (markdown !== undefined)
     data.markdown = markdown ? String(markdown) : null;
   if (formFileUrl !== undefined)

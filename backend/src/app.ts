@@ -13,8 +13,18 @@ import errorHandler from "./middleware/errorHandler.ts";
 import protectedRouter from "./controllers/routeGuard.ts";
 import webhookHandler from "./controllers/webhook.ts";
 import { prisma } from "./lib/prismaClient.ts";
+import { videosDir } from "./lib/videoStore.ts";
 
 const app = express();
+
+// Behind nginx: trust the proxy so req.protocol/host reflect the public URL.
+app.set("trust proxy", 1);
+
+// Uploaded videos (nginx serves these directly in production).
+app.use(
+  "/uploads/videos",
+  express.static(videosDir, { maxAge: "1y", immutable: true })
+);
 
 app.use(cors({
   origin: process.env.FRONTEND_URL,

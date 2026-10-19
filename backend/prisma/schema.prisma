@@ -350,7 +350,7 @@ model RequiredActionCompletion {
   @@index([profileId, status])
 }
 
-// Global library of admin-uploaded videos (Vercel Blob, public).
+// Global library of admin-uploaded videos (stored in uploads/videos, served by nginx).
 // Required actions reference a row; the dropdown lists titles.
 model VideoAsset {
   id           String   @id @default(uuid())

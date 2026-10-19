@@ -3,20 +3,18 @@
  *
  * Spawned with `node --experimental-strip-types` so it can import the real
  * TypeScript sources. Seeds an admin and a regular user, boots the real app
- * on an ephemeral port, and exercises the direct-to-blob upload flow:
+ * on an ephemeral port, and exercises the on-disk upload flow:
  *
- *   POST /admin/videos/upload-token  → scoped client token
- *   put(pathname, body, { token })   → straight into the real bucket
- *   POST /admin/videos               → registers the library row
- *   DELETE /admin/videos/:id         → removes row + blob
+ *   POST /admin/videos       → multipart (video + title) saved to uploads/videos
+ *   GET  /uploads/videos/... → served with Range support
+ *   DELETE /admin/videos/:id → removes row + file
  *
- * Env: DATABASE_URL, JWT_SECRET, RESEND_API_KEY, STRIPE_SECRET_KEY,
- * VIDEO_READ_WRITE_TOKEN.
+ * Env: DATABASE_URL, JWT_SECRET, RESEND_API_KEY, STRIPE_SECRET_KEY.
  */
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import jwt from "jsonwebtoken";
-import { put } from "@vercel/blob/client";
-import { head, del } from "@vercel/blob";
 
 const JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
@@ -26,43 +24,53 @@ console.log = (...args) => process.stderr.write(args.join(" ") + "\n");
 
 const { prisma } = await import("../../src/lib/prismaClient.ts");
 const { default: app } = await import("../../src/app.ts");
+const { videosDir, VIDEOS_URL_PREFIX } = await import(
+  "../../src/lib/videoStore.ts"
+);
 
 const summary = { steps: {} };
 const stamp = Date.now();
 const tag = `av-${stamp}`;
+const PAYLOAD = Buffer.from("fake-video-bytes"); // 16 bytes
 
 let server;
 let port;
 const ids = {};
-const blobs = [];
+const uploadedFiles = [];
 
 function fail(step, detail) {
   summary.steps[step] = { ok: false, detail: String(detail) };
 }
 
-async function req(method, path, token, body) {
-  return fetch(`http://127.0.0.1:${port}${path}`, {
-    method,
-    headers: {
-      ...(token ? { Cookie: `access_token=${token}` } : {}),
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-}
-
 const tokenFor = (profileId) =>
   jwt.sign({ id: profileId }, JWT_SECRET, { expiresIn: "15m" });
 
+const cookie = (token) => (token ? { Cookie: `access_token=${token}` } : {});
+
+async function uploadVideo(token, { title, bytes = PAYLOAD, type = "video/mp4", filename = "probe-video.mp4" } = {}) {
+  const form = new FormData();
+  if (title !== undefined) form.append("title", title);
+  if (bytes !== undefined) form.append("video", new Blob([bytes], { type }), filename);
+  return fetch(`http://127.0.0.1:${port}/admin/videos`, {
+    method: "POST",
+    headers: cookie(token),
+    body: form,
+  });
+}
+
+function filesInVideosDir() {
+  return fs.readdirSync(videosDir).filter((f) => !f.startsWith("."));
+}
+
 try {
-  const mkUser = async (email, name, role, primary) => {
+  const mkUser = async (email, name, role) => {
     const user = await prisma.user.create({
       data: {
         email,
         password: "x",
         emailVerified: true,
         profile: {
-          create: { name, role, approved: true, firstTime: false, primaryForChurch: primary },
+          create: { name, role, approved: true, firstTime: false, primaryForChurch: false },
         },
       },
       include: { profile: true },
@@ -70,8 +78,8 @@ try {
     return user.profile;
   };
 
-  const admin = await mkUser(`admin-${tag}@example.com`, "Video Admin", "ADMIN", false);
-  const member = await mkUser(`member-${tag}@example.com`, "Regular Member", "STUDENT", false);
+  const admin = await mkUser(`admin-${tag}@example.com`, "Video Admin", "ADMIN");
+  const member = await mkUser(`member-${tag}@example.com`, "Regular Member", "STUDENT");
   ids.admin = admin.id;
   ids.member = member.id;
 
@@ -84,149 +92,119 @@ try {
 
   // 1. Gating: anon 401, non-admin 403.
   try {
-    const anon = await req("POST", "/admin/videos/upload-token", null, {});
-    const nonAdmin = await req("POST", "/admin/videos/upload-token", memberToken, {});
-    summary.steps.tokenGating = {
+    const anon = await uploadVideo(null, { title: "nope" });
+    const nonAdmin = await uploadVideo(memberToken, { title: "nope" });
+    summary.steps.uploadGating = {
       ok: anon.status === 401 && nonAdmin.status === 403,
       detail: `anon=${anon.status} member=${nonAdmin.status}`,
     };
   } catch (e) {
-    fail("tokenGating", e.message);
+    fail("uploadGating", e.message);
   }
 
-  // 2. Validation: bad content type, missing filename, oversize.
+  // 2. A file without a title is rejected AND the written file is cleaned up.
   try {
-    const badType = await req("POST", "/admin/videos/upload-token", adminToken, {
+    const before = new Set(filesInVideosDir());
+    const r = await uploadVideo(adminToken, {});
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const after = filesInVideosDir().filter((f) => !before.has(f));
+    summary.steps.missingTitleCleansUp = {
+      ok: r.status === 400 && after.length === 0,
+      detail: `status=${r.status} leftover=${after.join(",")}`,
+    };
+  } catch (e) {
+    fail("missingTitleCleansUp", e.message);
+  }
+
+  // 3. Non-video files are rejected before anything is stored.
+  try {
+    const r = await uploadVideo(adminToken, {
+      title: "Not a video",
+      type: "image/png",
       filename: "photo.png",
-      contentType: "image/png",
-      sizeBytes: 1000,
     });
-    const noName = await req("POST", "/admin/videos/upload-token", adminToken, {
-      filename: "",
-      contentType: "video/mp4",
-      sizeBytes: 1000,
-    });
-    const tooBig = await req("POST", "/admin/videos/upload-token", adminToken, {
-      filename: "huge.mp4",
-      contentType: "video/mp4",
-      sizeBytes: 1024 * 1024 * 1024 + 1,
-    });
-    summary.steps.tokenValidation = {
-      ok: badType.status === 400 && noName.status === 400 && tooBig.status === 400,
-      detail: `type=${badType.status} name=${noName.status} size=${tooBig.status}`,
+    const body = await r.json();
+    summary.steps.nonVideoRejected = {
+      ok: r.status === 400 && /video/i.test(body.message || ""),
+      detail: `status=${r.status} message=${body.message}`,
     };
   } catch (e) {
-    fail("tokenValidation", e.message);
+    fail("nonVideoRejected", e.message);
   }
 
-  // 3. Issue a token and upload directly to the bucket (as the browser does).
-  let uploadedUrl = "";
-  let uploadedTitle = "";
+  // 4. Successful upload: row + file on disk with the public URL.
+  let asset = null;
+  let diskPath = "";
   try {
-    const r = await req("POST", "/admin/videos/upload-token", adminToken, {
-      filename: "probe-video.mp4",
-      contentType: "video/mp4",
-      sizeBytes: 16,
-    });
-    const { token, pathname } = (await r.json()).data;
-    const blob = await put(pathname, Buffer.from("fake-video-bytes"), {
-      access: "public",
-      token,
-      contentType: "video/mp4",
-    });
-    blobs.push(blob.url);
-    uploadedUrl = blob.url;
-    uploadedTitle = `Probe Video ${tag}`;
-    summary.steps.directUpload = {
-      ok:
-        r.status === 200 &&
-        typeof token === "string" &&
-        pathname.startsWith("required-actions/") &&
-        pathname.endsWith(".mp4") &&
-        blob.url.startsWith("https://") &&
-        blob.pathname === pathname,
-      detail: `status=${r.status} pathname=${pathname} url=${blob.url}`,
-    };
-  } catch (e) {
-    fail("directUpload", e.message);
-  }
-
-  // 4. Register the blob as a library asset.
-  let assetId = "";
-  try {
-    const r = await req("POST", "/admin/videos", adminToken, {
-      title: uploadedTitle,
-      url: uploadedUrl,
-    });
-    const asset = (await r.json()).data;
-    assetId = asset?.id || "";
-    summary.steps.registerAsset = {
+    const title = `Probe Video ${tag}`;
+    const r = await uploadVideo(adminToken, { title });
+    asset = (await r.json()).data;
+    const filename = asset?.url ? path.basename(new URL(asset.url).pathname) : "";
+    diskPath = path.join(videosDir, filename);
+    uploadedFiles.push(diskPath);
+    const onDisk = fs.existsSync(diskPath) ? fs.readFileSync(diskPath) : null;
+    summary.steps.uploadStoresFile = {
       ok:
         r.status === 201 &&
-        asset?.url === uploadedUrl &&
+        typeof asset?.url === "string" &&
+        new URL(asset.url).pathname.startsWith(VIDEOS_URL_PREFIX) &&
         asset?.mimeType === "video/mp4" &&
-        asset?.sizeBytes === 16 &&
-        asset?.uploadedById === admin.id,
-      detail: `status=${r.status} asset=${JSON.stringify(asset)}`,
+        asset?.sizeBytes === PAYLOAD.length &&
+        asset?.uploadedById === admin.id &&
+        asset?.title === title &&
+        onDisk !== null &&
+        onDisk.equals(PAYLOAD),
+      detail: `status=${r.status} url=${asset?.url} onDisk=${onDisk?.length}`,
     };
   } catch (e) {
-    fail("registerAsset", e.message);
+    fail("uploadStoresFile", e.message);
   }
 
-  // 5. Registration is idempotent for the same URL.
+  // 5. The stored file is served over HTTP, including Range requests.
   try {
-    const r = await req("POST", "/admin/videos", adminToken, {
-      title: uploadedTitle,
-      url: uploadedUrl,
+    const full = await fetch(asset.url);
+    const body = Buffer.from(await full.arrayBuffer());
+    const ranged = await fetch(asset.url, { headers: { Range: "bytes=0-3" } });
+    const rangedBody = Buffer.from(await ranged.arrayBuffer());
+    summary.steps.staticServing = {
+      ok:
+        full.status === 200 &&
+        body.equals(PAYLOAD) &&
+        full.headers.get("content-type")?.includes("video/mp4") &&
+        ranged.status === 206 &&
+        rangedBody.length === 4 &&
+        ranged.headers.get("content-range") === `bytes 0-3/${PAYLOAD.length}`,
+      detail: `full=${full.status} range=${ranged.status} contentRange=${ranged.headers.get("content-range")}`,
+    };
+  } catch (e) {
+    fail("staticServing", e.message);
+  }
+
+  // 6. Library listing includes the asset.
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/admin/videos`, {
+      headers: cookie(adminToken),
     });
-    const asset = (await r.json()).data;
-    summary.steps.registerIdempotent = {
-      ok: r.status === 200 && asset?.id === assetId,
-      detail: `status=${r.status} id=${asset?.id}`,
-    };
-  } catch (e) {
-    fail("registerIdempotent", e.message);
-  }
-
-  // 6. Foreign URLs are rejected.
-  try {
-    const r = await req("POST", "/admin/videos", adminToken, {
-      title: "Not our blob",
-      url: `https://example.com/${tag}.mp4`,
-    });
-    summary.steps.foreignUrlRejected = {
-      ok: r.status === 400,
-      detail: `status=${r.status}`,
-    };
-  } catch (e) {
-    fail("foreignUrlRejected", e.message);
-  }
-
-  // 7. Library listing includes the asset.
-  try {
-    const r = await req("GET", "/admin/videos", adminToken);
     const data = (await r.json()).data || [];
     summary.steps.libraryListing = {
-      ok: r.status === 200 && data.some((v) => v.id === assetId),
+      ok: r.status === 200 && data.some((v) => v.id === asset?.id),
       detail: `status=${r.status} count=${data.length}`,
     };
   } catch (e) {
     fail("libraryListing", e.message);
   }
 
-  // 8. Delete removes the row AND the blob from the bucket.
+  // 7. Delete removes the row AND the file from disk.
   try {
-    const r = await req("DELETE", `/admin/videos/${assetId}`, adminToken);
-    let blobGone = false;
-    try {
-      await head(uploadedUrl, { token: process.env.VIDEO_READ_WRITE_TOKEN });
-    } catch {
-      blobGone = true;
-    }
-    const row = await prisma.videoAsset.findUnique({ where: { id: assetId } });
+    const r = await fetch(
+      `http://127.0.0.1:${port}/admin/videos/${asset?.id}`,
+      { method: "DELETE", headers: cookie(adminToken) }
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const row = await prisma.videoAsset.findUnique({ where: { id: asset?.id } });
     summary.steps.deleteRemovesEverything = {
-      ok: r.status === 200 && blobGone && row === null,
-      detail: `status=${r.status} blobGone=${blobGone} row=${row}`,
+      ok: r.status === 200 && row === null && !fs.existsSync(diskPath),
+      detail: `status=${r.status} row=${row} fileExists=${fs.existsSync(diskPath)}`,
     };
   } catch (e) {
     fail("deleteRemovesEverything", e.message);
@@ -251,9 +229,9 @@ try {
   } catch (e) {
     summary.cleanupError = String(e?.message ?? e);
   }
-  for (const url of blobs) {
+  for (const file of uploadedFiles) {
     try {
-      await del(url, { token: process.env.VIDEO_READ_WRITE_TOKEN });
+      fs.unlinkSync(file);
     } catch {
       // already deleted in the happy path
     }

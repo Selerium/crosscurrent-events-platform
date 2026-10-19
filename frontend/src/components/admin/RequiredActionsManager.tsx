@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { put } from "@vercel/blob/client";
-import { ChevronDown, Trash2, Upload, Video } from "lucide-react";
+import { ChevronDown, RefreshCw, Trash2, Upload, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +78,10 @@ export default function RequiredActionsManager({
   const [completions, setCompletions] = useState<Record<string, CompletionRow[]>>({});
   const [completionsLoading, setCompletionsLoading] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  // "Change video" inline editor, keyed by the action being edited.
+  const [changingId, setChangingId] = useState<string | null>(null);
+  const [changeVideoId, setChangeVideoId] = useState("");
+  const [changingSaving, setChangingSaving] = useState(false);
   // The open form always stays visible so the top "Add required action"
   // button never scrolls to a hidden form.
   const bodyVisible = !collapsed || formOpen;
@@ -118,27 +121,22 @@ export default function RequiredActionsManager({
     setUploading(true);
     setUploadPercent(0);
     try {
-      // 1. Ask the backend for a scoped upload token (video/*, 1GB, 1h).
-      const tokenRes = await api.post("/admin/videos/upload-token", {
-        filename: file.name,
-        contentType: file.type || "video/mp4",
-        sizeBytes: file.size,
-      });
-      const { token, pathname } = tokenRes.data.data;
+      // Send the file to the backend, which stores it in uploads/videos
+      // (served publicly by nginx). No timeout: large videos can take a while.
+      const form = new FormData();
+      form.append("title", name);
+      form.append("video", file);
 
-      // 2. Send the file straight to the blob bucket (never through the
-      //    backend). Multipart splits large files into parts with retries.
-      const blob = await put(pathname, file, {
-        access: "public",
-        token,
-        contentType: file.type || "video/mp4",
-        multipart: true,
-        onUploadProgress: ({ percentage }) =>
-          setUploadPercent(Math.min(100, Math.round(percentage))),
+      const res = await api.post("/admin/videos", form, {
+        timeout: 0,
+        onUploadProgress: (e) => {
+          if (!e.total) return;
+          setUploadPercent(
+            Math.min(100, Math.round((e.loaded / e.total) * 100))
+          );
+        },
       });
 
-      // 3. Register the blob as a library asset.
-      const res = await api.post("/admin/videos", { title: name, url: blob.url });
       const asset: VideoAsset = res.data.data;
       setLibrary((prev) => [asset, ...prev]);
       setSelectedVideoId(asset.id);
@@ -190,6 +188,38 @@ export default function RequiredActionsManager({
       fetchActions();
     } catch {
       toast.error("Could not delete required action.");
+    }
+  }
+
+  function startChangeVideo(action: RequiredAction) {
+    setChangingId(action.id);
+    // Preselect the library asset that currently backs this action, if any.
+    const match = library.find((v) => v.url === action.videoUrl);
+    setChangeVideoId(match?.id ?? "");
+  }
+
+  function cancelChangeVideo() {
+    setChangingId(null);
+    setChangeVideoId("");
+  }
+
+  async function saveChangeVideo(actionId: string) {
+    if (!changeVideoId) {
+      toast.error("Pick a video first.");
+      return;
+    }
+    setChangingSaving(true);
+    try {
+      await api.patch(`/admin/events/${eventId}/required-actions/${actionId}`, {
+        videoAssetId: changeVideoId,
+      });
+      toast.success("Video replaced. Watch progress is unchanged.");
+      cancelChangeVideo();
+      fetchActions();
+    } catch {
+      toast.error("Could not change the video.");
+    } finally {
+      setChangingSaving(false);
     }
   }
 
@@ -304,7 +334,7 @@ export default function RequiredActionsManager({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Uploaded to public storage (max 1GB). The link is generated
+              Uploaded to server storage (max 1GB). The link is generated
               automatically and the video is selected above.
             </p>
             {uploading && (
@@ -403,15 +433,79 @@ export default function RequiredActionsManager({
                     {action.completedCount}/{action.totalAssignees} completed
                   </span>
                 </button>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label="Delete required action"
-                  onClick={() => handleDelete(action)}
-                >
-                  <Trash2 width={16} height={16} />
-                </Button>
+                <div className="flex items-center gap-1">
+                  {action.type === "VIDEO" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        changingId === action.id
+                          ? cancelChangeVideo()
+                          : startChangeVideo(action)
+                      }
+                    >
+                      <RefreshCw width={14} height={14} />
+                      Change video
+                    </Button>
+                  )}
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label="Delete required action"
+                    onClick={() => handleDelete(action)}
+                  >
+                    <Trash2 width={16} height={16} />
+                  </Button>
+                </div>
               </div>
+              {changingId === action.id && (
+                <div className="border-t bg-muted/30 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div className="flex flex-1 flex-col gap-1">
+                      <Label>Replace video</Label>
+                      <Select value={changeVideoId} onValueChange={setChangeVideoId}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue
+                            placeholder={
+                              libraryLoading
+                                ? "Loading videos…"
+                                : "Select an uploaded video"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {library.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Only the link is replaced. Watch status — completed or
+                        in progress — is kept exactly as it is.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => saveChangeVideo(action.id)}
+                        disabled={changingSaving || !changeVideoId}
+                      >
+                        {changingSaving ? "Saving…" : "Replace"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={cancelChangeVideo}
+                        disabled={changingSaving}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {expanded === action.id && (
                 <div className="border-t p-3">
                   {completionsLoading === action.id ? (
