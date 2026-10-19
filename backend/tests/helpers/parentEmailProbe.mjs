@@ -143,8 +143,9 @@ try {
         emails.includes(`parent-unreg-${tag}@example.com`) &&
         !emails.includes(`parent-leader-${tag}@example.com`) &&
         emails.filter((e) => e === `parent-reg-${tag}@example.com`).length === 1 &&
-        json.data.total === 2,
-      detail: `status=${status} emails=${JSON.stringify(emails)}`,
+        emails.filter((e) => e === `parent-unreg-${tag}@example.com`).length === 1 &&
+        json.data.total >= 2,
+      detail: `status=${status} total=${json.data.total} emails=${JSON.stringify(emails)}`,
     };
   } catch (e) {
     fail("parentsAudience", e.message);

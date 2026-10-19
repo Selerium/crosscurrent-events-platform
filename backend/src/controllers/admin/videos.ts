@@ -3,8 +3,9 @@ import AppError from "../../lib/appError.ts";
 import { prisma } from "../../lib/prismaClient.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
 import {
-  uploadVideoMiddleware,
-  putVideoToBucket,
+  MAX_VIDEO_BYTES,
+  issueVideoUploadToken,
+  verifyBlobInBucket,
   deleteVideoFromBucket,
 } from "../../lib/videoStore.ts";
 
@@ -19,26 +20,67 @@ adminVideosHandler.get("", async (_req, res) => {
   res.status(200).json({ data: videos, error: false, message: "" });
 });
 
-// POST /admin/videos — multipart `video` + `title` → public bucket + row.
-adminVideosHandler.post("", uploadVideoMiddleware, async (req: any, res) => {
+// POST /admin/videos/upload-token — mint a scoped client upload token so the
+// browser can send the video straight to the blob bucket (never through the
+// backend). Constrained to video/*, 1GB, one pathname, 1 hour.
+adminVideosHandler.post("/upload-token", async (req, res) => {
+  const filename = String(req.body?.filename ?? "").trim();
+  const contentType = String(req.body?.contentType ?? "").trim().toLowerCase();
+  const sizeBytes = Number(req.body?.sizeBytes);
+
+  if (!filename) {
+    throw new AppError("A filename is required", 400);
+  }
+  if (!contentType.startsWith("video/")) {
+    throw new AppError("Only video files are allowed", 400);
+  }
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    throw new AppError("A valid file size is required", 400);
+  }
+  if (sizeBytes > MAX_VIDEO_BYTES) {
+    throw new AppError("Video is too large (max 1GB)", 400);
+  }
+
+  const { token, pathname } = await issueVideoUploadToken({
+    filename,
+    contentType,
+  });
+
+  res.status(200).json({ data: { token, pathname }, error: false, message: "" });
+});
+
+// POST /admin/videos — register a blob the admin already uploaded directly
+// to the bucket (via the upload-token flow) as a library asset.
+adminVideosHandler.post("", async (req: any, res) => {
   const title = String(req.body?.title ?? "").trim();
+  const url = String(req.body?.url ?? "").trim();
   if (!title) {
     throw new AppError("A title is required", 400);
   }
+  if (!url) {
+    throw new AppError("A blob url is required", 400);
+  }
 
-  const file = req.file as Express.Multer.File;
-  const { url } = await putVideoToBucket(
-    file.path,
-    file.filename,
-    file.mimetype
-  );
+  // Idempotent: a retried registration returns the existing row.
+  const existing = await prisma.videoAsset.findUnique({ where: { url } });
+  if (existing) {
+    res.status(200).json({ data: existing, error: false, message: "Video uploaded" });
+    return;
+  }
+
+  // Proves the URL is a blob in OUR store under the video prefix and
+  // enforces the size cap; also gives us the authoritative metadata.
+  const blob = await verifyBlobInBucket(url);
+  if (!blob.contentType.startsWith("video/")) {
+    throw new AppError("Blob is not a video", 400);
+  }
 
   const asset = await prisma.videoAsset.create({
     data: {
       title,
       url,
-      mimeType: file.mimetype,
-      sizeBytes: file.size,
+      mimeType: blob.contentType,
+      sizeBytes: blob.size,
       uploadedById: req.user!.id,
     },
   });
@@ -49,7 +91,7 @@ adminVideosHandler.post("", uploadVideoMiddleware, async (req: any, res) => {
     action: "video.upload",
     targetType: "video-asset",
     targetId: asset.id,
-    details: { title, sizeBytes: file.size },
+    details: { title, sizeBytes: blob.size, pathname: blob.pathname },
     success: true,
   });
 

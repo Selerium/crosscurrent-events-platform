@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { put } from "@vercel/blob/client";
 import { ChevronDown, Trash2, Upload, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -117,29 +118,38 @@ export default function RequiredActionsManager({
     setUploading(true);
     setUploadPercent(0);
     try {
-      const form = new FormData();
-      form.append("video", file);
-      form.append("title", name);
-      const res = await api.post("/admin/videos", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 0,
-        onUploadProgress: (e) => {
-          if (e.total && e.total > 0) {
-            setUploadPercent(Math.min(100, Math.round((e.loaded / e.total) * 100)));
-          } else {
-            // Total unknown: indeterminate state.
-            setUploadPercent(-1);
-          }
-        },
+      // 1. Ask the backend for a scoped upload token (video/*, 1GB, 1h).
+      const tokenRes = await api.post("/admin/videos/upload-token", {
+        filename: file.name,
+        contentType: file.type || "video/mp4",
+        sizeBytes: file.size,
       });
+      const { token, pathname } = tokenRes.data.data;
+
+      // 2. Send the file straight to the blob bucket (never through the
+      //    backend). Multipart splits large files into parts with retries.
+      const blob = await put(pathname, file, {
+        access: "public",
+        token,
+        contentType: file.type || "video/mp4",
+        multipart: true,
+        onUploadProgress: ({ percentage }) =>
+          setUploadPercent(Math.min(100, Math.round(percentage))),
+      });
+
+      // 3. Register the blob as a library asset.
+      const res = await api.post("/admin/videos", { title: name, url: blob.url });
       const asset: VideoAsset = res.data.data;
       setLibrary((prev) => [asset, ...prev]);
       setSelectedVideoId(asset.id);
       setUploadTitle("");
       if (fileRef.current) fileRef.current.value = "";
       toast.success("Video uploaded — selected for this action.");
-    } catch {
-      toast.error("Video upload failed.");
+    } catch (err) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Video upload failed.";
+      toast.error(message);
     } finally {
       setUploading(false);
     }

@@ -1,59 +1,13 @@
-import fs from "fs";
-import os from "os";
-import path from "path";
 import crypto from "crypto";
-import multer from "multer";
-import { put, del } from "@vercel/blob";
+import path from "path";
+import { del, head } from "@vercel/blob";
+import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
 import AppError from "./appError.ts";
 
 export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024; // 1GB
 
-const VIDEO_MIME_PREFIXES = ["video/"];
-
-const tmpDir = (() => {
-  // Prefer the repo uploads dir (docker runs as root); fall back to the OS
-  // tmp dir for local dev where uploads/ may be root-owned.
-  try {
-    const preferred = path.join(process.cwd(), "uploads", "tmp");
-    fs.mkdirSync(preferred, { recursive: true });
-    return preferred;
-  } catch {
-    const fallback = path.join(os.tmpdir(), "cc-video-uploads");
-    fs.mkdirSync(fallback, { recursive: true });
-    return fallback;
-  }
-})();
-
-const videoUpload = multer({
-  // Disk storage: videos are large, never buffer them in memory.
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, tmpDir),
-    filename: (_req, file, cb) =>
-      cb(null, `${Date.now()}-${crypto.randomUUID()}${path.extname(file.originalname)}`),
-  }),
-  limits: { fileSize: MAX_VIDEO_BYTES },
-  fileFilter: (_req, file, cb) => {
-    if (!VIDEO_MIME_PREFIXES.some((p) => file.mimetype.startsWith(p))) {
-      cb(new AppError("Only video files are allowed", 400));
-      return;
-    }
-    cb(null, true);
-  },
-});
-
-export const uploadVideoMiddleware = (req: any, res: any, next: any) => {
-  videoUpload.single("video")(req, res, (err: any) => {
-    if (err) {
-      if (err.code === "LIMIT_FILE_SIZE") {
-        return next(new AppError("Video is too large (max 1GB)", 400));
-      }
-      if (err.statusCode) return next(err);
-      return next(new AppError(err.message || "Video upload failed", 400));
-    }
-    if (!req.file) return next(new AppError("No video file provided", 400));
-    next();
-  });
-};
+// Every video blob lives under this prefix; the client never chooses the path.
+export const VIDEO_PATH_PREFIX = "required-actions/";
 
 function blobToken(): string {
   const token = process.env.VIDEO_READ_WRITE_TOKEN;
@@ -63,24 +17,61 @@ function blobToken(): string {
   return token;
 }
 
-/** Upload a local file to the public bucket, return the public URL. */
-export async function putVideoToBucket(
-  localPath: string,
-  filename: string,
-  mimeType?: string
-): Promise<{ url: string }> {
-  const stream = fs.createReadStream(localPath);
+export function buildVideoPathname(filename: string): string {
+  const ext = path.extname(filename).toLowerCase() || ".mp4";
+  return `${VIDEO_PATH_PREFIX}${Date.now()}-${crypto.randomUUID()}${ext}`;
+}
+
+/**
+ * Mint a short-lived client token scoped to one pathname, video content
+ * types, and the size limit. The browser uses it to `put()` the file
+ * straight into the public bucket — the video never passes through the
+ * backend.
+ */
+export async function issueVideoUploadToken(options: {
+  filename: string;
+  contentType: string;
+}): Promise<{ token: string; pathname: string }> {
+  const pathname = buildVideoPathname(options.filename);
+  const token = await generateClientTokenFromReadWriteToken({
+    token: blobToken(),
+    pathname,
+    allowedContentTypes: ["video/*"],
+    maximumSizeInBytes: MAX_VIDEO_BYTES,
+    validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
+  });
+  return { token, pathname };
+}
+
+/**
+ * Confirm a URL points at a blob in OUR store under the video prefix.
+ * Returns the blob metadata (size, content type) for row creation.
+ */
+export async function verifyBlobInBucket(url: string): Promise<{
+  pathname: string;
+  size: number;
+  contentType: string;
+}> {
+  let blob;
   try {
-    const blob = await put(`required-actions/${filename}`, stream as any, {
-      access: "public",
-      token: blobToken(),
-      ...(mimeType ? { contentType: mimeType } : {}),
-    });
-    return { url: blob.url };
-  } finally {
-    (stream as any).destroy?.();
-    fs.unlink(localPath, () => {});
+    blob = await head(url, { token: blobToken() });
+  } catch {
+    throw new AppError("URL is not a blob in the configured store", 400);
   }
+  if (!blob.pathname.startsWith(VIDEO_PATH_PREFIX)) {
+    throw new AppError(
+      `Blob must live under ${VIDEO_PATH_PREFIX}`,
+      400
+    );
+  }
+  if (blob.size > MAX_VIDEO_BYTES) {
+    throw new AppError("Video is too large (max 1GB)", 400);
+  }
+  return {
+    pathname: blob.pathname,
+    size: blob.size,
+    contentType: blob.contentType,
+  };
 }
 
 /** Remove a public URL from the bucket (best-effort, never throws). */
