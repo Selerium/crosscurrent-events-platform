@@ -116,7 +116,11 @@ try {
 
   await prisma.profile.update({
     where: { id: student.id },
-    data: { parentOneName: `Parent ${tag}`, parentOnePhone: "+1-555-0199" },
+    data: {
+      parentOneName: `Parent ${tag}`,
+      parentOneEmail: `parent-${tag}@example.com`,
+      parentOnePhone: "+1-555-0199",
+    },
   });
 
   const event = await prisma.event.create({
@@ -207,6 +211,7 @@ try {
     const { headers, rows } = await readWorkbook(r);
     const names = rows.map((row) => row[0]);
     const parentNameIdx = headers.indexOf("Parent Name");
+    const parentEmailIdx = headers.indexOf("Parent Email");
     const parentPhoneIdx = headers.indexOf("Parent Phone");
     const rowFor = (name) => rows.find((row) => row[0] === name);
     const leaderRow = rowFor("Primary Contact");
@@ -218,15 +223,18 @@ try {
         headers.includes("Emergency Phone") &&
         headers.includes("Registered At") &&
         parentNameIdx > -1 &&
+        parentEmailIdx > -1 &&
         parentPhoneIdx > -1 &&
         names.includes("Church Student") &&
         !names.includes("Outsider Member") &&
         rows.length === 2 &&
         studentRow?.[parentNameIdx] === `Parent ${tag}` &&
+        studentRow?.[parentEmailIdx] === `parent-${tag}@example.com` &&
         studentRow?.[parentPhoneIdx] === "+1-555-0199" &&
         !leaderRow?.[parentNameIdx] &&
+        !leaderRow?.[parentEmailIdx] &&
         !leaderRow?.[parentPhoneIdx],
-      detail: `status=${r.status} rows=${JSON.stringify(names)} studentParent=${JSON.stringify([studentRow?.[parentNameIdx], studentRow?.[parentPhoneIdx]])} leaderParent=${JSON.stringify([leaderRow?.[parentNameIdx], leaderRow?.[parentPhoneIdx]])}`,
+      detail: `status=${r.status} rows=${JSON.stringify(names)} studentParent=${JSON.stringify([studentRow?.[parentNameIdx], studentRow?.[parentEmailIdx], studentRow?.[parentPhoneIdx]])} leaderParent=${JSON.stringify([leaderRow?.[parentNameIdx], leaderRow?.[parentEmailIdx], leaderRow?.[parentPhoneIdx]])}`,
     };
   } catch (e) {
     fail("eventExport", e.message);
