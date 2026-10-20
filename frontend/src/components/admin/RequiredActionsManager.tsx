@@ -66,6 +66,7 @@ export default function RequiredActionsManager({
   const [description, setDescription] = useState("");
   const [audience, setAudience] = useState<"ALL" | "LEADERS" | "STUDENTS">("ALL");
   const [selectedVideoId, setSelectedVideoId] = useState("");
+  const [customVideoUrl, setCustomVideoUrl] = useState("");
   const [library, setLibrary] = useState<VideoAsset[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
 
@@ -81,6 +82,7 @@ export default function RequiredActionsManager({
   // "Change video" inline editor, keyed by the action being edited.
   const [changingId, setChangingId] = useState<string | null>(null);
   const [changeVideoId, setChangeVideoId] = useState("");
+  const [changeVideoUrl, setChangeVideoUrl] = useState("");
   const [changingSaving, setChangingSaving] = useState(false);
   // The open form always stays visible so the top "Add required action"
   // button never scrolls to a hidden form.
@@ -154,8 +156,9 @@ export default function RequiredActionsManager({
   }
 
   async function handleCreate() {
-    if (!title.trim() || !selectedVideoId) {
-      toast.error("Title and a video are required.");
+    const url = customVideoUrl.trim();
+    if (!title.trim() || (!selectedVideoId && !url)) {
+      toast.error("Title and a video (or video link) are required.");
       return;
     }
     setCreating(true);
@@ -165,12 +168,14 @@ export default function RequiredActionsManager({
         audience,
         title: title.trim(),
         description: description.trim() || undefined,
-        videoAssetId: selectedVideoId,
+        videoAssetId: selectedVideoId || undefined,
+        videoUrl: selectedVideoId ? undefined : url,
       });
       toast.success("Required action added and sent to registrants in scope.");
       setTitle("");
       setDescription("");
       setSelectedVideoId("");
+      setCustomVideoUrl("");
       setAudience("ALL");
       onFormOpenChange(false);
       fetchActions();
@@ -193,25 +198,30 @@ export default function RequiredActionsManager({
 
   function startChangeVideo(action: RequiredAction) {
     setChangingId(action.id);
-    // Preselect the library asset that currently backs this action, if any.
+    // Preselect the library asset that currently backs this action, if any;
+    // otherwise fall back to showing the raw link in the custom URL input.
     const match = library.find((v) => v.url === action.videoUrl);
     setChangeVideoId(match?.id ?? "");
+    setChangeVideoUrl(match ? "" : action.videoUrl ?? "");
   }
 
   function cancelChangeVideo() {
     setChangingId(null);
     setChangeVideoId("");
+    setChangeVideoUrl("");
   }
 
   async function saveChangeVideo(actionId: string) {
-    if (!changeVideoId) {
-      toast.error("Pick a video first.");
+    const url = changeVideoUrl.trim();
+    if (!changeVideoId && !url) {
+      toast.error("Pick a video or paste a link first.");
       return;
     }
     setChangingSaving(true);
     try {
       await api.patch(`/admin/events/${eventId}/required-actions/${actionId}`, {
-        videoAssetId: changeVideoId,
+        videoAssetId: changeVideoId || undefined,
+        videoUrl: changeVideoId ? undefined : url,
       });
       toast.success("Video replaced. Watch progress is unchanged.");
       cancelChangeVideo();
@@ -287,7 +297,13 @@ export default function RequiredActionsManager({
           </div>
           <div className="flex flex-col gap-2 sm:col-span-2">
             <Label>Video</Label>
-            <Select value={selectedVideoId} onValueChange={setSelectedVideoId}>
+            <Select
+              value={selectedVideoId}
+              onValueChange={(v) => {
+                setSelectedVideoId(v);
+                if (v) setCustomVideoUrl("");
+              }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue
                   placeholder={
@@ -308,6 +324,24 @@ export default function RequiredActionsManager({
                 No videos uploaded yet — upload one below.
               </p>
             )}
+          </div>
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <Label htmlFor="ra-custom-url">Or paste a video link</Label>
+            <Input
+              id="ra-custom-url"
+              value={customVideoUrl}
+              onChange={(e) => {
+                setCustomVideoUrl(e.target.value);
+                if (e.target.value.trim()) setSelectedVideoId("");
+              }}
+              placeholder="https://your-server/uploads/videos/example.mp4"
+            />
+            <p className="text-xs text-muted-foreground">
+              Point at any web-hosted video file — e.g. a file you dropped into
+              the server&apos;s uploads folder, served at
+              <span className="font-mono"> /uploads/videos/…</span>. Takes
+              priority over the dropdown when filled.
+            </p>
           </div>
           <div className="flex flex-col gap-2 sm:col-span-2 rounded-lg border p-3">
             <Label>Or upload a new video</Label>
@@ -462,14 +496,20 @@ export default function RequiredActionsManager({
                 <div className="border-t bg-muted/30 p-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                     <div className="flex flex-1 flex-col gap-1">
-                      <Label>Replace video</Label>
-                      <Select value={changeVideoId} onValueChange={setChangeVideoId}>
+                      <Label>Replace with an uploaded video</Label>
+                      <Select
+                        value={changeVideoId}
+                        onValueChange={(v) => {
+                          setChangeVideoId(v);
+                          if (v) setChangeVideoUrl("");
+                        }}
+                      >
                         <SelectTrigger className="w-full">
                           <SelectValue
                             placeholder={
                               libraryLoading
                                 ? "Loading videos…"
-                                : "Select an uploaded video"
+                                : "Select an uploaded video (optional)"
                             }
                           />
                         </SelectTrigger>
@@ -490,7 +530,9 @@ export default function RequiredActionsManager({
                       <Button
                         size="sm"
                         onClick={() => saveChangeVideo(action.id)}
-                        disabled={changingSaving || !changeVideoId}
+                        disabled={
+                          changingSaving || (!changeVideoId && !changeVideoUrl.trim())
+                        }
                       >
                         {changingSaving ? "Saving…" : "Replace"}
                       </Button>
@@ -503,6 +545,25 @@ export default function RequiredActionsManager({
                         Cancel
                       </Button>
                     </div>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-1">
+                    <Label htmlFor={`change-url-${action.id}`}>
+                      Or paste a video link
+                    </Label>
+                    <Input
+                      id={`change-url-${action.id}`}
+                      value={changeVideoUrl}
+                      onChange={(e) => {
+                        setChangeVideoUrl(e.target.value);
+                        if (e.target.value.trim()) setChangeVideoId("");
+                      }}
+                      placeholder="https://your-server/uploads/videos/example.mp4"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Any web-hosted video file works, including files you put
+                      on the server directly. Takes priority over the dropdown
+                      when filled.
+                    </p>
                   </div>
                 </div>
               )}

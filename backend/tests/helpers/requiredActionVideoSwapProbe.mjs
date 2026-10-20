@@ -223,6 +223,31 @@ try {
   } catch (e) {
     fail("nonVideoRejected", e.message);
   }
+
+  // 6. Swap to a custom, self-hosted URL: link changes, watch status kept.
+  try {
+    const customUrl = `https://api.crosscurrent.ae/uploads/videos/manual-${tag}.mp4`;
+    const r = await req("PATCH", `${base}/${action.id}`, adminToken, {
+      videoUrl: customUrl,
+    });
+    const updated = (await r.json()).data;
+    const done = await prisma.requiredActionCompletion.findUnique({
+      where: { id: donesRow.id },
+    });
+    const partial = await prisma.requiredActionCompletion.findUnique({
+      where: { id: partialRow.id },
+    });
+    summary.steps.customUrlSwap = {
+      ok:
+        r.status === 200 &&
+        updated?.videoUrl === customUrl &&
+        JSON.stringify(snapshot(done)) === JSON.stringify(before.done) &&
+        JSON.stringify(snapshot(partial)) === JSON.stringify(before.partial),
+      detail: `status=${r.status} url=${updated?.videoUrl}`,
+    };
+  } catch (e) {
+    fail("customUrlSwap", e.message);
+  }
 } catch (e) {
   summary.fatal = String(e?.message ?? e);
 } finally {
