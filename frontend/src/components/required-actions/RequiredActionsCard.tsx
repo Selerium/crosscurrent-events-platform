@@ -108,7 +108,7 @@ export default function RequiredActionsCard() {
             : "All caught up — tick “Show completed” to review finished items."}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex max-h-[15rem] flex-col gap-2 overflow-y-auto pr-1">
           {visibleItems.map((item) => (
             <div
               key={item.action.id}

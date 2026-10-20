@@ -78,7 +78,7 @@ export default function VideoWatchView({
       container: containerRef.current,
       attributes: { controls: true, preload: "metadata", playsInline: true },
       completionThreshold: 0.95,
-      preventSkipping: true,
+      preventSkipping: watchState.status !== "COMPLETED",
       skipToleranceSec: 2,
       autoResume: true,
       serverUrl: wsUrl,
@@ -93,6 +93,8 @@ export default function VideoWatchView({
     });
     const offComplete = player.on("complete", () => {
       setPercent(100);
+      // Watching is done — let the user seek anywhere from now on.
+      player.setPreventSkipping(false);
       handleCompleted(player.getWatchedSeconds(), player.getDuration());
     });
     const offSeekBlocked = player.on("seek-blocked", ({ attempted, clampedTo }) => {
@@ -111,6 +113,8 @@ export default function VideoWatchView({
     const videoEl = player.getVideoElement();
     const onNativeEnded = () => {
       setPercent(100);
+      // Reaching the end means it's done — unblock seeking.
+      player.setPreventSkipping(false);
       handleCompleted(player.getWatchedSeconds(), player.getDuration(), true);
     };
     videoEl.addEventListener("ended", onNativeEnded);
