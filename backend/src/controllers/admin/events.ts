@@ -482,6 +482,51 @@ adminEventsHandler.patch("/:id/registrations/:registrationId/pay", async (req, r
   res.status(200).json({ data: {}, error: false, message: "Registration marked as paid" });
 });
 
+// Manually mark a registration as parent-approved so the student is no longer
+// blocked from paying (used when the parent can't complete the emailed link).
+adminEventsHandler.patch(
+  "/:id/registrations/:registrationId/parent-approve",
+  async (req, res) => {
+    const { id, registrationId } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) throw new AppError("Event not found", 404);
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: registrationId, eventId: id },
+      include: { profile: { select: { name: true } } },
+    });
+    if (!registration) throw new AppError("Registration not found", 404);
+
+    if (registration.parentVerified) {
+      throw new AppError("Registration is already parent-approved", 400);
+    }
+
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        parentVerified: true,
+        parentToken: null,
+        parentTokenExpiresAt: null,
+      },
+    });
+
+    logAdminAction({
+      adminId: req.user.id,
+      adminName: req.user.name,
+      action: "event.parent_approve_registration",
+      targetType: "registration",
+      targetId: registrationId,
+      details: { eventId: id, profileName: registration.profile.name },
+      success: true,
+    });
+
+    res
+      .status(200)
+      .json({ data: {}, error: false, message: "Registration parent-approved" });
+  }
+);
+
 adminEventsHandler.delete("/:id/registrations", async (req, res) => {
   const { id } = req.params;
   const { field } = req.query;

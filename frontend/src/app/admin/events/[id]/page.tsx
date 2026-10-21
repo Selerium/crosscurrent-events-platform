@@ -134,6 +134,9 @@ export default function AdminEventPage() {
   const [payEarlyBird, setPayEarlyBird] = useState(false);
   const [payMethod, setPayMethod] = useState<"STRIPE" | "SELF">("SELF");
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [approveTarget, setApproveTarget] = useState<Participant | null>(null);
+  const [approvingParent, setApprovingParent] = useState(false);
 
   useEffect(() => {
     api.get(`/admin/events/${params.id}`)
@@ -290,6 +293,28 @@ export default function AdminEventPage() {
       setMarkingPaid(false);
       setShowPayConfirm(false);
       setPayTarget(null);
+    }
+  }
+
+  async function handleApproveParent() {
+    if (!approveTarget) return;
+    setApprovingParent(true);
+    try {
+      await api.patch(
+        `/admin/events/${params.id}/registrations/${approveTarget.id}/parent-approve`
+      );
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.id === approveTarget.id ? { ...p, parentVerified: true } : p
+        )
+      );
+      toast.success(`${approveTarget.name} marked as parent-approved`);
+    } catch {
+      toast.error("Could not mark as parent-approved");
+    } finally {
+      setApprovingParent(false);
+      setShowApproveConfirm(false);
+      setApproveTarget(null);
     }
   }
 
@@ -1127,6 +1152,19 @@ export default function AdminEventPage() {
                             : "Parent pending"}
                         </span>
                       )}
+                      {!isLeaderParticipant(p) && !p.parentVerified && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setApproveTarget(p);
+                            setShowApproveConfirm(true);
+                          }}
+                          className="flex cursor-pointer items-center gap-1 rounded-md border border-orange-700 px-2 py-0.5 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-950"
+                        >
+                          <CheckCircle className="size-3" />
+                          Approve parent
+                        </button>
+                      )}
                     </div>
                     <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
                       {p.church && <p>{p.church}</p>}
@@ -1375,6 +1413,58 @@ export default function AdminEventPage() {
               <Button onClick={handleMarkPaid} disabled={markingPaid} className="bg-green-700 hover:bg-green-800">
                 <CheckCircle />
                 {markingPaid ? "Marking..." : "Yes, mark as paid"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showApproveConfirm && approveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold">Approve parent</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowApproveConfirm(false);
+                  setApproveTarget(null);
+                }}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Mark <strong>{approveTarget.name}</strong>&apos;s registration as
+              parent-approved? This confirms consent has been received and
+              removes the parent-approval blocker so payment can proceed.
+            </p>
+            {approveTarget.parentOneName || approveTarget.parentOneEmail ? (
+              <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+                Parent on file: {approveTarget.parentOneName || "N/A"}
+                {approveTarget.parentOneEmail
+                  ? ` (${approveTarget.parentOneEmail})`
+                  : ""}
+              </p>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowApproveConfirm(false);
+                  setApproveTarget(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApproveParent}
+                disabled={approvingParent}
+                className="bg-orange-700 hover:bg-orange-800"
+              >
+                <CheckCircle />
+                {approvingParent ? "Approving..." : "Yes, approve parent"}
               </Button>
             </div>
           </div>
