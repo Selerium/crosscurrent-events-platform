@@ -41,6 +41,12 @@ model User {
   emailVerified                   Boolean              @default(false)
   emailVerificationToken          String?
   emailVerificationTokenExpiresAt DateTime?
+
+  // Pending email change: held until the new address is verified via email.
+  pendingEmail           String?
+  emailChangeToken       String?
+  emailChangeTokenExpiresAt DateTime?
+
   password                        String
   refreshTokens                   RefreshTokens[]
   passwordResetTokens             PasswordResetToken[]

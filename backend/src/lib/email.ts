@@ -36,6 +36,40 @@ export const sendVerificationEmail = async (
   }
 };
 
+export const sendEmailChangeVerification = async (
+  to: string,
+  verificationUrl: string
+) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[email] email-change link for ${to}: ${verificationUrl}`);
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: "do-not-reply@crosscurrent.ae",
+    to,
+    subject: "Confirm your new email | CrossCurrent",
+    text: `Please confirm this address as the new email for your CrossCurrent account by opening this link: ${verificationUrl}. Until you confirm, your account keeps its current email.`,
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 24px;">
+        <h2 style="color: #1a1a1a;">Confirm your new email</h2>
+        <p style="color: #333;">Please confirm this address as the new email for your CrossCurrent account. Until you confirm, your account keeps its current email.</p>
+        <a href="${verificationUrl}" style="display: inline-block; margin: 16px 0; padding: 12px 24px; background-color: #525252; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold;">
+          Confirm new email
+        </a>
+        <p style="color: #555; font-size: 14px;">
+          Or copy and paste this link into your browser:<br />
+          <a href="${verificationUrl}">${verificationUrl}</a>
+        </p>
+        <p style="color: #777; font-size: 12px;">This link expires in 24 hours. If you didn't request this, you can ignore this email.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
 export const sendAdminAccountEmail = async (
   to: string,
   options: { adminName: string; loginUrl: string }

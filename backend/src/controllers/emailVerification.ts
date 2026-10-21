@@ -54,7 +54,11 @@ emailVerificationHandler.post("", async (req, res) => {
     });
 
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${newToken}`;
-    await sendVerificationEmail(expiredUser.email, verificationUrl);
+    try {
+      await sendVerificationEmail(expiredUser.email, verificationUrl);
+    } catch (err) {
+      console.error("Failed to resend verification email:", err);
+    }
 
     return res.status(200).json({
       data: {},

@@ -111,11 +111,14 @@ export default function Profile() {
       return;
     }
     try {
-      await api.put("/profile/email", {
+      const res = await api.put("/profile/email", {
         currentPassword: emailForm.current,
         newEmail: emailForm.newEmail,
       });
-      toast.success("Email updated.");
+      toast.success(
+        res.data?.message ||
+          "Confirmation email sent to your new address. Open the link to finish the change."
+      );
       setEmailModal(false);
       setEmailForm({ current: "", newEmail: "" });
     } catch (err: any) {

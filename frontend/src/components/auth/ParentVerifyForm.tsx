@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 
-type VerifyState = "verifying" | "success" | "error";
+type VerifyState = "verifying" | "success" | "error" | "resent";
 
 export function ParentVerifyForm() {
   const searchParams = useSearchParams();
@@ -27,8 +27,13 @@ export function ParentVerifyForm() {
 
     api
       .post("/parent-verify", { token })
-      .then(() => {
-        setState("success");
+      .then((res) => {
+        if (res.data.expired) {
+          setState("resent");
+          setMessage(res.data.message);
+        } else {
+          setState("success");
+        }
       })
       .catch((err: any) => {
         setState("error");
@@ -52,6 +57,20 @@ export function ParentVerifyForm() {
         <p className="text-sm text-muted-foreground">
           The registration has been approved. The student can now complete
           payment to confirm their spot.
+        </p>
+        <Button asChild className="w-full justify-center">
+          <Link href="/login">Sign in</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (state === "resent") {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <p className="text-xs text-muted-foreground">
+          Check your inbox for the new approval link.
         </p>
         <Button asChild className="w-full justify-center">
           <Link href="/login">Sign in</Link>

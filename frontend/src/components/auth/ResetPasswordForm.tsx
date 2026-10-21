@@ -6,6 +6,7 @@ import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 
 export function ResetPasswordForm({ token }: { token: string }) {
@@ -13,6 +14,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [invalidLink, setInvalidLink] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,18 +34,39 @@ export function ResetPasswordForm({ token }: { token: string }) {
       await api.post("/reset-password", { token, password });
       toast.success("Password reset successfully");
       setTimeout(() => router.push("/login"), 2000);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Could not reset password");
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response
+        ?.status;
+      const detail = String(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || ""
+      ).toLowerCase();
+      // The link itself is the problem (expired/used/unknown) — stop retrying
+      // and point the user at the forgot-password flow for a fresh link.
+      if (status === 400 && detail.includes("reset link")) {
+        setInvalidLink(true);
+        return;
+      }
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Could not reset password"
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  if (!token) {
+  if (!token || invalidLink) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Invalid or missing reset link. Please request a new one.
-      </p>
+      <div className="flex flex-col items-center gap-4 text-center">
+        <p className="text-sm text-muted-foreground">
+          This reset link is invalid or has expired. Request a new one to
+          continue.
+        </p>
+        <Button asChild className="w-full justify-center">
+          <Link href="/forgot-password">Request a new link</Link>
+        </Button>
+      </div>
     );
   }
 

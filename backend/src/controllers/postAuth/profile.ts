@@ -1,7 +1,9 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import AppError from "../../lib/appError.ts";
 import { prisma } from "../../lib/prismaClient.ts";
+import { sendEmailChangeVerification } from "../../lib/email.ts";
 
 const profileHandler = express.Router();
 
@@ -171,12 +173,30 @@ profileHandler.put("/email", async (req, res) => {
     throw new AppError("Email is already in use", 409);
   }
 
+  // Don't swap the live email yet: hold the new address until the user
+  // proves they own it by opening the link we send there. Until then the
+  // account keeps its current (verified) email.
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
   await prisma.user.update({
     where: { id: profile.user.id },
-    data: { email: newEmail },
+    data: {
+      pendingEmail: newEmail,
+      emailChangeToken: tokenHash,
+      emailChangeTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
   });
 
-  res.status(200).json({ data: {}, error: false, message: "Email updated" });
+  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?change=${token}`;
+  await sendEmailChangeVerification(newEmail, verificationUrl);
+
+  res.status(200).json({
+    data: {},
+    error: false,
+    message:
+      "Confirmation email sent. Open the link we sent to your new address to finish the change.",
+  });
 });
 
 export default profileHandler;

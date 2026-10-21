@@ -12,21 +12,30 @@ export function VerifyEmailForm() {
   const searchParams = useSearchParams();
   const [state, setState] = useState<VerifyState>("verifying");
   const [message, setMessage] = useState("");
+  const [isChange, setIsChange] = useState(false);
   const verifiedRef = useRef(false);
 
   useEffect(() => {
     if (verifiedRef.current) return;
     verifiedRef.current = true;
 
-    const token = searchParams.get("token");
+    const changeToken = searchParams.get("change");
+    const isEmailChange = Boolean(changeToken);
+    setIsChange(isEmailChange);
+
+    const token = changeToken || searchParams.get("token");
     if (!token) {
       setState("error");
       setMessage("Missing verification token.");
       return;
     }
 
+    const endpoint = isEmailChange
+      ? "/verify-email-change"
+      : "/verify-email";
+
     api
-      .post("/verify-email", { token })
+      .post(endpoint, { token })
       .then((res) => {
         if (res.data.expired) {
           setState("resent");
@@ -55,7 +64,9 @@ export function VerifyEmailForm() {
     return (
       <div className="flex flex-col items-center gap-4 text-center">
         <p className="text-sm text-muted-foreground">
-          Your email has been verified. You can now sign in to your account.
+          {isChange
+            ? "Your new email is confirmed. Use it to sign in from now on."
+            : "Your email has been verified. You can now sign in to your account."}
         </p>
         <Button asChild className="w-full justify-center">
           <Link href="/login">Sign in</Link>

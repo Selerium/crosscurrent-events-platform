@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import registerHandler from "./controllers/register.ts";
 import loginHandler from "./controllers/login.ts";
 import emailVerificationHandler from "./controllers/emailVerification.ts";
+import verifyEmailChangeHandler from "./controllers/verifyEmailChange.ts";
 import parentVerificationHandler from "./controllers/parentVerification.ts";
 import forgotPasswordHandler from "./controllers/forgotPassword.ts";
 import resetPasswordHandler from "./controllers/resetPassword.ts";
@@ -48,6 +49,7 @@ app.get("/test", (req, res) => {
 app.use("/register", registerHandler);
 app.use("/login", loginHandler);
 app.use("/verify-email", emailVerificationHandler);
+app.use("/verify-email-change", verifyEmailChangeHandler);
 app.use("/parent-verify", parentVerificationHandler);
 app.use("/forgot-password", forgotPasswordHandler);
 app.use("/reset-password", resetPasswordHandler);
