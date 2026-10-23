@@ -13,6 +13,10 @@ import {
 import { sendParentVerificationEmail, sendScholarshipRequestEmail } from "../lib/email.ts";
 import { createNotifications } from "../lib/notifications.ts";
 import { fanOutCompletionsForProfile } from "../lib/requiredActions.ts";
+import {
+  effectiveEventStatus,
+  isRegistrationOpen,
+} from "../lib/registrationWindow.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -63,10 +67,11 @@ eventsHandler.get("", async (req, res) => {
     price: e.price,
     earlyBirdPrice: e.earlyBirdPrice,
     earlyBirdDate: e.earlyBirdDate,
+    registrationCloseDate: e.registrationCloseDate,
     status:
       e._count.registrations >= e.maxSignUps
         ? "closed"
-        : statusMap[e.eventStatus] || "closed",
+        : statusMap[effectiveEventStatus(e)] || "closed",
   }));
 
   res.status(200).json({ data, error: false, message: "" });
@@ -94,7 +99,7 @@ const registerForEvent = async (req: any, res: any) => {
     throw new AppError("Event not found", 404);
   }
 
-  if (event.eventStatus !== "OPEN") {
+  if (!isRegistrationOpen(event)) {
     throw new AppError("Registration is closed for this event", 400);
   }
 
@@ -500,8 +505,9 @@ eventsHandler.get("/:id", async (req, res) => {
     price: event.price,
     earlyBirdPrice: event.earlyBirdPrice,
     earlyBirdDate: event.earlyBirdDate,
+    registrationCloseDate: event.registrationCloseDate,
     schedule: event.schedule,
-    status: statusMap[event.eventStatus] || "closed",
+    status: statusMap[effectiveEventStatus(event)] || "closed",
     user,
     registrants,
   };

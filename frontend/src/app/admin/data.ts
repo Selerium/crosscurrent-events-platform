@@ -23,6 +23,7 @@ export type AdminEvent = {
   price: number;
   earlyBirdPrice: number | null;
   earlyBirdDate: string | null;
+  registrationCloseDate: string | null;
   revenue: number;
   revenueStripe: number;
   revenueSelf: number;

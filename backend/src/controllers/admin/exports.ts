@@ -2,6 +2,10 @@ import express from "express";
 import ExcelJS from "exceljs";
 import { prisma } from "../../lib/prismaClient.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
+import {
+  effectiveEventStatus,
+  uaeDateKey,
+} from "../../lib/registrationWindow.ts";
 
 const adminExportsHandler = express.Router();
 
@@ -108,6 +112,7 @@ adminExportsHandler.get("/all-data", async (req, res) => {
     { header: "Price", key: "price", width: 10 },
     { header: "Early Bird Price", key: "earlyBirdPrice", width: 16 },
     { header: "Early Bird Date", key: "earlyBirdDate", width: 14 },
+    { header: "Registration Close Date", key: "registrationCloseDate", width: 20 },
     { header: "Max Sign-ups", key: "maxSignUps", width: 12 },
     { header: "Registrations", key: "registrations", width: 14 },
     { header: "Paid Registrations", key: "paidRegistrations", width: 18 },
@@ -128,12 +133,13 @@ adminExportsHandler.get("/all-data", async (req, res) => {
       name: e.name,
       brief: e.brief,
       location: e.location,
-      status: statusMap[e.eventStatus] || e.eventStatus,
+      status: statusMap[effectiveEventStatus(e)] || e.eventStatus,
       startDate: e.startDate.toISOString().split("T")[0],
       endDate: e.endDate.toISOString().split("T")[0],
       price: e.price,
       earlyBirdPrice: e.earlyBirdPrice ?? "",
       earlyBirdDate: e.earlyBirdDate ? e.earlyBirdDate.toISOString().split("T")[0] : "",
+      registrationCloseDate: e.registrationCloseDate ? uaeDateKey(e.registrationCloseDate) : "",
       maxSignUps: e.maxSignUps,
       registrations: e._count.registrations,
       paidRegistrations: paid.length,

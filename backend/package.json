@@ -3,7 +3,9 @@
     "build": "",
     "start": "node src/index.ts",
     "dev": "node --watch src/index.ts",
-    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.mjs"
+    "events:close-registrations": "node scripts/closeExpiredRegistrations.ts close",
+    "events:expire-checkout-sessions": "node scripts/closeExpiredRegistrations.ts expire",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/*.test.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

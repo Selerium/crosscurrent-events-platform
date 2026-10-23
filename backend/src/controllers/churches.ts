@@ -122,7 +122,13 @@ churchesHandler.get("/my/scholarship-requests", async (req, res) => {
       orderBy: { createdAt: "asc" },
     }),
     prisma.event.findMany({
-      where: { eventStatus: "OPEN" },
+      where: {
+        eventStatus: "OPEN",
+        OR: [
+          { registrationCloseDate: null },
+          { registrationCloseDate: { gt: new Date() } },
+        ],
+      },
       select: { id: true, name: true, startDate: true, endDate: true },
       orderBy: { startDate: "asc" },
     }),

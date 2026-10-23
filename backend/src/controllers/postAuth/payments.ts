@@ -1,6 +1,8 @@
 import express from "express";
 import { prisma } from "../../lib/prismaClient.ts";
 import AppError from "../../lib/appError.ts";
+import { isRegistrationOpen } from "../../lib/registrationWindow.ts";
+import { checkoutExpiresAt } from "../../lib/stripeCheckout.ts";
 import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
@@ -43,14 +45,20 @@ paymentsHandler.post("/create-session", async (req, res) => {
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, eventStatus: true, maxSignUps: true, price: true },
+    select: {
+      id: true,
+      eventStatus: true,
+      maxSignUps: true,
+      price: true,
+      registrationCloseDate: true,
+    },
   });
 
   if (!event) {
     throw new AppError("Event not found", 404);
   }
 
-  if (event.eventStatus !== "OPEN") {
+  if (!isRegistrationOpen(event)) {
     throw new AppError("Registration is closed for this event", 400);
   }
 
@@ -100,11 +108,14 @@ paymentsHandler.post("/create-session", async (req, res) => {
     }
   }
 
+  const expiresAt = checkoutExpiresAt(event.registrationCloseDate);
+
   const session = await stripe.checkout.sessions.create({
     line_items: [{ price: getActivePrice(), quantity: 1 }],
     mode: "payment",
     currency: "aed",
     customer_email: profile.user.email,
+    ...(expiresAt ? { expires_at: expiresAt } : {}),
     metadata: {
       profile_name: profile.name,
       profile_id: profile.id,
@@ -159,14 +170,20 @@ paymentsHandler.post("/scholarship", async (req, res) => {
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, name: true, eventStatus: true, maxSignUps: true },
+    select: {
+      id: true,
+      name: true,
+      eventStatus: true,
+      maxSignUps: true,
+      registrationCloseDate: true,
+    },
   });
 
   if (!event) {
     throw new AppError("Event not found", 404);
   }
 
-  if (event.eventStatus !== "OPEN") {
+  if (!isRegistrationOpen(event)) {
     throw new AppError("Registration is closed for this event", 400);
   }
 
@@ -235,12 +252,14 @@ paymentsHandler.post("/scholarship", async (req, res) => {
   }
 
   const activePrice = getActivePrice();
+  const expiresAt = checkoutExpiresAt(event.registrationCloseDate);
 
   const session = await stripe.checkout.sessions.create({
     line_items: [{ price: activePrice, quantity: uniqueIds.length }],
     mode: "payment",
     currency: "aed",
     customer_email: profile.user.email,
+    ...(expiresAt ? { expires_at: expiresAt } : {}),
     metadata: {
       profiles: JSON.stringify(
         uniqueIds.map((id) => {

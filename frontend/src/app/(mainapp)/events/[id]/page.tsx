@@ -24,6 +24,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  formatUaeDate,
+  isRegistrationClosed,
+} from "@/lib/uaeDate";
 
 type ScheduleItem = {
   item: string;
@@ -45,6 +49,7 @@ type EventData = {
   price: number;
   earlyBirdPrice: number | null;
   earlyBirdDate: Date | null;
+  registrationCloseDate: string | null;
   schedule: ScheduleItem[][];
   status: string;
   user: {
@@ -353,6 +358,10 @@ export default function EventPage() {
     },
   });
 
+  const registrationClosed = eventData
+    ? isRegistrationClosed(eventData.status, eventData.registrationCloseDate)
+    : false;
+
   const fetchEvent = async () => {
     try {
       const res = await api.get(`/events/${params.id}`);
@@ -416,6 +425,7 @@ export default function EventPage() {
         registerModal === "true" &&
         eventData &&
         !eventData.user &&
+        !isRegistrationClosed(eventData.status, eventData.registrationCloseDate) &&
         eventData.signedUp < eventData.maxSignUps
       ) {
         reset();
@@ -458,6 +468,10 @@ export default function EventPage() {
   }, []);
 
   const onRegisterSubmit = async (data: RegistrationForm) => {
+    if (registrationClosed) {
+      toast.warning("Registration is closed for this event.");
+      return;
+    }
     if (userRole === "LEADER" && !safeguardingFile) {
       toast.warning("Please upload your Safeguarding/DBS certificate");
       return;
@@ -510,6 +524,10 @@ export default function EventPage() {
   };
 
   const onPay = async () => {
+    if (registrationClosed) {
+      toast.warning("Registration is closed for this event.");
+      return;
+    }
     if (!userApproved) {
       toast.warning(
         "Your account needs to be approved before you can pay for events.",
@@ -559,6 +577,10 @@ export default function EventPage() {
 
   async function processScholarshipSelection(profileIds: string[]) {
     if (profileIds.length === 0) return;
+    if (registrationClosed) {
+      toast.warning("Registration is closed for this event.");
+      return;
+    }
 
     try {
       const res = await api.post("/payments/scholarship", {
@@ -1299,10 +1321,12 @@ export default function EventPage() {
 
             <Button
               onClick={() => processScholarshipSelection(selectedProfileIds)}
-              disabled={selectedProfileIds.length === 0}
+              disabled={selectedProfileIds.length === 0 || registrationClosed}
               className="w-full justify-center p-3"
             >
-              Process selected ({selectedProfileIds.length})
+              {registrationClosed
+                ? "Registration closed"
+                : `Process selected (${selectedProfileIds.length})`}
             </Button>
           </div>
         </div>
@@ -1375,6 +1399,13 @@ export default function EventPage() {
                   )}
                 </span>
               )}
+              {eventData.registrationCloseDate && (
+                <span className="flex gap-2 w-fit">
+                  <CalendarDays width={24} height={24} />
+                  {registrationClosed ? "Registration closed on" : "Registration closes on"}{" "}
+                  {formatUaeDate(eventData.registrationCloseDate)}
+                </span>
+              )}
               <span className="flex gap-2 w-fit">
                 <Users width={24} height={24} /> {eventData.signedUp} /{" "}
                 {eventData.maxSignUps}
@@ -1424,11 +1455,13 @@ export default function EventPage() {
               ))}
             </div>
             <div className="col-span-1 order-1 lg:order-2 flex flex-col gap-2 h-fit">
-              {!eventData.user && eventData.status !== "active" ? (
+              {!eventData.user && registrationClosed ? (
                 <div className="w-full p-4 justify-center rounded-lg border text-center text-muted-foreground font-medium">
                   {eventData.status === "completed"
                     ? "Event completed"
-                    : "Registration closed"}
+                    : eventData.registrationCloseDate
+                      ? `Registration closed on ${formatUaeDate(eventData.registrationCloseDate)}`
+                      : "Registration closed"}
                 </div>
               ) : !eventData.user &&
                 eventData.signedUp >= eventData.maxSignUps ? (
@@ -1468,8 +1501,12 @@ export default function EventPage() {
               {eventData.user &&
                 !eventData.user.paid &&
                 (userRole !== "STUDENT" || eventData.user.parentVerified) && (
-                  <Button onClick={onPay} className="w-full p-4 justify-center">
-                    PAY FOR EVENT
+                  <Button
+                    onClick={onPay}
+                    disabled={registrationClosed}
+                    className="w-full p-4 justify-center"
+                  >
+                    {registrationClosed ? "REGISTRATION CLOSED" : "PAY FOR EVENT"}
                   </Button>
                 )}
               {eventData.user && !eventData.user.paid && (

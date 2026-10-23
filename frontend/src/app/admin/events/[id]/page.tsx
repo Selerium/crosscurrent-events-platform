@@ -39,6 +39,11 @@ import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  dateKeyFromPicker,
+  formatUaeDate,
+  pickerDateFromUae,
+} from "@/lib/uaeDate";
 
 type ScheduleItem = {
   item: string;
@@ -109,11 +114,14 @@ export default function AdminEventPage() {
   const [editMaxSignUps, setEditMaxSignUps] = useState(0);
   const [editEarlyBirdPrice, setEditEarlyBirdPrice] = useState("");
   const [editEarlyBirdDate, setEditEarlyBirdDate] = useState<Date | null>(null);
+  const [editRegistrationCloseDate, setEditRegistrationCloseDate] =
+    useState<Date | null>(null);
   const [editSchedule, setEditSchedule] = useState<ScheduleItem[][]>([[]]);
   const [saving, setSaving] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
   const [earlyBirdOpen, setEarlyBirdOpen] = useState(false);
+  const [closeDateOpen, setCloseDateOpen] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const [participantFilter, setParticipantFilter] =
@@ -225,8 +233,8 @@ export default function AdminEventPage() {
       await api.patch(`/admin/events/${params.id}`, { eventStatus: "CLOSED" });
       setEventInfo({ ...eventInfo, status: "closed" });
       toast.success("Event closed");
-    } catch {
-      toast.error("Could not close event");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Could not close event");
     } finally {
       setClosing(false);
       setShowCloseConfirm(false);
@@ -235,13 +243,22 @@ export default function AdminEventPage() {
 
   async function handleReopenEvent() {
     if (!eventInfo) return;
+    if (
+      eventInfo.registrationCloseDate &&
+      new Date(eventInfo.registrationCloseDate) <= new Date()
+    ) {
+      toast.error(
+        "Set a new registration close date in the event details before reopening."
+      );
+      return;
+    }
     setClosing(true);
     try {
       await api.patch(`/admin/events/${params.id}`, { eventStatus: "OPEN" });
       setEventInfo({ ...eventInfo, status: "active" });
       toast.success("Event reopened");
-    } catch {
-      toast.error("Could not reopen event");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Could not reopen event");
     } finally {
       setClosing(false);
     }
@@ -364,6 +381,11 @@ export default function AdminEventPage() {
     setEditEarlyBirdDate(
       eventInfo.earlyBirdDate ? new Date(eventInfo.earlyBirdDate) : null
     );
+    setEditRegistrationCloseDate(
+      eventInfo.registrationCloseDate
+        ? pickerDateFromUae(eventInfo.registrationCloseDate)
+        : null
+    );
     setEditSchedule(
       eventInfo.schedule.length > 0
         ? eventInfo.schedule.map((day) =>
@@ -433,6 +455,17 @@ export default function AdminEventPage() {
       toast.error("End date must be after start date");
       return;
     }
+    if (
+      eventInfo.status === "active" &&
+      editRegistrationCloseDate &&
+      dateKeyFromPicker(editRegistrationCloseDate) <
+        dateKeyFromPicker(new Date())
+    ) {
+      toast.error(
+        "Registration close date must be today or later while the event is open"
+      );
+      return;
+    }
     setSaving(true);
     try {
       await api.patch(`/admin/events/${params.id}`, {
@@ -448,6 +481,9 @@ export default function AdminEventPage() {
           : null,
         earlyBirdDate: editEarlyBirdDate
           ? editEarlyBirdDate.toISOString()
+          : null,
+        registrationCloseDate: editRegistrationCloseDate
+          ? dateKeyFromPicker(editRegistrationCloseDate)
           : null,
         schedule: editSchedule,
       });
@@ -466,12 +502,15 @@ export default function AdminEventPage() {
         earlyBirdDate: editEarlyBirdDate
           ? editEarlyBirdDate.toISOString()
           : null,
+        registrationCloseDate: editRegistrationCloseDate
+          ? dateKeyFromPicker(editRegistrationCloseDate)
+          : null,
         schedule: editSchedule,
       });
       setEditing(false);
       toast.success("Event updated");
-    } catch {
-      toast.error("Could not update event");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Could not update event");
     } finally {
       setSaving(false);
     }
@@ -841,6 +880,39 @@ export default function AdminEventPage() {
                   </Popover>
                 </div>
                 <div className="flex flex-col gap-2 rounded-lg border p-4">
+                  <Label>Registration Close Date</Label>
+                  <Popover
+                    open={closeDateOpen}
+                    onOpenChange={setCloseDateOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer justify-start text-left font-normal"
+                      >
+                        <CalendarIcon width={14} height={14} />
+                        {editRegistrationCloseDate
+                          ? editRegistrationCloseDate.toLocaleDateString()
+                          : "Not set"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={editRegistrationCloseDate ?? undefined}
+                        onSelect={(date) => {
+                          setEditRegistrationCloseDate(date ?? null);
+                          setCloseDateOpen(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <p className="text-sm text-muted-foreground">
+                    Registration and payments close at 11:59 PM UAE time on this
+                    date. Leave unset only for legacy events.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 rounded-lg border p-4">
                   <Label htmlFor="edit-max-signups">Max Sign Ups</Label>
                   <Input
                     id="edit-max-signups"
@@ -895,6 +967,15 @@ export default function AdminEventPage() {
                     )}
                   />
                 )}
+                <InfoBlock
+                  icon={<CalendarDays width={20} height={20} />}
+                  label="Registration Close Date"
+                  value={
+                    eventInfo.registrationCloseDate
+                      ? formatUaeDate(eventInfo.registrationCloseDate)
+                      : "Not set (legacy event)"
+                  }
+                />
                 <InfoBlock
                   icon={<Banknote width={20} height={20} />}
                   label="Revenue"

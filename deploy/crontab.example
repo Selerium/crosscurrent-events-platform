@@ -1,0 +1,20 @@
+# CrossCurrent event registration close jobs.
+#
+# Install with `crontab -e` on the Docker host (not inside a container).
+# Adjust the project path below to the checkout that runs docker compose.
+#
+# The script runs inside the already-running backend container so it can reach
+# PostgreSQL and read the Stripe/backend environment from config/.env.backend.
+# The API enforces the cutoff itself; these jobs are the nightly cleanup.
+#
+# Make sure the cron user can write the log file, or point it elsewhere.
+# If the host cron daemon does not support CRON_TZ, use the equivalent UTC
+# times instead: 00:00 UAE = 20:00 UTC, 00:05 UAE = 20:05 UTC.
+
+CRON_TZ=Asia/Dubai
+
+# Midnight UAE: mark events past their registration close date as CLOSED.
+0 0 * * * cd /path/to/crosscurrent-events-platform && flock -n /tmp/crosscurrent-close-events.lock docker compose exec -T backend npm run events:close-registrations >> /var/log/crosscurrent-events.log 2>&1
+
+# 00:05 UAE: expire any Checkout Session still open at cutoff + 5 minutes.
+5 0 * * * cd /path/to/crosscurrent-events-platform && flock -n /tmp/crosscurrent-expire-sessions.lock docker compose exec -T backend npm run events:expire-checkout-sessions >> /var/log/crosscurrent-events.log 2>&1

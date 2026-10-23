@@ -7,6 +7,11 @@ import { uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
 import { isEarlyBirdPayment } from "../../lib/earlyBird.ts";
+import {
+  effectiveEventStatus,
+  parseRegistrationCloseDate,
+} from "../../lib/registrationWindow.ts";
+import { expireOpenCheckoutSessions } from "../../lib/stripeCheckout.ts";
 
 const statusMap: Record<string, string> = {
   OPEN: "active",
@@ -16,15 +21,35 @@ const statusMap: Record<string, string> = {
 
 const adminEventsHandler = express.Router();
 
+function parseCloseDateOrThrow(value: unknown): Date | null {
+  try {
+    return parseRegistrationCloseDate(value);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Invalid registration close date",
+      400
+    );
+  }
+}
+
 adminEventsHandler.post("", async (req, res) => {
-  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, schedule } = req.body;
+  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule } = req.body;
 
   if (!name || !brief || !startDate || !endDate || !maxSignUps || !location || price === undefined) {
     throw new AppError("Missing required fields", 400);
   }
 
+  if (!registrationCloseDate) {
+    throw new AppError("Registration close date is required", 400);
+  }
+
   if (new Date(endDate) <= new Date(startDate)) {
     throw new AppError("End date must be after start date", 400);
+  }
+
+  const closeDate = parseCloseDateOrThrow(registrationCloseDate)!;
+  if (closeDate <= new Date()) {
+    throw new AppError("Registration close date must be in the future", 400);
   }
 
   let event;
@@ -40,6 +65,7 @@ adminEventsHandler.post("", async (req, res) => {
         price: Number(price),
         earlyBirdPrice: earlyBirdPrice ? Number(earlyBirdPrice) : null,
         earlyBirdDate: earlyBirdDate ? new Date(earlyBirdDate) : null,
+        registrationCloseDate: closeDate,
         schedule: schedule ?? [],
       },
     });
@@ -59,7 +85,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
-  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, schedule, eventStatus, groups, maxInGroup, room, maxInRoom } = req.body;
+  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule, eventStatus, groups, maxInGroup, room, maxInRoom } = req.body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
@@ -71,6 +97,9 @@ adminEventsHandler.patch("/:id", async (req, res) => {
   if (price !== undefined) data.price = Number(price);
   if (earlyBirdPrice !== undefined) data.earlyBirdPrice = earlyBirdPrice ? Number(earlyBirdPrice) : null;
   if (earlyBirdDate !== undefined) data.earlyBirdDate = earlyBirdDate ? new Date(earlyBirdDate) : null;
+  if (registrationCloseDate !== undefined) {
+    data.registrationCloseDate = parseCloseDateOrThrow(registrationCloseDate);
+  }
   if (schedule !== undefined) data.schedule = schedule;
   if (eventStatus !== undefined) data.eventStatus = eventStatus;
   if (groups !== undefined) data.groups = Number(groups);
@@ -84,6 +113,18 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     throw new AppError("End date must be after start date", 400);
   }
 
+  const finalStatus = (data.eventStatus as string | undefined) ?? event.eventStatus;
+  const finalCloseDate =
+    data.registrationCloseDate !== undefined
+      ? (data.registrationCloseDate as Date | null)
+      : event.registrationCloseDate;
+  if (finalStatus === "OPEN" && finalCloseDate && finalCloseDate <= new Date()) {
+    throw new AppError(
+      "Registration close date must be in the future while the event is open",
+      400
+    );
+  }
+
   let updated;
   try {
     updated = await prisma.event.update({
@@ -93,6 +134,10 @@ adminEventsHandler.patch("/:id", async (req, res) => {
   } catch (err) {
     logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus, error: String(err) }, success: false });
     throw err;
+  }
+
+  if (event.eventStatus === "OPEN" && updated.eventStatus !== "OPEN") {
+    await expireOpenCheckoutSessions([updated.id]);
   }
 
   const registrations = await prisma.registration.findMany({
@@ -122,17 +167,39 @@ adminEventsHandler.get("", async (req, res) => {
   const sort = (req.query.sort as string) || "soonest";
 
   const where: Record<string, unknown> = {};
+  const and: Record<string, unknown>[] = [];
   if (search) {
-    where.OR = [
-      { name: { contains: search, mode: "insensitive" } },
-      { brief: { contains: search, mode: "insensitive" } },
-      { location: { contains: search, mode: "insensitive" } },
-    ];
+    and.push({
+      OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { brief: { contains: search, mode: "insensitive" } },
+        { location: { contains: search, mode: "insensitive" } },
+      ],
+    });
   }
-  if (status && status !== "all") {
+  if (status === "active") {
+    and.push({
+      eventStatus: "OPEN",
+      OR: [
+        { registrationCloseDate: null },
+        { registrationCloseDate: { gt: new Date() } },
+      ],
+    });
+  } else if (status === "closed") {
+    and.push({
+      OR: [
+        { eventStatus: "CLOSED" },
+        {
+          eventStatus: "OPEN",
+          registrationCloseDate: { lte: new Date() },
+        },
+      ],
+    });
+  } else if (status && status !== "all") {
     const statusReverse: Record<string, string> = { active: "OPEN", closed: "CLOSED", completed: "COMPLETED" };
-    where.eventStatus = statusReverse[status] || status;
+    and.push({ eventStatus: statusReverse[status] || status });
   }
+  if (and.length > 0) where.AND = and;
 
   const orderBy = { startDate: sort === "latest" ? "desc" as const : "asc" as const };
 
@@ -198,7 +265,8 @@ adminEventsHandler.get("", async (req, res) => {
       startDate: e.startDate,
       endDate: e.endDate,
       location: e.location,
-      status: statusMap[e.eventStatus] || "closed",
+      status: statusMap[effectiveEventStatus(e)] || "closed",
+      registrationCloseDate: e.registrationCloseDate,
       signUps: e._count.registrations,
       paidSignUps: paidRegistrations.length,
       unpaidSignUps: e._count.registrations - paidRegistrations.length,
@@ -261,7 +329,8 @@ adminEventsHandler.get("/:id", async (req, res) => {
     startDate: event.startDate,
     endDate: event.endDate,
     location: event.location,
-    status: statusMap[event.eventStatus] || "closed",
+    status: statusMap[effectiveEventStatus(event)] || "closed",
+    registrationCloseDate: event.registrationCloseDate,
     signUps: event._count.registrations,
     paidSignUps: paidRegistrations.length,
     unpaidSignUps: event._count.registrations - paidRegistrations.length,

@@ -170,6 +170,8 @@ model Event {
   price          Int
   earlyBirdPrice Int?
   earlyBirdDate  DateTime?
+  // Legacy events may have no automatic cutoff and stay open until manually closed.
+  registrationCloseDate DateTime?
   groups         Int         @default(1)
   maxInGroup     Int         @default(1)
   room           Int         @default(1)

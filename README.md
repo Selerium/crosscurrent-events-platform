@@ -176,6 +176,27 @@ npm run dev
 
 The exact environment variables required by each service should be configured using the files under `config/`.
 
+## Registration close dates
+
+New events require a registration close date. The selected calendar date closes registration at **23:59:59.999 Asia/Dubai (UTC+4)** and is stored as that exact UTC instant. Existing events created before this field remain unset until an admin edits them.
+
+The API enforces the cutoff itself:
+
+* New registrations and Stripe Checkout Sessions are rejected after the cutoff.
+* Event status is reported as closed at the cutoff, even before the nightly job stores `CLOSED`.
+* Checkout Sessions expire at `min(Stripe's existing expiry, cutoff + 5 minutes)`.
+* A manual admin close also expires any open Checkout Sessions immediately.
+* Payments captured after close are still recorded as paid, with a warning in the backend logs for manual review.
+
+### Nightly cleanup (host crontab)
+
+The nightly jobs run inside the already-running backend container so they can reach PostgreSQL and read `config/.env.backend`:
+
+* `00:00` UAE — mark events past their close date as `CLOSED`.
+* `00:05` UAE — expire any Checkout Session still open at cutoff + 5 minutes.
+
+Install `deploy/crontab.example` with `crontab -e`, replacing `/path/to/crosscurrent-events-platform` with the real checkout path. Both jobs are idempotent, and the API checks remain authoritative if a job is missed.
+
 ## Project Status
 
 This is an actively developed application. Recent work has focused on improving administrative registration workflows, payment handling, early-bird logic, filtering, and registration data management.

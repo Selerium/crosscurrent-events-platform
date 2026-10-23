@@ -8,6 +8,20 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
 const webhookHandler = express.Router();
 
+function warnIfLatePayment(
+  event: { name: string; registrationCloseDate: Date | null },
+  sessionId: string
+) {
+  if (!event.registrationCloseDate) return;
+  if (new Date() <= event.registrationCloseDate) return;
+
+  console.warn(
+    `[stripe-webhook] Late payment captured for "${event.name}" after registration closed on ` +
+      `${event.registrationCloseDate.toISOString()} (session ${sessionId}). ` +
+      "Recording it as paid; review whether a refund is needed."
+  );
+}
+
 webhookHandler.post(
   "/stripe",
   express.raw({ type: "application/json" }),
@@ -38,12 +52,13 @@ webhookHandler.post(
       const scholarshipPayment = await prisma.scholarshipPayment.findUnique({
         where: { sessionId: session.id },
         include: {
-          event: { select: { name: true, earlyBirdDate: true, earlyBirdPrice: true } },
+          event: { select: { name: true, earlyBirdDate: true, earlyBirdPrice: true, registrationCloseDate: true } },
         },
       });
 
       if (scholarshipPayment) {
         if (!scholarshipPayment.paid) {
+          warnIfLatePayment(scholarshipPayment.event, session.id);
           await prisma.$transaction(async (tx) => {
             await tx.scholarshipPayment.update({
               where: { id: scholarshipPayment.id },
@@ -83,11 +98,12 @@ webhookHandler.post(
         const registration = await prisma.registration.findFirst({
           where: { paymentSession: session.id },
           include: {
-            event: { select: { name: true, earlyBirdDate: true, earlyBirdPrice: true } },
+            event: { select: { name: true, earlyBirdDate: true, earlyBirdPrice: true, registrationCloseDate: true } },
           },
         });
 
         if (registration && !registration.paid) {
+          warnIfLatePayment(registration.event, session.id);
           const earlyBird = isEarlyBirdPayment(
             registration.event.earlyBirdDate,
             registration.event.earlyBirdPrice,

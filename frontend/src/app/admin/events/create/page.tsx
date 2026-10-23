@@ -15,6 +15,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useState } from "react";
 import { ChevronLeft, CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { dateKeyFromPicker } from "@/lib/uaeDate";
 
 type ScheduleItem = {
   item: string;
@@ -29,6 +30,7 @@ type EventForm = {
   brief: string;
   startDate: Date | undefined;
   endDate: Date | undefined;
+  registrationCloseDate: Date | undefined;
   maxSignUps: number;
   location: string;
   price: number;
@@ -44,11 +46,13 @@ export default function CreateEventPage() {
       earlyBirdDate: undefined,
       startDate: undefined,
       endDate: undefined,
+      registrationCloseDate: undefined,
     },
   });
   const [schedule, setSchedule] = useState<ScheduleItem[][]>([[]]);
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
+  const [closeDateOpen, setCloseDateOpen] = useState(false);
   const [earlyBirdOpen, setEarlyBirdOpen] = useState(false);
   const watchStartDate = watch("startDate");
 
@@ -96,12 +100,24 @@ export default function CreateEventPage() {
       toast.error("End date must be after start date");
       return;
     }
+    if (!data.registrationCloseDate) {
+      toast.error("Registration close date is required");
+      return;
+    }
+    if (
+      dateKeyFromPicker(data.registrationCloseDate) <
+      dateKeyFromPicker(new Date())
+    ) {
+      toast.error("Registration close date must be today or later");
+      return;
+    }
     try {
       await api.post("/admin/events", {
         name: data.name,
         brief: data.brief,
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
+        registrationCloseDate: dateKeyFromPicker(data.registrationCloseDate),
         maxSignUps: Number(data.maxSignUps),
         location: data.location,
         price: Number(data.price),
@@ -113,8 +129,8 @@ export default function CreateEventPage() {
       });
       toast.success("Event created");
       router.push("/dashboard");
-    } catch {
-      toast.error("Could not create event");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Could not create event");
     }
   }
 
@@ -236,6 +252,46 @@ export default function CreateEventPage() {
                 )}
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>
+              Registration Close Date{" "}
+              {formState.errors.registrationCloseDate && (
+                <span className="text-sm text-red-500">Required</span>
+              )}
+            </Label>
+            <Controller
+              name="registrationCloseDate"
+              control={control}
+              rules={{ required: true }}
+              render={({ field }) => (
+                <Popover open={closeDateOpen} onOpenChange={setCloseDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="cursor-pointer justify-start text-left font-normal"
+                    >
+                      <CalendarIcon width={14} height={14} />
+                      {field.value ? field.value.toLocaleDateString() : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={(date) => {
+                        field.onChange(date);
+                        setCloseDateOpen(false);
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            />
+            <p className="text-sm text-muted-foreground">
+              Registration and payments close at 11:59 PM UAE time on this date.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">
