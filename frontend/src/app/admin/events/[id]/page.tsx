@@ -20,7 +20,9 @@ import {
   Trash2,
   Users,
   XIcon,
+  Download,
 } from "lucide-react";
+import { downloadBlob } from "@/lib/downloadFile";
 import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -145,6 +147,23 @@ export default function AdminEventPage() {
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [approveTarget, setApproveTarget] = useState<Participant | null>(null);
   const [approvingParent, setApprovingParent] = useState(false);
+  const [downloadingAllRegs, setDownloadingAllRegs] = useState(false);
+
+  const handleDownloadAllRegistrations = async () => {
+    if (!eventInfo) return;
+    setDownloadingAllRegs(true);
+    try {
+      await downloadBlob(
+        `/admin/events/${params.id}/export/registrations`,
+        `${eventInfo.name.replace(/[^a-z0-9]+/gi, "-")}-registrations.xlsx`
+      );
+      toast.success("Registrations exported");
+    } catch {
+      toast.error("Could not download registrations");
+    } finally {
+      setDownloadingAllRegs(false);
+    }
+  };
 
   useEffect(() => {
     api.get(`/admin/events/${params.id}`)
@@ -1023,9 +1042,20 @@ export default function AdminEventPage() {
                 />
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {filteredParticipants.length} of {participants.length}
-            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadAllRegistrations}
+                disabled={downloadingAllRegs || participants.length === 0}
+              >
+                <Download className="mr-1 h-4 w-4" />
+                {downloadingAllRegs ? "Downloading..." : "Download All Registrations"}
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                {filteredParticipants.length} of {participants.length}
+              </p>
+            </div>
           </div>
           {!participantsCollapsed && (
             <>

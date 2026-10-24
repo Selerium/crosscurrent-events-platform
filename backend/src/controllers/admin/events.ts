@@ -625,4 +625,144 @@ adminEventsHandler.delete("/:id/registrations", async (req, res) => {
   res.status(200).json({ data: { count: result.count }, error: false, message: "" });
 });
 
+adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
+  const { id } = req.params;
+
+  const event = await prisma.event.findUnique({
+    where: { id },
+    include: {
+      registrations: {
+        include: {
+          profile: {
+            include: {
+              user: { select: { email: true } },
+              church: { select: { name: true, country: true, state: true } },
+            },
+          },
+          spouse: { select: { name: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+
+  if (!event) throw new AppError("Event not found", 404);
+
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(
+    event.name.replace(/[\\/?*\[\]:]/g, "_").slice(0, 31)
+  );
+
+  sheet.columns = [
+    { header: "Registration ID", key: "registrationId", width: 38 },
+    { header: "Registered At", key: "registeredAt", width: 25 },
+    { header: "Name", key: "name", width: 25 },
+    { header: "Email", key: "email", width: 30 },
+    { header: "Phone", key: "phone", width: 18 },
+    { header: "Role", key: "role", width: 12 },
+    { header: "Gender", key: "gender", width: 12 },
+    { header: "DOB", key: "dob", width: 15 },
+    { header: "Age Category", key: "ageCategory", width: 14 },
+    { header: "Age", key: "age", width: 8 },
+    { header: "Church", key: "church", width: 30 },
+    { header: "Church Country", key: "churchCountry", width: 18 },
+    { header: "Church State", key: "churchState", width: 18 },
+    { header: "Paid", key: "paid", width: 8 },
+    { header: "Payment Method", key: "paymentMethod", width: 16 },
+    { header: "Early Bird", key: "earlyBird", width: 10 },
+    { header: "Self Pay", key: "selfPay", width: 10 },
+    { header: "Shirt Size", key: "shirtSize", width: 12 },
+    { header: "Swimming", key: "swimming", width: 10 },
+    { header: "Medications", key: "medications", width: 40 },
+    { header: "Allergies", key: "allergies", width: 40 },
+    { header: "Notes", key: "notes", width: 40 },
+    { header: "Media Consent", key: "mediaConsent", width: 14 },
+    { header: "Swimming Permission", key: "swimmingPermission", width: 18 },
+    { header: "Emergency Name", key: "emergencyName", width: 25 },
+    { header: "Emergency Phone", key: "emergencyPhone", width: 18 },
+    { header: "Parent Verified", key: "parentVerified", width: 16 },
+    { header: "Parent 1 Name", key: "parentOneName", width: 25 },
+    { header: "Parent 1 Email", key: "parentOneEmail", width: 30 },
+    { header: "Parent 1 Phone", key: "parentOnePhone", width: 18 },
+    { header: "Parent 2 Name", key: "parentTwoName", width: 25 },
+    { header: "Parent 2 Email", key: "parentTwoEmail", width: 30 },
+    { header: "Parent 2 Phone", key: "parentTwoPhone", width: 18 },
+    { header: "Spouse", key: "spouse", width: 25 },
+    { header: "Group", key: "group", width: 15 },
+    { header: "Room", key: "room", width: 15 },
+    { header: "Primary Leader Role", key: "primaryLeaderRole", width: 25 },
+    { header: "Secondary Leader Roles", key: "secondaryLeaderRoles", width: 40 },
+    { header: "Safeguarding Doc", key: "safeguardingDoc", width: 40 },
+  ]);
+
+  for (const r of event.registrations) {
+    const p = r.profile as any;
+    sheet.addRow({
+      registrationId: r.id,
+      registeredAt: r.createdAt?.toISOString?.() ?? "",
+      name: p.name,
+      email: p.user?.email ?? "",
+      phone: p.phone ?? "",
+      role: p.role ?? "",
+      gender: p.gender ?? "",
+      dob: p.dob ? new Date(p.dob).toISOString().split("T")[0] : "",
+      ageCategory: p.ageCategory ?? "",
+      age: p.age ?? "",
+      church: p.church?.name ?? "",
+      churchCountry: p.church?.country ?? "",
+      churchState: p.church?.state ?? "",
+      paid: r.paid ? "Yes" : "No",
+      paymentMethod: r.paymentMethod ?? "",
+      earlyBird: r.earlyBird ? "Yes" : "No",
+      selfPay: r.selfPay ? "Yes" : "No",
+      shirtSize: r.shirtSize ?? "",
+      swimming: r.swimming ? "Yes" : "No",
+      medications: Array.isArray(r.medications) ? r.medications.join(", ") : "",
+      allergies: Array.isArray(r.allergies) ? r.allergies.join(", ") : "",
+      notes: r.notes ?? "",
+      mediaConsent: r.mediaConsent ? "Yes" : "No",
+      swimmingPermission: r.swimmingPermission ? "Yes" : "No",
+      emergencyName: r.emergencyName ?? "",
+      emergencyPhone: r.emergencyPhone ?? "",
+      parentVerified: r.parentVerified ? "Yes" : "No",
+      parentOneName: p.parentOneName ?? "",
+      parentOneEmail: p.parentOneEmail ?? "",
+      parentOnePhone: p.parentOnePhone ?? "",
+      parentTwoName: p.parentTwoName ?? "",
+      parentTwoEmail: p.parentTwoEmail ?? "",
+      parentTwoPhone: p.parentTwoPhone ?? "",
+      spouse: r.spouse?.name ?? p.spouseName ?? "",
+      group: r.group ?? "",
+      room: r.room ?? "",
+      primaryLeaderRole: r.primaryLeaderRole ?? "",
+      secondaryLeaderRoles: Array.isArray(r.secondaryLeaderRoles)
+        ? r.secondaryLeaderRoles.join(", ")
+        : "",
+      safeguardingDoc: r.safeguardingDoc ?? "",
+    });
+  }
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.export_registrations",
+    targetType: "event",
+    targetId: id,
+    details: { count: event.registrations.length },
+    success: true,
+  });
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${event.name.replace(/"/g, '""')}-registrations.xlsx"`
+  );
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
 export default adminEventsHandler;
