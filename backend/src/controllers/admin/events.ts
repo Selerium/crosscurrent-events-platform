@@ -625,6 +625,21 @@ adminEventsHandler.delete("/:id/registrations", async (req, res) => {
   res.status(200).json({ data: { count: result.count }, error: false, message: "" });
 });
 
+function calculateAge(dob: Date, now: Date): number {
+  let age = now.getFullYear() - dob.getFullYear();
+  const monthDiff = now.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function getAgeCategory(age: number): string {
+  if (age < 13) return "CHILD";
+  if (age <= 17) return "TEEN";
+  return "YOUTH";
+}
+
 adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
   const { id } = req.params;
 
@@ -698,6 +713,9 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
 
   for (const r of event.registrations) {
     const p = r.profile as any;
+    const dob = p.dob ? new Date(p.dob) : null;
+    const age = dob && !isNaN(dob.getTime()) ? calculateAge(dob, new Date()) : null;
+    const ageCategory = p.ageCategory ?? (age !== null ? getAgeCategory(age) : "");
     sheet.addRow({
       registrationId: r.id,
       registeredAt: r.createdAt?.toISOString?.() ?? "",
@@ -706,9 +724,9 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
       phone: p.phone ?? "",
       role: p.role ?? "",
       gender: p.gender ?? "",
-      dob: p.dob ? new Date(p.dob).toISOString().split("T")[0] : "",
-      ageCategory: p.ageCategory ?? "",
-      age: p.age ?? "",
+      dob: dob && !isNaN(dob.getTime()) ? dob.toISOString().split("T")[0] : "",
+      ageCategory,
+      age: age ?? "",
       church: p.church?.name ?? "",
       churchCountry: p.church?.country ?? "",
       churchState: p.church?.state ?? "",
