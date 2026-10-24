@@ -694,7 +694,7 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
     { header: "Primary Leader Role", key: "primaryLeaderRole", width: 25 },
     { header: "Secondary Leader Roles", key: "secondaryLeaderRoles", width: 40 },
     { header: "Safeguarding Doc", key: "safeguardingDoc", width: 40 },
-  ]);
+  ];
 
   for (const r of event.registrations) {
     const p = r.profile as any;
