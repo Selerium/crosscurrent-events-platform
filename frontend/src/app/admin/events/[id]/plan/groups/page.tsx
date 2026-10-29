@@ -1,5 +1,6 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import { ChevronLeft, Church, LayoutGrid, RotateCcw, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
 import { type AdminEvent } from "../../../../data";
 import api from "@/lib/axios";
+import { buildPlanSlots, resolvePlanNames, slicePlanNames } from "@/lib/plan";
 import { toast } from "sonner";
 
 type Participant = {
@@ -80,7 +82,6 @@ function ParticipantChips({ p }: { p: Participant }) {
 
 export default function PlanGroupsPage() {
   const params = useParams<{ id: string }>();
-  const [eventInfo, setEventInfo] = useState<AdminEvent | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [numGroups, setNumGroups] = useState(1);
@@ -106,17 +107,25 @@ export default function PlanGroupsPage() {
       ),
     ])
       .then(([info, parts]: [AdminEvent, Participant[]]) => {
-        setEventInfo(info);
         const ng = info.groups || 1;
         const mpg = info.maxInGroup || 1;
-        setNumGroups(ng);
+        // Persisted titles are the source of truth, but titles still in use are
+        // always kept so a legacy/stale event can never hide its occupants.
+        const resolved = resolvePlanNames(
+          info.groupNames,
+          parts.map((p) => p.group),
+          ng,
+          "Group"
+        );
+        setNumGroups(resolved.count);
         setMaxPerGroup(mpg);
         setParticipants(parts);
         setExcludedChurchIds([]);
+        setGroupNames(resolved.names);
         setSnapshot({
-          numGroups: ng,
+          numGroups: resolved.count,
           maxPerGroup: mpg,
-          groupNames: Array.from({ length: ng }, (_, i) => `Group ${i + 1}`),
+          groupNames: resolved.names,
           assignments: Object.fromEntries(parts.map((p) => [p.id, p.group || ""])),
         });
       })
@@ -133,37 +142,31 @@ export default function PlanGroupsPage() {
     setDirty(false);
   }
 
-  useEffect(() => {
-    setGroupNames((prev) => {
-      const next = [];
-      for (let i = 0; i < numGroups; i++) {
-        next.push(prev[i] || `Group ${i + 1}`);
-      }
-      return next;
+  // Titles to render for the configured group count. Derived rather than stored
+  // so changing the count can never leave the list out of step.
+  const slotNames = useMemo(
+    () => slicePlanNames(groupNames, numGroups, "Group"),
+    [groupNames, numGroups]
+  );
+
+  // Every assignment that matches a slot lives in that slot; anything else is
+  // surfaced as unslotted instead of silently disappearing.
+  const { slots: groupSlots, unplaced } = useMemo(
+    () => buildPlanSlots(slotNames, participants, (p) => p.group, maxPerGroup),
+    [participants, maxPerGroup, slotNames]
+  );
+
+  const unslotted = unplaced;
+
+  // Removing a group that still holds people is what made assignments vanish.
+  // The save endpoint enforces this too; the input guards against the attempt.
+  const highestOccupiedGroup = useMemo(() => {
+    let highest = 0;
+    slotNames.forEach((name, i) => {
+      if (name && participants.some((p) => p.group === name)) highest = i + 1;
     });
-  }, [numGroups]);
-
-  const slotParticipants = useMemo(() => {
-    return new Set(participants.filter((p) => p.group).map((p) => p.id));
-  }, [participants]);
-
-  const unslotted = useMemo(() => {
-    return participants.filter((p) => !p.group);
-  }, [participants]);
-
-  const groupSlots = useMemo(() => {
-    const slots: { label: string; registrants: Participant[]; emptyCount: number }[] = [];
-    for (let i = 0; i < numGroups; i++) {
-      const label = groupNames[i] || `Group ${i + 1}`;
-      const assigned = participants.filter((p) => p.group === label);
-      slots.push({
-        label,
-        registrants: assigned.slice(0, maxPerGroup),
-        emptyCount: Math.max(0, maxPerGroup - assigned.length),
-      });
-    }
-    return slots;
-  }, [participants, numGroups, maxPerGroup, groupNames]);
+    return highest;
+  }, [participants, slotNames]);
 
   // Warn about unsaved draft work on reload / tab close.
   useEffect(() => {
@@ -184,42 +187,40 @@ export default function PlanGroupsPage() {
     if (!snap || !dirty || saving) return;
     setSaving(true);
     try {
-      // The settings save is the only call that notifies users (existing
-      // backend behavior) — assignment saves never notify. So a save with
-      // only assignment changes stays silent, as before.
-      const settingsChanged =
-        numGroups !== snap.numGroups || maxPerGroup !== snap.maxPerGroup;
-      const changed = participants.filter(
-        (p) => (p.group || "") !== (snap.assignments[p.id] ?? "")
-      );
-      if (settingsChanged) {
-        await api.patch(`/admin/events/${params.id}`, {
-          groups: numGroups,
-          maxInGroup: maxPerGroup,
-        });
-      }
-      await Promise.all(
-        changed.map((p) =>
-          api.patch(`/admin/events/${params.id}/participants/${p.id}`, {
-            group: p.group || "",
-          })
-        )
-      );
-      setEventInfo((prev) =>
-        prev ? { ...prev, groups: numGroups, maxInGroup: maxPerGroup } : prev
-      );
+      // One silent request: counts, capacities, titles and assignments are
+      // applied atomically, so nobody is notified and a group can be emptied
+      // and removed in the same save.
+      const res = await api.patch(`/admin/events/${params.id}/plan`, {
+        groups: numGroups,
+        maxInGroup: maxPerGroup,
+        groupNames: slotNames,
+        assignments: participants.map((p) => ({
+          id: p.id,
+          group: p.group || null,
+        })),
+      });
+      const saved = res.data.data as {
+        groups: number;
+        maxInGroup: number;
+        groupNames: string[];
+      };
+      setNumGroups(saved.groups);
+      setMaxPerGroup(saved.maxInGroup);
+      setGroupNames(saved.groupNames);
       setSnapshot({
-        numGroups,
-        maxPerGroup,
-        groupNames: [...groupNames],
+        numGroups: saved.groups,
+        maxPerGroup: saved.maxInGroup,
+        groupNames: saved.groupNames,
         assignments: Object.fromEntries(snapshotAssignments(participants)),
       });
       setDirty(false);
-      toast.success(
-        settingsChanged ? "Plan saved — users have been notified" : "Plan saved"
+      toast.success("Plan saved");
+    } catch (err) {
+      toast.error(
+        isAxiosError(err)
+          ? err.response?.data?.message || "Failed to save plan"
+          : "Failed to save plan"
       );
-    } catch {
-      toast.error("Failed to save plan");
     } finally {
       setSaving(false);
     }
@@ -259,7 +260,7 @@ export default function PlanGroupsPage() {
 
   function startRename(index: number) {
     setRenamingIndex(index);
-    setRenameValue(groupNames[index] || `Group ${index + 1}`);
+    setRenameValue(slotNames[index] || `Group ${index + 1}`);
   }
 
   function confirmRename() {
@@ -267,15 +268,24 @@ export default function PlanGroupsPage() {
       setRenamingIndex(null);
       return;
     }
-    const oldLabel = groupNames[renamingIndex] || `Group ${renamingIndex + 1}`;
+    const oldLabel = slotNames[renamingIndex] || `Group ${renamingIndex + 1}`;
     const newLabel = renameValue.trim();
     if (newLabel === oldLabel) {
       setRenamingIndex(null);
       return;
     }
+    if (slotNames.some((name, i) => i !== renamingIndex && name === newLabel)) {
+      setRenamingIndex(null);
+      toast.error(`A group called "${newLabel}" already exists`);
+      return;
+    }
 
     setRenamingIndex(null);
-    setGroupNames((prev) => prev.map((n, i) => (i === renamingIndex ? newLabel : n)));
+    setGroupNames(() => {
+      const next = [...slotNames];
+      next[renamingIndex] = newLabel;
+      return next;
+    });
     setParticipants((prev) =>
       prev.map((p) => (p.group === oldLabel ? { ...p, group: newLabel } : p))
     );
@@ -328,7 +338,7 @@ export default function PlanGroupsPage() {
     const assignments: { id: string; group: string }[] = [];
     for (let i = 0; i < sorted.length; i++) {
       const groupIndex = i % numGroups;
-      const label = groupNames[groupIndex] || `Group ${groupIndex + 1}`;
+      const label = slotNames[groupIndex] || `Group ${groupIndex + 1}`;
       assignments.push({ id: sorted[i].id, group: label });
     }
 
@@ -405,11 +415,17 @@ export default function PlanGroupsPage() {
               <Label className="text-xs">Number of Groups</Label>
               <Input
                 type="number"
-                min={1}
+                min={Math.max(1, highestOccupiedGroup)}
                 max={50}
                 value={numGroups}
                 onChange={(e) => {
                   const v = Math.max(1, parseInt(e.target.value) || 1);
+                  if (v < highestOccupiedGroup) {
+                    toast.error(
+                      `Cannot use fewer than ${highestOccupiedGroup} groups: "${slotNames[highestOccupiedGroup - 1]}" still has people`
+                    );
+                    return;
+                  }
                   setNumGroups(v);
                   setDirty(true);
                 }}
@@ -539,7 +555,18 @@ export default function PlanGroupsPage() {
                       {slot.label}
                     </h3>
                   )}
-                  <span className="text-xs text-muted-foreground">
+                  <span
+                    className={`text-xs ${
+                      slot.overCapacity
+                        ? "font-semibold text-destructive"
+                        : "text-muted-foreground"
+                    }`}
+                    title={
+                      slot.overCapacity
+                        ? `Over capacity by ${slot.registrants.length - maxPerGroup}`
+                        : undefined
+                    }
+                  >
                     {slot.registrants.length}/{maxPerGroup}
                   </span>
                 </div>

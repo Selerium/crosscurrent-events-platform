@@ -177,6 +177,13 @@ model Event {
   room           Int         @default(1)
   maxInRoom      Int         @default(1)
 
+  // Ordered room/group titles. Registration.room / Registration.group store the
+  // title a person is assigned to, so these arrays are the source of truth for
+  // which titles exist (and in what order). Every non-null assignment must
+  // match one of these entries.
+  roomNames      String[]    @default([])
+  groupNames     String[]    @default([])
+
   registrations       Registration[]
   scholarshipPayments ScholarshipPayment[]
 

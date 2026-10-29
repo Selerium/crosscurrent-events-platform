@@ -19,6 +19,158 @@ const statusMap: Record<string, string> = {
   COMPLETED: "completed",
 };
 
+type PlanDimension = {
+  field: "room" | "group";
+  countKey: string;
+  maxKey: string;
+  namesKey: string;
+  /** Singular noun used in error messages. */
+  label: string;
+  /** Prefix for auto-generated slot titles. */
+  prefix: string;
+};
+
+const PLAN_DIMENSIONS: PlanDimension[] = [
+  {
+    field: "room",
+    countKey: "room",
+    maxKey: "maxInRoom",
+    namesKey: "roomNames",
+    label: "room",
+    prefix: "Room",
+  },
+  {
+    field: "group",
+    countKey: "groups",
+    maxKey: "maxInGroup",
+    namesKey: "groupNames",
+    label: "group",
+    prefix: "Group",
+  },
+];
+
+type PlanAssignment = { id: string; room?: string | null; group?: string | null };
+
+type PlanValues = { count: number; maxPer: number; names: string[] };
+
+function parsePlanNames(raw: unknown, dimension: PlanDimension): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    throw new AppError(`${dimension.namesKey} must be an array of strings`, 400);
+  }
+
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const value of raw) {
+    if (typeof value !== "string") {
+      throw new AppError(`${dimension.namesKey} must be an array of strings`, 400);
+    }
+    const name = value.trim();
+    if (!name) continue;
+    if (seen.has(name)) {
+      throw new AppError(`Duplicate ${dimension.label} name "${name}"`, 400);
+    }
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+
+/**
+ * Resolves the final count / capacity / titles for one plan dimension and
+ * enforces the two invariants that keep the plan page honest:
+ *
+ *  1. Every assignment points at a title that exists. Otherwise its occupant
+ *     matches no slot and silently disappears from the page (the original bug).
+ *  2. A slot that still holds people cannot be removed by lowering the count.
+ */
+function resolvePlanDimension(
+  dimension: PlanDimension,
+  body: Record<string, unknown>,
+  current: PlanValues,
+  assignedTitles: string[]
+): PlanValues {
+  const countProvided = body[dimension.countKey] !== undefined;
+  const count = countProvided
+    ? Math.trunc(Number(body[dimension.countKey]))
+    : current.count;
+  const maxPer =
+    body[dimension.maxKey] === undefined
+      ? current.maxPer
+      : Math.trunc(Number(body[dimension.maxKey]));
+
+  if (!Number.isFinite(count) || count < 1 || count > 100) {
+    throw new AppError(`${dimension.countKey} must be between 1 and 100`, 400);
+  }
+  if (!Number.isFinite(maxPer) || maxPer < 1 || maxPer > 100) {
+    throw new AppError(`${dimension.maxKey} must be between 1 and 100`, 400);
+  }
+
+  const parsed = parsePlanNames(body[dimension.namesKey], dimension);
+  const names = parsed.length > 0 ? [...parsed] : [...current.names];
+  const seen = new Set(names);
+
+  // Keep every title that is still in use, even if the client omitted it, so an
+  // assignment can never end up pointing at a slot that does not exist.
+  const occupants = new Map<string, number>();
+  for (const title of assignedTitles) {
+    if (!title) continue;
+    occupants.set(title, (occupants.get(title) ?? 0) + 1);
+    if (!seen.has(title)) {
+      seen.add(title);
+      names.push(title);
+    }
+  }
+
+  // Pad so the title array always lines up with the slot count.
+  while (names.length < count) {
+    let n = names.length + 1;
+    while (seen.has(`${dimension.prefix} ${n}`)) n++;
+    const generated = `${dimension.prefix} ${n}`;
+    seen.add(generated);
+    names.push(generated);
+  }
+
+  // A max-only / titles-only update must not fail just because legacy data
+  // already holds more in-use titles than the stored count: grow to fit.
+  const finalCount = countProvided ? count : Math.max(count, names.length);
+
+  // Removing a slot is only allowed once it is empty.
+  for (let i = finalCount; i < names.length; i++) {
+    const people = occupants.get(names[i]) ?? 0;
+    if (people > 0) {
+      throw new AppError(
+        `Cannot reduce ${dimension.label}s to ${finalCount}: "${names[i]}" still has ` +
+          `${people} ${people === 1 ? "person" : "people"}. Move them out first.`,
+        400
+      );
+    }
+  }
+
+  return { count: finalCount, maxPer, names: names.slice(0, finalCount) };
+}
+
+/** Applies assignment changes in as few statements as possible. */
+async function applyPlanAssignments(
+  tx: any,
+  changes: { id: string; value: string | null }[],
+  field: "room" | "group"
+) {
+  const byValue = new Map<string | null, string[]>();
+  for (const change of changes) {
+    const ids = byValue.get(change.value);
+    if (ids) ids.push(change.id);
+    else byValue.set(change.value, [change.id]);
+  }
+
+  for (const [value, ids] of byValue) {
+    await tx.registration.updateMany({
+      where: { id: { in: ids } },
+      data: { [field]: value },
+    });
+  }
+}
+
 const adminEventsHandler = express.Router();
 
 function parseCloseDateOrThrow(value: unknown): Date | null {
@@ -157,6 +309,130 @@ adminEventsHandler.patch("/:id", async (req, res) => {
 
   logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus }, success: true });
   res.status(200).json({ data: updated, error: false, message: "Event updated" });
+});
+
+/**
+ * Saves a room/group plan: slot counts, capacities, titles and assignments.
+ *
+ * Deliberately silent - unlike PATCH /:id it does not notify registrants, so
+ * moving people between rooms does not spam everybody with "event updated".
+ * Everything is applied in one transaction and validated against the final
+ * state, which is what lets an admin move people out of a room and shrink the
+ * room count in the same save.
+ */
+adminEventsHandler.patch("/:id/plan", async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const assignments: PlanAssignment[] = Array.isArray(body.assignments)
+    ? (body.assignments as PlanAssignment[])
+    : [];
+
+  const plan = await prisma.$transaction(async (tx) => {
+    const event = await tx.event.findUnique({ where: { id: req.params.id } });
+    if (!event) throw new AppError("Event not found", 404);
+
+    const registrations = await tx.registration.findMany({
+      where: { eventId: event.id },
+      select: { id: true, room: true, group: true },
+    });
+
+    // Stored assignments overlaid with the incoming changes = final plan.
+    const finalRoom = new Map<string, string | null>();
+    const finalGroup = new Map<string, string | null>();
+    for (const registration of registrations) {
+      finalRoom.set(registration.id, registration.room);
+      finalGroup.set(registration.id, registration.group);
+    }
+
+    for (const assignment of assignments) {
+      if (!assignment || typeof assignment.id !== "string" || !finalRoom.has(assignment.id)) {
+        throw new AppError("Assignment references an unknown participant", 400);
+      }
+
+      for (const field of ["room", "group"] as const) {
+        const value = assignment[field];
+        if (value === undefined) continue;
+        if (value !== null && typeof value !== "string") {
+          throw new AppError(`${field} must be a string or null`, 400);
+        }
+        const normalised = value === null ? null : value.trim() || null;
+        (field === "room" ? finalRoom : finalGroup).set(assignment.id, normalised);
+      }
+    }
+
+    const dimensions: Record<"room" | "group", PlanValues> = {
+      room: { count: event.room, maxPer: event.maxInRoom, names: event.roomNames },
+      group: { count: event.groups, maxPer: event.maxInGroup, names: event.groupNames },
+    };
+
+    const touches = (dimension: PlanDimension) =>
+      body[dimension.countKey] !== undefined ||
+      body[dimension.maxKey] !== undefined ||
+      body[dimension.namesKey] !== undefined ||
+      assignments.some((a) => a?.[dimension.field] !== undefined);
+
+    for (const dimension of PLAN_DIMENSIONS) {
+      if (!touches(dimension)) continue;
+
+      const final = dimension.field === "room" ? finalRoom : finalGroup;
+      const assignedTitles = [...final.values()].filter(
+        (title): title is string => Boolean(title)
+      );
+
+      dimensions[dimension.field] = resolvePlanDimension(
+        dimension,
+        body,
+        dimensions[dimension.field],
+        assignedTitles
+      );
+    }
+
+    const updateData = {
+      room: dimensions.room.count,
+      maxInRoom: dimensions.room.maxPer,
+      roomNames: dimensions.room.names,
+      groups: dimensions.group.count,
+      maxInGroup: dimensions.group.maxPer,
+      groupNames: dimensions.group.names,
+    };
+
+    await tx.event.update({ where: { id: event.id }, data: updateData });
+
+    // Only write the assignments that actually changed.
+    const changesFor = (field: "room" | "group", final: Map<string, string | null>) => {
+      const changes: { id: string; value: string | null }[] = [];
+      for (const registration of registrations) {
+        const before = registration[field];
+        const after = final.get(registration.id) ?? null;
+        if ((before ?? null) !== after) changes.push({ id: registration.id, value: after });
+      }
+      return changes;
+    };
+
+    await applyPlanAssignments(tx, changesFor("room", finalRoom), "room");
+    await applyPlanAssignments(tx, changesFor("group", finalGroup), "group");
+
+    return { id: event.id, ...updateData };
+  });
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.plan_update",
+    targetType: "event",
+    targetId: req.params.id,
+    details: {
+      room: plan.room,
+      maxInRoom: plan.maxInRoom,
+      roomNames: plan.roomNames,
+      groups: plan.groups,
+      maxInGroup: plan.maxInGroup,
+      groupNames: plan.groupNames,
+      assignments: assignments.length,
+    },
+    success: true,
+  });
+
+  res.status(200).json({ data: plan, error: false, message: "Plan saved" });
 });
 
 adminEventsHandler.get("", async (req, res) => {
@@ -346,6 +622,8 @@ adminEventsHandler.get("/:id", async (req, res) => {
     maxInGroup: event.maxInGroup,
     room: event.room,
     maxInRoom: event.maxInRoom,
+    roomNames: event.roomNames,
+    groupNames: event.groupNames,
   };
 
   res.status(200).json({ data, error: false, message: "" });

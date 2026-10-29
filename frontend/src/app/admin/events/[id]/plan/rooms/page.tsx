@@ -1,5 +1,6 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import { ChevronLeft, DoorOpen, RotateCcw, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
 import { type AdminEvent } from "../../../../data";
 import api from "@/lib/axios";
+import { buildPlanSlots, resolvePlanNames, slicePlanNames } from "@/lib/plan";
 import { toast } from "sonner";
 
 type Participant = {
@@ -75,7 +77,6 @@ function ParticipantChips({ p }: { p: Participant }) {
 
 export default function PlanRoomsPage() {
   const params = useParams<{ id: string }>();
-  const [eventInfo, setEventInfo] = useState<AdminEvent | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [numRooms, setNumRooms] = useState(1);
@@ -99,16 +100,24 @@ export default function PlanRoomsPage() {
       ),
     ])
       .then(([info, parts]: [AdminEvent, Participant[]]) => {
-        setEventInfo(info);
         const nr = info.room || 1;
         const mpr = info.maxInRoom || 1;
-        setNumRooms(nr);
+        // Persisted titles are the source of truth, but titles still in use are
+        // always kept so a legacy/stale event can never hide its occupants.
+        const resolved = resolvePlanNames(
+          info.roomNames,
+          parts.map((p) => p.room),
+          nr,
+          "Room"
+        );
+        setNumRooms(resolved.count);
         setMaxPerRoom(mpr);
         setParticipants(parts);
+        setRoomNames(resolved.names);
         setSnapshot({
-          numRooms: nr,
+          numRooms: resolved.count,
           maxPerRoom: mpr,
-          roomNames: Array.from({ length: nr }, (_, i) => `Room ${i + 1}`),
+          roomNames: resolved.names,
           assignments: Object.fromEntries(parts.map((p) => [p.id, p.room || ""])),
         });
       })
@@ -125,33 +134,31 @@ export default function PlanRoomsPage() {
     setDirty(false);
   }
 
-  useEffect(() => {
-    setRoomNames((prev) => {
-      const next = [];
-      for (let i = 0; i < numRooms; i++) {
-        next.push(prev[i] || `Room ${i + 1}`);
-      }
-      return next;
+  // Titles to render for the configured room count. Derived rather than stored
+  // so changing the count can never leave the list out of step.
+  const slotNames = useMemo(
+    () => slicePlanNames(roomNames, numRooms, "Room"),
+    [numRooms, roomNames]
+  );
+
+  // Every assignment that matches a slot lives in that slot; anything else is
+  // surfaced as unslotted instead of silently disappearing.
+  const { slots: roomSlots, unplaced } = useMemo(
+    () => buildPlanSlots(slotNames, participants, (p) => p.room, maxPerRoom),
+    [participants, maxPerRoom, slotNames]
+  );
+
+  const unslotted = unplaced;
+
+  // Removing a room that still holds people is what made assignments vanish.
+  // The save endpoint enforces this too; the input guards against the attempt.
+  const highestOccupiedRoom = useMemo(() => {
+    let highest = 0;
+    slotNames.forEach((name, i) => {
+      if (name && participants.some((p) => p.room === name)) highest = i + 1;
     });
-  }, [numRooms]);
-
-  const unslotted = useMemo(() => {
-    return participants.filter((p) => !p.room);
-  }, [participants]);
-
-  const roomSlots = useMemo(() => {
-    const slots: { label: string; registrants: Participant[]; emptyCount: number }[] = [];
-    for (let i = 0; i < numRooms; i++) {
-      const label = roomNames[i] || `Room ${i + 1}`;
-      const assigned = participants.filter((p) => p.room === label);
-      slots.push({
-        label,
-        registrants: assigned.slice(0, maxPerRoom),
-        emptyCount: Math.max(0, maxPerRoom - assigned.length),
-      });
-    }
-    return slots;
-  }, [participants, numRooms, maxPerRoom, roomNames]);
+    return highest;
+  }, [participants, slotNames]);
 
   // Warn about unsaved draft work on reload / tab close.
   useEffect(() => {
@@ -172,42 +179,40 @@ export default function PlanRoomsPage() {
     if (!snap || !dirty || saving) return;
     setSaving(true);
     try {
-      // The settings save is the only call that notifies users (existing
-      // backend behavior) — assignment saves never notify. So a save with
-      // only assignment changes stays silent, as before.
-      const settingsChanged =
-        numRooms !== snap.numRooms || maxPerRoom !== snap.maxPerRoom;
-      const changed = participants.filter(
-        (p) => (p.room || "") !== (snap.assignments[p.id] ?? "")
-      );
-      if (settingsChanged) {
-        await api.patch(`/admin/events/${params.id}`, {
-          room: numRooms,
-          maxInRoom: maxPerRoom,
-        });
-      }
-      await Promise.all(
-        changed.map((p) =>
-          api.patch(`/admin/events/${params.id}/participants/${p.id}`, {
-            room: p.room || "",
-          })
-        )
-      );
-      setEventInfo((prev) =>
-        prev ? { ...prev, room: numRooms, maxInRoom: maxPerRoom } : prev
-      );
+      // One silent request: counts, capacities, titles and assignments are
+      // applied atomically, so nobody is notified and a room can be emptied
+      // and removed in the same save.
+      const res = await api.patch(`/admin/events/${params.id}/plan`, {
+        room: numRooms,
+        maxInRoom: maxPerRoom,
+        roomNames: slotNames,
+        assignments: participants.map((p) => ({
+          id: p.id,
+          room: p.room || null,
+        })),
+      });
+      const saved = res.data.data as {
+        room: number;
+        maxInRoom: number;
+        roomNames: string[];
+      };
+      setNumRooms(saved.room);
+      setMaxPerRoom(saved.maxInRoom);
+      setRoomNames(saved.roomNames);
       setSnapshot({
-        numRooms,
-        maxPerRoom,
-        roomNames: [...roomNames],
+        numRooms: saved.room,
+        maxPerRoom: saved.maxInRoom,
+        roomNames: saved.roomNames,
         assignments: Object.fromEntries(snapshotAssignments(participants)),
       });
       setDirty(false);
-      toast.success(
-        settingsChanged ? "Plan saved — users have been notified" : "Plan saved"
+      toast.success("Plan saved");
+    } catch (err) {
+      toast.error(
+        isAxiosError(err)
+          ? err.response?.data?.message || "Failed to save plan"
+          : "Failed to save plan"
       );
-    } catch {
-      toast.error("Failed to save plan");
     } finally {
       setSaving(false);
     }
@@ -260,7 +265,7 @@ export default function PlanRoomsPage() {
 
   function startRename(index: number) {
     setRenamingIndex(index);
-    setRenameValue(roomNames[index] || `Room ${index + 1}`);
+    setRenameValue(slotNames[index] || `Room ${index + 1}`);
   }
 
   function confirmRename() {
@@ -268,15 +273,24 @@ export default function PlanRoomsPage() {
       setRenamingIndex(null);
       return;
     }
-    const oldLabel = roomNames[renamingIndex] || `Room ${renamingIndex + 1}`;
+    const oldLabel = slotNames[renamingIndex] || `Room ${renamingIndex + 1}`;
     const newLabel = renameValue.trim();
     if (newLabel === oldLabel) {
       setRenamingIndex(null);
       return;
     }
+    if (slotNames.some((name, i) => i !== renamingIndex && name === newLabel)) {
+      setRenamingIndex(null);
+      toast.error(`A room called "${newLabel}" already exists`);
+      return;
+    }
 
     setRenamingIndex(null);
-    setRoomNames((prev) => prev.map((n, i) => (i === renamingIndex ? newLabel : n)));
+    setRoomNames(() => {
+      const next = [...slotNames];
+      next[renamingIndex] = newLabel;
+      return next;
+    });
     setParticipants((prev) =>
       prev.map((p) => (p.room === oldLabel ? { ...p, room: newLabel } : p))
     );
@@ -352,7 +366,7 @@ export default function PlanRoomsPage() {
 
     const assignments: { id: string; room: string }[] = [];
     plan.forEach((members, roomIndex) => {
-      const label = roomNames[roomIndex] || `Room ${roomIndex + 1}`;
+      const label = slotNames[roomIndex] || `Room ${roomIndex + 1}`;
       for (const p of members) {
         assignments.push({ id: p.id, room: label });
       }
@@ -431,11 +445,17 @@ export default function PlanRoomsPage() {
               <Label className="text-xs">Number of Rooms</Label>
               <Input
                 type="number"
-                min={1}
+                min={Math.max(1, highestOccupiedRoom)}
                 max={50}
                 value={numRooms}
                 onChange={(e) => {
                   const v = Math.max(1, parseInt(e.target.value) || 1);
+                  if (v < highestOccupiedRoom) {
+                    toast.error(
+                      `Cannot use fewer than ${highestOccupiedRoom} rooms: "${slotNames[highestOccupiedRoom - 1]}" still has people`
+                    );
+                    return;
+                  }
                   setNumRooms(v);
                   setDirty(true);
                 }}
@@ -499,7 +519,18 @@ export default function PlanRoomsPage() {
                       {slot.label}
                     </h3>
                   )}
-                  <span className="text-xs text-muted-foreground">
+                  <span
+                    className={`text-xs ${
+                      slot.overCapacity
+                        ? "font-semibold text-destructive"
+                        : "text-muted-foreground"
+                    }`}
+                    title={
+                      slot.overCapacity
+                        ? `Over capacity by ${slot.registrants.length - maxPerRoom}`
+                        : undefined
+                    }
+                  >
                     {slot.registrants.length}/{maxPerRoom}
                   </span>
                 </div>

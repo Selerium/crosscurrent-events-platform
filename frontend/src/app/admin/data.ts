@@ -38,6 +38,8 @@ export type AdminEvent = {
   maxInGroup: number;
   room: number;
   maxInRoom: number;
+  roomNames: string[];
+  groupNames: string[];
 };
 
 export type ProfileRecord = {
