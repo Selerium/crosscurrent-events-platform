@@ -1440,7 +1440,7 @@ export default function AdminEventPage() {
         <AddParticipantModal
           eventId={params.id}
           registeredProfileIds={participants.map((p) => p.profileId)}
-          signUps={participants.length}
+          signUps={eventInfo.paidSignUps}
           capacity={eventInfo.capacity}
           onClose={() => setShowAddParticipant(false)}
           onAdded={refreshParticipantData}

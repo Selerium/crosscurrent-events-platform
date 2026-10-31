@@ -4,10 +4,11 @@
  * Spawned with `node --experimental-strip-types`. Verifies admins can add an
  * existing account to an event's registration list:
  *
- *   POST /admin/events/:id/registrations  { profileId, shirtSize? }
+ *   POST /admin/events/:id/registrations  (multipart or JSON body)
  *
  * Covers gating (anon 401, non-admin 403), validation/404s, the duplicate
- * guard, adding past maxSignUps, and the admin log entry.
+ * guard, adding past maxSignUps with the full registration answers, and the
+ * admin log entry.
  *
  * Env: DATABASE_URL, JWT_SECRET, RESEND_API_KEY, STRIPE_SECRET_KEY.
  */
@@ -153,11 +154,21 @@ try {
     fail("notFound", e.message);
   }
 
-  // 4. Add succeeds even though the event is already at capacity.
+  // 4. Add succeeds even though the event is already at capacity, and the
+  //    answers entered on the admin form are persisted.
   try {
     const r = await req("POST", base, adminToken, {
       profileId: target.id,
       shirtSize: "XL",
+      swimming: "true",
+      selfPay: "true",
+      mediaConsent: "true",
+      swimmingPermission: "true",
+      medications: ["Inhaler", "EpiPen"],
+      allergies: ["Peanuts"],
+      emergencyName: "Parent Target",
+      emergencyPhone: "+971500000000",
+      notes: "Arriving late",
     });
     const body = await r.json().catch(() => ({}));
     const row = await prisma.registration.findFirst({
@@ -173,8 +184,18 @@ try {
         Boolean(row) &&
         row?.paid === false &&
         row?.shirtSize === "XL" &&
+        row?.swimming === true &&
+        row?.selfPay === true &&
+        row?.mediaConsent === true &&
+        row?.swimmingPermission === true &&
+        JSON.stringify(row?.medications) ===
+          JSON.stringify(["Inhaler", "EpiPen"]) &&
+        JSON.stringify(row?.allergies) === JSON.stringify(["Peanuts"]) &&
+        row?.emergencyName === "Parent Target" &&
+        row?.emergencyPhone === "+971500000000" &&
+        row?.notes === "Arriving late" &&
         count === 2,
-      detail: `status=${r.status} body=${JSON.stringify(body)} count=${count} shirt=${row?.shirtSize}`,
+      detail: `status=${r.status} body=${JSON.stringify(body)} count=${count} row=${JSON.stringify(row)}`,
     };
   } catch (e) {
     fail("addOverCapacity", e.message);
@@ -208,7 +229,11 @@ try {
         log?.adminId === admin.id &&
         details.eventId === event.id &&
         details.profileId === target.id &&
-        details.overCapacity === true,
+        details.overCapacity === true &&
+        details.medicationCount === 2 &&
+        details.allergyCount === 1 &&
+        details.swimming === true &&
+        details.selfPay === true,
       detail: `log=${JSON.stringify(log)}`,
     };
   } catch (e) {

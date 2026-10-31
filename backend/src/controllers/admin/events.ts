@@ -2,8 +2,8 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import AppError from "../../lib/appError.ts";
-import { prisma, PaymentMethod } from "../../lib/prismaClient.ts";
-import { uploadsDir } from "../../lib/uploads.ts";
+import { prisma, PaymentMethod, PrimaryLeaderRoles, SecondaryLeaderRoles } from "../../lib/prismaClient.ts";
+import { uploadSafeguardingMiddleware, deleteUploadedFile, uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
 import { fanOutCompletionsForProfile } from "../../lib/requiredActions.ts";
@@ -25,6 +25,16 @@ const statusMap: Record<string, string> = {
 };
 
 const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"] as const;
+
+const asString = (value: unknown): string =>
+  value == null ? "" : String(value);
+const asBool = (value: unknown): boolean =>
+  value === true || value === "true" || value === "on";
+const asStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.map(String);
+  if (value == null || value === "") return [];
+  return [String(value)];
+};
 
 type PlanDimension = {
   field: "room" | "group";
@@ -723,16 +733,15 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
 
 /**
  * Adds an existing account to an event's registration list on the admin's
- * behalf. This is an explicit override: it does not enforce the registration
- * window or the event's max sign-ups, which lets admins add someone after the
- * event filled up (or was closed). The action is recorded in the admin log.
+ * behalf, using the answers filled in on the admin event page. This is an
+ * explicit override: it does not enforce the registration window or the
+ * event's max sign-ups, which lets admins add someone after the event filled
+ * up (or was closed). The action is recorded in the admin log.
  */
-adminEventsHandler.post("/:id/registrations", async (req, res) => {
+const addRegistrationForAdmin = async (req: any, res: any) => {
   const { id } = req.params;
-  const profileId =
-    typeof req.body?.profileId === "string" ? req.body.profileId.trim() : "";
-  const shirtSize =
-    typeof req.body?.shirtSize === "string" ? req.body.shirtSize : "M";
+  const profileId = asString(req.body?.profileId).trim();
+  const shirtSize = asString(req.body?.shirtSize) || "M";
 
   if (!profileId) {
     throw new AppError("profileId is required", 400);
@@ -749,6 +758,7 @@ adminEventsHandler.post("/:id/registrations", async (req, res) => {
     select: {
       id: true,
       name: true,
+      role: true,
       user: { select: { email: true } },
     },
   });
@@ -765,21 +775,91 @@ adminEventsHandler.post("/:id/registrations", async (req, res) => {
     where: { eventId: id },
   });
 
+  const isLeader = profile.role === "LEADER";
+  const medications = asStringArray(req.body?.medications);
+  const allergies = asStringArray(req.body?.allergies);
+  const emergencyName = asString(req.body?.emergencyName).trim();
+  const emergencyPhone = asString(req.body?.emergencyPhone).trim();
+  const notes = asString(req.body?.notes).trim() || null;
+
+  let spouseId: string | null = null;
+  let primaryLeaderRole: string | null = null;
+  let secondaryLeaderRoles: string[] = [];
+  let safeguardingDoc: string | null = null;
+
+  if (isLeader) {
+    primaryLeaderRole = asString(req.body?.primaryLeaderRole) || null;
+    secondaryLeaderRoles = [
+      ...new Set(asStringArray(req.body?.secondaryLeaderRoles)),
+    ];
+
+    if (
+      !primaryLeaderRole ||
+      !Object.values(PrimaryLeaderRoles).includes(primaryLeaderRole as any)
+    ) {
+      throw new AppError("A valid primary leader role is required", 400);
+    }
+
+    const validSecondary = Object.values(SecondaryLeaderRoles);
+    if (
+      secondaryLeaderRoles.length !== 3 ||
+      !secondaryLeaderRoles.every((role) => validSecondary.includes(role as any))
+    ) {
+      throw new AppError(
+        "Exactly three distinct secondary leader roles are required",
+        400
+      );
+    }
+
+    const rawSpouseId = asString(req.body?.spouseId) || null;
+    if (rawSpouseId) {
+      if (rawSpouseId === profileId) {
+        throw new AppError("A participant cannot be their own spouse", 400);
+      }
+      const spouse = await prisma.profile.findUnique({
+        where: { id: rawSpouseId },
+        select: { approved: true },
+      });
+      if (!spouse) throw new AppError("Spouse profile not found", 404);
+      if (!spouse.approved) {
+        throw new AppError("Spouse profile is not approved", 400);
+      }
+      spouseId = rawSpouseId;
+    }
+
+    if (!req.file) {
+      throw new AppError("Safeguarding/DBS certificate is required", 400);
+    }
+    safeguardingDoc = req.file.filename;
+  }
+
+  // The certificate only applies to leaders; drop it for everyone else.
+  if (!isLeader && req.file) {
+    deleteUploadedFile(req.file.filename);
+  }
+
   let registration;
   try {
     registration = await prisma.registration.create({
       data: {
         eventId: id,
         profileId,
-        medications: [],
-        allergies: [],
+        medications,
+        allergies,
         shirtSize: shirtSize as (typeof SHIRT_SIZES)[number],
-        swimming: false,
-        selfPay: false,
-        mediaConsent: false,
-        swimmingPermission: false,
-        emergencyName: "",
-        emergencyPhone: "",
+        swimming: asBool(req.body?.swimming),
+        selfPay: asBool(req.body?.selfPay),
+        mediaConsent: asBool(req.body?.mediaConsent),
+        swimmingPermission:
+          profile.role === "STUDENT" &&
+          asBool(req.body?.swimmingPermission),
+        emergencyName,
+        emergencyPhone,
+        notes,
+        safeguardingDoc,
+        spouseId,
+        primaryLeaderRole: primaryLeaderRole as any,
+        secondaryLeaderRoles: secondaryLeaderRoles as any[],
         paid: false,
       },
     });
@@ -819,6 +899,15 @@ adminEventsHandler.post("/:id/registrations", async (req, res) => {
       profileName: profile.name,
       profileEmail: profile.user.email,
       shirtSize,
+      swimming: registration.swimming,
+      selfPay: registration.selfPay,
+      mediaConsent: registration.mediaConsent,
+      swimmingPermission: registration.swimmingPermission,
+      medicationCount: medications.length,
+      allergyCount: allergies.length,
+      hasSafeguardingDoc: Boolean(safeguardingDoc),
+      primaryLeaderRole,
+      secondaryLeaderRoles,
       capacity: event.maxSignUps,
       signUpsBefore,
       overCapacity: signUpsBefore >= event.maxSignUps,
@@ -831,7 +920,20 @@ adminEventsHandler.post("/:id/registrations", async (req, res) => {
     error: false,
     message: "Registration added",
   });
-});
+};
+
+adminEventsHandler.post(
+  "/:id/registrations",
+  uploadSafeguardingMiddleware,
+  async (req, res) => {
+    try {
+      await addRegistrationForAdmin(req, res);
+    } catch (err) {
+      deleteUploadedFile(req.file?.filename ?? null);
+      throw err;
+    }
+  }
+);
 
 adminEventsHandler.get(
   "/:id/participants/:participantId/document",
