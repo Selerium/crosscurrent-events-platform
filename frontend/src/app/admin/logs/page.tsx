@@ -17,6 +17,7 @@ const actionLabels: Record<string, string> = {
   "event.create": "Event Created",
   "event.update": "Event Updated",
   "event.add_registration": "Participant Added",
+  "event.remove_registration": "Participant Removed",
   "profile.delete": "Profile Deleted",
   "profile.update": "Profile Updated",
   "admin.create": "Admin Created",

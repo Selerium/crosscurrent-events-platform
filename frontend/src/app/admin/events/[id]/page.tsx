@@ -165,6 +165,9 @@ export default function AdminEventPage() {
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [approveTarget, setApproveTarget] = useState<Participant | null>(null);
   const [approvingParent, setApprovingParent] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<Participant | null>(null);
+  const [removingParticipant, setRemovingParticipant] = useState(false);
   const [downloadingAllRegs, setDownloadingAllRegs] = useState(false);
   const [showAddParticipant, setShowAddParticipant] = useState(false);
 
@@ -379,6 +382,36 @@ export default function AdminEventPage() {
       setApprovingParent(false);
       setShowApproveConfirm(false);
       setApproveTarget(null);
+    }
+  }
+
+  async function handleRemoveParticipant() {
+    if (!removeTarget) return;
+    setRemovingParticipant(true);
+    try {
+      await api.delete(
+        `/admin/events/${params.id}/participants/${removeTarget.id}`
+      );
+      setParticipants((prev) => prev.filter((p) => p.id !== removeTarget.id));
+      setEventInfo((prev) =>
+        prev
+          ? {
+              ...prev,
+              signUps: Math.max(0, prev.signUps - 1),
+              unpaidSignUps: Math.max(0, prev.unpaidSignUps - 1),
+            }
+          : prev
+      );
+      toast.success(`${removeTarget.name} removed from the event`);
+    } catch (err) {
+      const message = (
+        err as { response?: { data?: { message?: string } } }
+      ).response?.data?.message;
+      toast.error(message || "Could not remove participant");
+    } finally {
+      setRemovingParticipant(false);
+      setShowRemoveConfirm(false);
+      setRemoveTarget(null);
     }
   }
 
@@ -1237,6 +1270,19 @@ export default function AdminEventPage() {
                           Mark as paid
                         </button>
                       )}
+                      {!p.paid && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRemoveTarget(p);
+                            setShowRemoveConfirm(true);
+                          }}
+                          className="flex cursor-pointer items-center gap-1 rounded-md border border-red-700 px-2 py-0.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+                        >
+                          <Trash2 className="size-3" />
+                          Remove
+                        </button>
+                      )}
                       {p.paid && (
                         <button
                           type="button"
@@ -1625,6 +1671,51 @@ export default function AdminEventPage() {
               >
                 <CheckCircle />
                 {approvingParent ? "Approving..." : "Yes, approve parent"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRemoveConfirm && removeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold">Remove participant</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRemoveConfirm(false);
+                  setRemoveTarget(null);
+                }}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Remove <strong>{removeTarget.name}</strong>&apos;s unpaid
+              registration from this event? Their account will stay, but the
+              registration cannot be restored.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRemoveConfirm(false);
+                  setRemoveTarget(null);
+                }}
+                disabled={removingParticipant}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRemoveParticipant}
+                disabled={removingParticipant}
+                className="bg-red-700 hover:bg-red-800"
+              >
+                <Trash2 />
+                {removingParticipant ? "Removing..." : "Yes, remove"}
               </Button>
             </div>
           </div>

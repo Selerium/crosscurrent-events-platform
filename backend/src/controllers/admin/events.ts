@@ -963,6 +963,61 @@ adminEventsHandler.get(
   }
 );
 
+adminEventsHandler.delete(
+  "/:id/participants/:participantId",
+  async (req, res) => {
+    const { id, participantId } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) throw new AppError("Event not found", 404);
+
+    const registration = await prisma.registration.findFirst({
+      where: { id: participantId, eventId: id },
+      include: { profile: { select: { id: true, name: true } } },
+    });
+    if (!registration) throw new AppError("Registration not found", 404);
+
+    if (registration.paid) {
+      throw new AppError(
+        "Cannot remove a registration after payment has been made",
+        403
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.registration.delete({ where: { id: participantId } }),
+      prisma.requiredActionCompletion.deleteMany({
+        where: {
+          profileId: registration.profileId,
+          action: { eventId: id },
+        },
+      }),
+    ]);
+
+    deleteUploadedFile(registration.safeguardingDoc);
+
+    logAdminAction({
+      adminId: req.user.id,
+      adminName: req.user.name,
+      action: "event.remove_registration",
+      targetType: "registration",
+      targetId: participantId,
+      details: {
+        eventId: id,
+        eventName: event.name,
+        profileId: registration.profileId,
+        profileName: registration.profile.name,
+        unpaid: true,
+      },
+      success: true,
+    });
+
+    res
+      .status(200)
+      .json({ data: null, error: false, message: "Registration removed" });
+  }
+);
+
 adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) => {
   const { id, participantId } = req.params;
   const {
