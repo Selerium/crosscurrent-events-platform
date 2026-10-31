@@ -6,6 +6,7 @@ import { prisma, PaymentMethod } from "../../lib/prismaClient.ts";
 import { uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
+import { fanOutCompletionsForProfile } from "../../lib/requiredActions.ts";
 import { isEarlyBirdPayment } from "../../lib/earlyBird.ts";
 import {
   isPrimaryLeaderRole,
@@ -22,6 +23,8 @@ const statusMap: Record<string, string> = {
   CLOSED: "closed",
   COMPLETED: "completed",
 };
+
+const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"] as const;
 
 type PlanDimension = {
   field: "room" | "group";
@@ -716,6 +719,118 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
   });
 
   res.status(200).json({ data, error: false, message: "" });
+});
+
+/**
+ * Adds an existing account to an event's registration list on the admin's
+ * behalf. This is an explicit override: it does not enforce the registration
+ * window or the event's max sign-ups, which lets admins add someone after the
+ * event filled up (or was closed). The action is recorded in the admin log.
+ */
+adminEventsHandler.post("/:id/registrations", async (req, res) => {
+  const { id } = req.params;
+  const profileId =
+    typeof req.body?.profileId === "string" ? req.body.profileId.trim() : "";
+  const shirtSize =
+    typeof req.body?.shirtSize === "string" ? req.body.shirtSize : "M";
+
+  if (!profileId) {
+    throw new AppError("profileId is required", 400);
+  }
+  if (!SHIRT_SIZES.includes(shirtSize as (typeof SHIRT_SIZES)[number])) {
+    throw new AppError("Invalid shirt size", 400);
+  }
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) throw new AppError("Event not found", 404);
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: profileId },
+    select: {
+      id: true,
+      name: true,
+      user: { select: { email: true } },
+    },
+  });
+  if (!profile) throw new AppError("Profile not found", 404);
+
+  const existing = await prisma.registration.findFirst({
+    where: { eventId: id, profileId },
+  });
+  if (existing) {
+    throw new AppError("This user is already registered for this event", 409);
+  }
+
+  const signUpsBefore = await prisma.registration.count({
+    where: { eventId: id },
+  });
+
+  let registration;
+  try {
+    registration = await prisma.registration.create({
+      data: {
+        eventId: id,
+        profileId,
+        medications: [],
+        allergies: [],
+        shirtSize: shirtSize as (typeof SHIRT_SIZES)[number],
+        swimming: false,
+        selfPay: false,
+        mediaConsent: false,
+        swimmingPermission: false,
+        emergencyName: "",
+        emergencyPhone: "",
+        paid: false,
+      },
+    });
+  } catch (err) {
+    logAdminAction({
+      adminId: req.user.id,
+      adminName: req.user.name,
+      action: "event.add_registration",
+      targetType: "registration",
+      targetId: profileId,
+      details: {
+        eventId: id,
+        profileId,
+        profileName: profile.name,
+        shirtSize,
+        error: String(err),
+      },
+      success: false,
+    });
+    throw err;
+  }
+
+  // Treat the admin-added registration like any other when assigning the
+  // event's required actions.
+  await fanOutCompletionsForProfile(id, profileId);
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.add_registration",
+    targetType: "registration",
+    targetId: registration.id,
+    details: {
+      eventId: id,
+      eventName: event.name,
+      profileId,
+      profileName: profile.name,
+      profileEmail: profile.user.email,
+      shirtSize,
+      capacity: event.maxSignUps,
+      signUpsBefore,
+      overCapacity: signUpsBefore >= event.maxSignUps,
+    },
+    success: true,
+  });
+
+  res.status(201).json({
+    data: registration,
+    error: false,
+    message: "Registration added",
+  });
 });
 
 adminEventsHandler.get(

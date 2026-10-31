@@ -19,6 +19,7 @@ import {
   Search,
   Trash2,
   Users,
+  UserPlus,
   XIcon,
   Download,
 } from "lucide-react";
@@ -45,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data";
 import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
+import AddParticipantModal from "@/components/admin/AddParticipantModal";
 import api from "@/lib/axios";
 import {
   PRIMARY_LEADER_ROLES,
@@ -164,6 +166,16 @@ export default function AdminEventPage() {
   const [approveTarget, setApproveTarget] = useState<Participant | null>(null);
   const [approvingParent, setApprovingParent] = useState(false);
   const [downloadingAllRegs, setDownloadingAllRegs] = useState(false);
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+
+  async function refreshParticipantData() {
+    const [participantsRes, eventRes] = await Promise.all([
+      api.get(`/admin/events/${params.id}/participants`),
+      api.get(`/admin/events/${params.id}`),
+    ]);
+    setParticipants(participantsRes.data.data || []);
+    setEventInfo(eventRes.data.data);
+  }
 
   const handleDownloadAllRegistrations = async () => {
     if (!eventInfo) return;
@@ -1062,6 +1074,14 @@ export default function AdminEventPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setShowAddParticipant(true)}
+              >
+                <UserPlus className="mr-1 h-4 w-4" />
+                Add participant
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleDownloadAllRegistrations}
                 disabled={downloadingAllRegs || participants.length === 0}
               >
@@ -1415,6 +1435,17 @@ export default function AdminEventPage() {
           onFormOpenChange={setShowActionForm}
         />
       </div>
+
+      {showAddParticipant && (
+        <AddParticipantModal
+          eventId={params.id}
+          registeredProfileIds={participants.map((p) => p.profileId)}
+          signUps={participants.length}
+          capacity={eventInfo.capacity}
+          onClose={() => setShowAddParticipant(false)}
+          onAdded={refreshParticipantData}
+        />
+      )}
 
       {showCloseConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
