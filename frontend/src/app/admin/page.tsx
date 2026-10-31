@@ -7,6 +7,7 @@ import {
   Contact,
   Download,
   Edit3,
+  Info,
   Plus,
   UserPlus,
   Users,
@@ -238,6 +239,11 @@ export default function AdminDashboard() {
             </Button>
             <Button variant="outline" onClick={() => { setShowEvaluateJuniors(true); setEvalResult(null); }}>
               <Users /> Evaluate Juniors
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/admin/roles">
+                <Info /> Role information
+              </Link>
             </Button>
             <Button onClick={() => setShowAddAdmin(true)}>
               <UserPlus /> Add admin

@@ -1,7 +1,7 @@
 "use client";
 
 import { isAxiosError } from "axios";
-import { ChevronLeft, DoorOpen, RotateCcw, Wand2, X } from "lucide-react";
+import { ChevronLeft, DoorOpen, RotateCcw, Search, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -87,6 +87,10 @@ export default function PlanRoomsPage() {
   const [renameValue, setRenameValue] = useState("");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Search filters what is rendered only; drafts, saves, and capacity math
+  // always use the full unfiltered lists.
+  const [participantSearch, setParticipantSearch] = useState("");
+  const [slotSearch, setSlotSearch] = useState("");
 
   // Pristine server state. Everything above is a local draft until Save:
   // no request leaves the browser (and no user is notified) beforehand.
@@ -149,6 +153,32 @@ export default function PlanRoomsPage() {
   );
 
   const unslotted = unplaced;
+
+  // View-only filters. Slot entries keep their original index so renaming
+  // still targets the right room even while a search is active.
+  const participantQuery = participantSearch.trim().toLowerCase();
+  const filteredUnslotted = useMemo(
+    () =>
+      participantQuery
+        ? unslotted.filter(
+            (p) =>
+              p.name.toLowerCase().includes(participantQuery) ||
+              p.church.toLowerCase().includes(participantQuery)
+          )
+        : unslotted,
+    [unslotted, participantQuery]
+  );
+
+  const slotQuery = slotSearch.trim().toLowerCase();
+  const filteredRoomSlots = useMemo(
+    () =>
+      roomSlots
+        .map((slot, index) => ({ slot, index }))
+        .filter(
+          ({ slot }) => !slotQuery || slot.label.toLowerCase().includes(slotQuery)
+        ),
+    [roomSlots, slotQuery]
+  );
 
   // Removing a room that still holds people is what made assignments vanish.
   // The save endpoint enforces this too; the input guards against the attempt.
@@ -412,14 +442,26 @@ export default function PlanRoomsPage() {
         <div className="flex w-72 shrink-0 flex-col border-r overflow-y-auto">
           <div className="border-b px-4 py-3">
             <h2 className="text-sm font-medium">Unslotted ({unslotted.length})</h2>
+            <label className="relative mt-2 block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
+                onChange={(e) => setParticipantSearch(e.target.value)}
+                placeholder="Search by name or church"
+                type="search"
+                value={participantSearch}
+              />
+            </label>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="p-4 text-sm text-muted-foreground">Loading…</div>
             ) : unslotted.length === 0 ? (
               <div className="p-4 text-sm text-muted-foreground">All participants are slotted</div>
+            ) : filteredUnslotted.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground">No unslotted participants match</div>
             ) : (
-              unslotted.map((p) => (
+              filteredUnslotted.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => setSelectedId(selectedId === p.id ? null : p.id)}
@@ -494,8 +536,22 @@ export default function PlanRoomsPage() {
             </div>
           </div>
 
+          <label className="relative mb-4 block max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30"
+              onChange={(e) => setSlotSearch(e.target.value)}
+              placeholder="Search rooms"
+              type="search"
+              value={slotSearch}
+            />
+          </label>
+
+          {filteredRoomSlots.length === 0 && (
+            <div className="text-sm text-muted-foreground">No rooms match</div>
+          )}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {roomSlots.map((slot, i) => (
+            {filteredRoomSlots.map(({ slot, index: i }) => (
               <div key={slot.label} className="rounded-lg border p-4">
                 <div className="mb-3 flex items-center justify-between">
                   {renamingIndex === i ? (

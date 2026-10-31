@@ -19,6 +19,8 @@ import adminEvaluateJuniorsHandler from "./admin/evaluateJuniors.ts";
 import adminExportsHandler from "./admin/exports.ts";
 import adminEmailsHandler from "./admin/emails.ts";
 import adminVideosHandler from "./admin/videos.ts";
+import adminLeaderRolesHandler from "./admin/leaderRoles.ts";
+import leaderRolesHandler from "./leaderRoles.ts";
 import checkTokens from "../middleware/checkTokens.ts";
 import requireAdmin from "../middleware/requireAdmin.ts";
 
@@ -36,6 +38,7 @@ adminRouter.use('/evaluate-juniors', adminEvaluateJuniorsHandler);
 adminRouter.use('/exports', adminExportsHandler);
 adminRouter.use('/emails', adminEmailsHandler);
 adminRouter.use('/videos', adminVideosHandler);
+adminRouter.use('/leader-roles', adminLeaderRolesHandler);
 
 protectedRouter.use(checkTokens)
 protectedRouter.use('/me', meHandler)
@@ -46,6 +49,7 @@ protectedRouter.use('/profile', profileHandler)
 protectedRouter.use('/profile/first-time', firstTimeHandler)
 protectedRouter.use('/churches', churchHandler)
 protectedRouter.use('/events', eventsHandler)
+protectedRouter.use('/leader-roles', leaderRolesHandler)
 protectedRouter.use('/payments', paymentsHandler)
 protectedRouter.use('/profiles', profilesHandler)
 protectedRouter.use('/admin', adminRouter)

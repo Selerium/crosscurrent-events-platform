@@ -10,6 +10,7 @@ import {
   CircleDollarSign,
   Clock,
   Download,
+  Info,
   MapPin,
   Phone,
   Search,
@@ -24,6 +25,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  PRIMARY_LEADER_ROLES,
+  SECONDARY_LEADER_ROLES,
+  leaderRoleLabel,
+  type LeaderRoleInfo,
+} from "@/lib/leaderRoles";
 import {
   formatUaeDate,
   isRegistrationClosed,
@@ -87,22 +94,6 @@ type RegistrationForm = {
   emergencyPhone: string;
   notes: string;
 };
-
-const PRIMARY_LEADER_ROLES = [
-  { value: "SMALL_GROUP_LEADER", label: "Small Group Leader" },
-  { value: "SECURITY_TEAM", label: "Security Team" },
-  { value: "TECH_TEAM", label: "Tech Team" },
-];
-
-const SECONDARY_LEADER_ROLES = [
-  { value: "FLOOR_LEADER", label: "Floor Leader" },
-  { value: "GAME_STATION_LEADER", label: "Game Station Leader" },
-  { value: "COLOR_TEAM_LEADER", label: "Color Team Leader" },
-  { value: "MEDIA", label: "Media" },
-  { value: "PRAYER_TEAM", label: "Prayer Team" },
-  { value: "REGISTRATION", label: "Registration" },
-  { value: "MEDICAL_AND_SAFEGUARDING", label: "Medical & Safeguarding" },
-];
 
 type EditableListItemProps = {
   value: string;
@@ -309,6 +300,8 @@ export default function EventPage() {
   const [showRegister, setShowRegister] = useState(false);
   const [showUnregister, setShowUnregister] = useState(false);
   const [showMerch, setShowMerch] = useState(false);
+  const [showRoleInfo, setShowRoleInfo] = useState(false);
+  const [roleInfo, setRoleInfo] = useState<LeaderRoleInfo | null>(null);
   const [medDraft, setMedDraft] = useState("");
   const [allergyDraft, setAllergyDraft] = useState("");
   const [userApproved, setUserApproved] = useState(true);
@@ -362,6 +355,10 @@ export default function EventPage() {
     ? isRegistrationClosed(eventData.status, eventData.registrationCloseDate)
     : false;
 
+  const roleDescription = (kind: "primary" | "secondary", role: string) =>
+    roleInfo?.[kind].find((entry) => entry.role === role)?.description?.trim() ||
+    "";
+
   const fetchEvent = async () => {
     try {
       const res = await api.get(`/events/${params.id}`);
@@ -410,11 +407,13 @@ export default function EventPage() {
       "register",
     );
     const load = async () => {
-      const [meRes, eventData] = await Promise.all([
+      const [meRes, eventData, roleInfoRes] = await Promise.all([
         api.get("/me").catch(() => null),
         fetchEvent(),
+        api.get("/leader-roles").catch(() => null),
       ]);
       if (cancelled) return;
+      setRoleInfo(roleInfoRes?.data?.data ?? null);
       const approved = meRes?.data?.data?.approved ?? false;
       const role = meRes?.data?.data?.role ?? "";
       setUserApproved(approved);
@@ -1245,6 +1244,89 @@ export default function EventPage() {
         </div>
       )}
 
+      {showRoleInfo && eventData?.user && (
+        <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50 p-4">
+          <div className="flex flex-col p-6 relative border rounded-lg bg-card gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Info className="size-5" />
+                <span className="font-bold text-lg">Role information</span>
+              </div>
+              <button
+                onClick={() => setShowRoleInfo(false)}
+                className="cursor-pointer"
+                type="button"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              What your assigned roles involve at {eventData.name}.
+            </p>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Primary role
+              </span>
+              {eventData.user.primaryLeaderRole ? (
+                <div className="flex flex-col gap-2 rounded-lg border p-3">
+                  <span className="w-fit rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+                    {leaderRoleLabel(eventData.user.primaryLeaderRole)}
+                  </span>
+                  <p className="text-sm text-muted-foreground">
+                    {roleDescription(
+                      "primary",
+                      eventData.user.primaryLeaderRole,
+                    ) || "No description has been added for this role yet."}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No primary role assigned.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Secondary roles
+              </span>
+              {eventData.user.secondaryLeaderRoles.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {eventData.user.secondaryLeaderRoles.map((role) => (
+                    <div
+                      key={role}
+                      className="flex flex-col gap-2 rounded-lg border p-3"
+                    >
+                      <span className="w-fit rounded-full border bg-muted px-3 py-1 text-xs font-semibold text-foreground">
+                        {leaderRoleLabel(role)}
+                      </span>
+                      <p className="text-sm text-muted-foreground">
+                        {roleDescription("secondary", role) ||
+                          "No description has been added for this role yet."}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No secondary roles assigned.
+                </p>
+              )}
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full p-3 justify-center"
+              onClick={() => setShowRoleInfo(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+
       {showScholarships && (
         <div className="fixed top-0 z-50 flex justify-center items-center w-full h-full bg-black/50">
           <div className="flex flex-col p-6 m-4 md:m-10 relative border rounded-lg bg-card gap-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1559,20 +1641,39 @@ export default function EventPage() {
                     <span className="font-bold">Shirt size</span>
                     <span>{eventData.user.shirtSize}</span>
                   </div>
-                  {userRole === "LEADER" && eventData.user.primaryLeaderRole && (
-                    <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
-                      <span className="font-bold">Primary role</span>
-                      <span>{eventData.user.primaryLeaderRole.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-                    </div>
-                  )}
-                  {userRole === "LEADER" && eventData.user.secondaryLeaderRoles.length > 0 && (
-                    <div className="flex flex-col gap-2 p-4 rounded-lg border">
-                      <span className="font-bold">Secondary roles</span>
-                      {eventData.user.secondaryLeaderRoles.map((role) => (
-                        <span key={role}>{role.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-                      ))}
-                    </div>
-                  )}
+                  {userRole === "LEADER" &&
+                    (eventData.user.primaryLeaderRole ||
+                      eventData.user.secondaryLeaderRoles.length > 0) && (
+                      <div className="flex flex-col gap-3 p-4 rounded-lg border">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold">My roles</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowRoleInfo(true)}
+                            type="button"
+                          >
+                            <Info width={14} height={14} />
+                            Role information
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {eventData.user.primaryLeaderRole && (
+                            <span className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+                              {leaderRoleLabel(eventData.user.primaryLeaderRole)}
+                            </span>
+                          )}
+                          {eventData.user.secondaryLeaderRoles.map((role) => (
+                            <span
+                              key={role}
+                              className="rounded-full border bg-muted px-3 py-1 text-xs font-semibold text-foreground"
+                            >
+                              {leaderRoleLabel(role)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   {eventData.user.room && (
                     <>
                       <div className="flex flex-col gap-2 p-4 rounded-lg border">
@@ -1780,9 +1881,9 @@ export default function EventPage() {
                             <p>Swimming: {r.swimming ? "Yes" : "No"}</p>
                             {r.group && <p>Group: {r.group}</p>}
                             {r.room && <p>Room: {r.room}</p>}
-                            {r.primaryLeaderRole && <p>Role: {r.primaryLeaderRole.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</p>}
+                            {r.primaryLeaderRole && <p>Role: {leaderRoleLabel(r.primaryLeaderRole)}</p>}
                             {r.secondaryLeaderRoles && r.secondaryLeaderRoles.length > 0 && (
-                              <p>Secondary: {r.secondaryLeaderRoles.map((s) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}</p>
+                              <p>Secondary: {r.secondaryLeaderRoles.map(leaderRoleLabel).join(", ")}</p>
                             )}
                             {r.allergies && r.allergies.length > 0 && <p className="text-red-600">Allergies: {r.allergies.join(", ")}</p>}
                             {r.medications && r.medications.length > 0 && <p>Medications: {r.medications.join(", ")}</p>}

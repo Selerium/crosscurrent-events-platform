@@ -8,6 +8,10 @@ import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
 import { isEarlyBirdPayment } from "../../lib/earlyBird.ts";
 import {
+  isPrimaryLeaderRole,
+  isSecondaryLeaderRole,
+} from "../../lib/leaderRoles.ts";
+import {
   effectiveEventStatus,
   parseRegistrationCloseDate,
 } from "../../lib/registrationWindow.ts";
@@ -742,7 +746,13 @@ adminEventsHandler.get(
 
 adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) => {
   const { id, participantId } = req.params;
-  const { group, room, earlyBird } = req.body;
+  const {
+    group,
+    room,
+    earlyBird,
+    primaryLeaderRole,
+    secondaryLeaderRoles,
+  } = req.body;
 
   const event = await prisma.event.findUnique({ where: { id } });
   if (!event) throw new AppError("Event not found", 404);
@@ -757,6 +767,28 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
   if (room !== undefined) data.room = room || null;
   if (earlyBird !== undefined) data.earlyBird = earlyBird;
 
+  if (primaryLeaderRole !== undefined) {
+    if (primaryLeaderRole === null || primaryLeaderRole === "") {
+      data.primaryLeaderRole = null;
+    } else if (isPrimaryLeaderRole(primaryLeaderRole)) {
+      data.primaryLeaderRole = primaryLeaderRole;
+    } else {
+      throw new AppError("Invalid primary leader role", 400);
+    }
+  }
+
+  if (secondaryLeaderRoles !== undefined) {
+    if (!Array.isArray(secondaryLeaderRoles)) {
+      throw new AppError("secondaryLeaderRoles must be an array", 400);
+    }
+
+    const uniqueRoles = [...new Set(secondaryLeaderRoles)];
+    if (!uniqueRoles.every(isSecondaryLeaderRole)) {
+      throw new AppError("Invalid secondary leader role", 400);
+    }
+    data.secondaryLeaderRoles = uniqueRoles;
+  }
+
   await prisma.registration.update({
     where: { id: participantId },
     data,
@@ -768,7 +800,14 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
     action: "event.update_registration",
     targetType: "registration",
     targetId: participantId,
-    details: { eventId: id, group, room, earlyBird },
+    details: {
+      eventId: id,
+      group,
+      room,
+      earlyBird,
+      primaryLeaderRole,
+      secondaryLeaderRoles,
+    },
     success: true,
   });
 

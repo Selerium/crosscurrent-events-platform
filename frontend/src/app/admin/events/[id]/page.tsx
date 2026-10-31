@@ -36,9 +36,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data";
 import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import api from "@/lib/axios";
+import {
+  PRIMARY_LEADER_ROLES,
+  SECONDARY_LEADER_ROLES,
+  leaderRoleLabel,
+} from "@/lib/leaderRoles";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -96,7 +108,11 @@ type EarlyBirdFilter = "all" | "earlyBird" | "regular";
 type ParticipantSort = "name" | "age";
 
 function isLeaderParticipant(p: Participant): boolean {
-  return Boolean(p.primaryLeaderRole) || p.secondaryLeaderRoles.length > 0;
+  return (
+    p.role === "LEADER" ||
+    Boolean(p.primaryLeaderRole) ||
+    p.secondaryLeaderRoles.length > 0
+  );
 }
 
 export default function AdminEventPage() {
@@ -1224,6 +1240,19 @@ export default function AdminEventPage() {
                           Student
                         </span>
                       )}
+                      {isLeaderParticipant(p) && (
+                        <ParticipantRolesDropdown
+                          participant={p}
+                          eventId={params.id}
+                          onSaved={(roles) =>
+                            setParticipants((prev) =>
+                              prev.map((x) =>
+                                x.id === p.id ? { ...x, ...roles } : x
+                              )
+                            )
+                          }
+                        />
+                      )}
                       {!isLeaderParticipant(p) && (() => {
                         const cat = p.ageCategory || (p.age != null ? (p.age >= 16 ? "SENIOR" : "JUNIOR") : null);
                         if (!cat) return null;
@@ -1314,23 +1343,12 @@ export default function AdminEventPage() {
                     )}
                     {p.primaryLeaderRole && (
                       <div className="mt-1 grid grid-cols-2 gap-0.5 text-xs text-muted-foreground">
-                        <p>
-                          Primary:{" "}
-                          {p.primaryLeaderRole
-                            .replace(/_/g, " ")
-                            .toLowerCase()
-                            .replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </p>
+                        <p>Primary: {leaderRoleLabel(p.primaryLeaderRole)}</p>
                         {p.secondaryLeaderRoles.length > 0 && (
                           <p>
                             Secondary:{" "}
                             {p.secondaryLeaderRoles
-                              .map((r) =>
-                                r
-                                  .replace(/_/g, " ")
-                                  .toLowerCase()
-                                  .replace(/\b\w/g, (c) => c.toUpperCase())
-                              )
+                              .map(leaderRoleLabel)
                               .join(", ")}
                           </p>
                         )}
@@ -1602,5 +1620,157 @@ function InfoBlock({
       </span>
       <span className="text-right">{value}</span>
     </div>
+  );
+}
+
+function ParticipantRolesDropdown({
+  participant,
+  eventId,
+  onSaved,
+}: {
+  participant: Participant;
+  eventId: string;
+  onSaved: (roles: {
+    primaryLeaderRole: string;
+    secondaryLeaderRoles: string[];
+  }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [primaryRole, setPrimaryRole] = useState(
+    participant.primaryLeaderRole || "",
+  );
+  const [secondaryRoles, setSecondaryRoles] = useState<string[]>(
+    participant.secondaryLeaderRoles,
+  );
+  const [saving, setSaving] = useState(false);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    // Re-sync the drafts whenever the popover opens so it always reflects the
+    // latest saved values after another admin edit.
+    if (next) {
+      setPrimaryRole(participant.primaryLeaderRole || "");
+      setSecondaryRoles(participant.secondaryLeaderRoles);
+    }
+  }
+
+  function toggleSecondaryRole(role: string) {
+    setSecondaryRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
+    );
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.patch(
+        `/admin/events/${eventId}/participants/${participant.id}`,
+        {
+          primaryLeaderRole: primaryRole || null,
+          secondaryLeaderRoles: secondaryRoles,
+        },
+      );
+      onSaved({
+        primaryLeaderRole: primaryRole,
+        secondaryLeaderRoles: secondaryRoles,
+      });
+      toast.success(`Roles updated for ${participant.name}`);
+      setOpen(false);
+    } catch (err) {
+      const message = (
+        err as { response?: { data?: { message?: string } } }
+      ).response?.data?.message;
+      toast.error(message || "Could not update roles");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex cursor-pointer items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronDown className="size-3" />
+          Assign roles
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-semibold">Leader roles</span>
+            <span className="text-xs text-muted-foreground">
+              {participant.name}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Primary role</Label>
+            <Select
+              value={primaryRole || "__none__"}
+              onValueChange={(value) =>
+                setPrimaryRole(value === "__none__" ? "" : value)
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select primary role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No primary role</SelectItem>
+                {PRIMARY_LEADER_ROLES.map((role) => (
+                  <SelectItem key={role.value} value={role.value}>
+                    {role.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Secondary roles</Label>
+            <div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto rounded-md border p-1">
+              {SECONDARY_LEADER_ROLES.map((role) => (
+                <label
+                  key={role.value}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    className="size-4 cursor-pointer accent-primary"
+                    checked={secondaryRoles.includes(role.value)}
+                    onChange={() => toggleSecondaryRole(role.value)}
+                  />
+                  {role.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {primaryRole && (
+            <p className="rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
+              Primary: {leaderRoleLabel(primaryRole)}
+              {secondaryRoles.length > 0 &&
+                ` · Secondary: ${secondaryRoles.map(leaderRoleLabel).join(", ")}`}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

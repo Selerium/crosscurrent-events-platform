@@ -263,6 +263,18 @@ enum SecondaryLeaderRoles {
   MEDICAL_AND_SAFEGUARDING
 }
 
+// Admin-editable descriptions for the leader volunteer roles. Keyed by the
+// enum value from PrimaryLeaderRoles / SecondaryLeaderRoles. Leaders see these
+// descriptions on the event page behind the "Role information" modal.
+model LeaderRoleInfo {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  role        String   @unique
+  description String   @default("")
+}
+
 model Notification {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
