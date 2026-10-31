@@ -733,10 +733,11 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
 
 /**
  * Adds an existing account to an event's registration list on the admin's
- * behalf, using the answers filled in on the admin event page. This is an
- * explicit override: it does not enforce the registration window or the
- * event's max sign-ups, which lets admins add someone after the event filled
- * up (or was closed). The action is recorded in the admin log.
+ * behalf, using the answers filled in on the admin event page. Every
+ * registration answer is optional for admins, and this is an explicit
+ * override: it does not enforce the registration window or the event's max
+ * sign-ups, which lets admins add someone after the event filled up (or was
+ * closed). The action is recorded in the admin log.
  */
 const addRegistrationForAdmin = async (req: any, res: any) => {
   const { id } = req.params;
@@ -793,20 +794,22 @@ const addRegistrationForAdmin = async (req: any, res: any) => {
       ...new Set(asStringArray(req.body?.secondaryLeaderRoles)),
     ];
 
+    // Admins may leave any leader field blank. Validate the fields only when
+    // they were actually filled in.
     if (
-      !primaryLeaderRole ||
+      primaryLeaderRole &&
       !Object.values(PrimaryLeaderRoles).includes(primaryLeaderRole as any)
     ) {
-      throw new AppError("A valid primary leader role is required", 400);
+      throw new AppError("Invalid primary leader role", 400);
     }
 
     const validSecondary = Object.values(SecondaryLeaderRoles);
     if (
-      secondaryLeaderRoles.length !== 3 ||
+      secondaryLeaderRoles.length > 3 ||
       !secondaryLeaderRoles.every((role) => validSecondary.includes(role as any))
     ) {
       throw new AppError(
-        "Exactly three distinct secondary leader roles are required",
+        "Secondary leader roles must be up to three distinct valid roles",
         400
       );
     }
@@ -827,10 +830,9 @@ const addRegistrationForAdmin = async (req: any, res: any) => {
       spouseId = rawSpouseId;
     }
 
-    if (!req.file) {
-      throw new AppError("Safeguarding/DBS certificate is required", 400);
+    if (req.file) {
+      safeguardingDoc = req.file.filename;
     }
-    safeguardingDoc = req.file.filename;
   }
 
   // The certificate only applies to leaders; drop it for everyone else.

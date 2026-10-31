@@ -293,10 +293,6 @@ export default function AddParticipantModal({
     if (!selectedAccount) return;
 
     const isLeader = selectedAccount.role === "LEADER";
-    if (isLeader && !safeguardingFile) {
-      toast.warning("Please upload the Safeguarding/DBS certificate");
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -375,7 +371,8 @@ export default function AddParticipantModal({
         {!selectedAccount ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Select an existing account, then fill in their registration form.
+              Select an existing account, then fill in as much of their
+              registration form as you need. All form fields are optional.
             </p>
 
             <label className="relative">
@@ -454,7 +451,7 @@ export default function AddParticipantModal({
         ) : (
           <form
             onSubmit={handleSubmit(onSubmit, () =>
-              toast.warning("Please fill out all required fields")
+              toast.warning("Please check the form and try again")
             )}
             className="flex min-h-0 flex-1 flex-col gap-4"
           >
@@ -481,11 +478,15 @@ export default function AddParticipantModal({
 
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
               <div className="flex flex-col gap-2">
-                <span className="font-bold">Shirt Size</span>
+                <span className="font-bold">
+                  Shirt Size{" "}
+                  <span className="font-medium italic text-muted-foreground">
+                    (optional - defaults to M)
+                  </span>
+                </span>
                 <Controller
                   name="shirtSize"
                   control={control}
-                  rules={{ required: "Shirt size is required" }}
                   render={({ field }) => (
                     <div className="flex flex-wrap gap-2">
                       {SHIRT_SIZES.map((size) => (
@@ -537,7 +538,7 @@ export default function AddParticipantModal({
                   <span className="font-bold">
                     Swimming Permission{" "}
                     <span className="font-medium italic text-muted-foreground">
-                      (required for students)
+                      (optional)
                     </span>
                   </span>
                   <Controller
@@ -655,13 +656,15 @@ export default function AddParticipantModal({
                   </span>
 
                   <div className="flex flex-col gap-2">
-                    <span className="font-bold">Primary Leader Role</span>
+                    <span className="font-bold">
+                      Primary Leader Role{" "}
+                      <span className="font-medium italic text-muted-foreground">
+                        (optional)
+                      </span>
+                    </span>
                     <Controller
                       name="primaryLeaderRole"
                       control={control}
-                      rules={{
-                        required: "Please select a primary leader role",
-                      }}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
                           {PRIMARY_LEADER_ROLES.map((role) => (
@@ -688,17 +691,12 @@ export default function AddParticipantModal({
                     <span className="font-bold">
                       Secondary Leader Roles{" "}
                       <span className="font-medium italic text-muted-foreground">
-                        (select exactly 3)
+                        (optional - up to 3)
                       </span>
                     </span>
                     <Controller
                       name="secondaryLeaderRoles"
                       control={control}
-                      rules={{
-                        validate: (value) =>
-                          value.length === 3 ||
-                          "Please select exactly three secondary leader roles",
-                      }}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
                           {SECONDARY_LEADER_ROLES.map((role) => {
@@ -741,7 +739,7 @@ export default function AddParticipantModal({
                     <span className="font-bold">
                       Safeguarding/DBS Certificate{" "}
                       <span className="font-medium italic text-muted-foreground">
-                        (PDF, required)
+                        (PDF, optional)
                       </span>
                     </span>
                     {safeguardingFile ? (
@@ -816,13 +814,15 @@ export default function AddParticipantModal({
               </div>
 
               <div className="flex flex-col gap-2">
-                <span className="font-bold">Emergency Contact</span>
+                <span className="font-bold">
+                  Emergency Contact{" "}
+                  <span className="font-medium italic text-muted-foreground">
+                    (optional)
+                  </span>
+                </span>
                 <Controller
                   name="emergencyName"
                   control={control}
-                  rules={{
-                    required: "Please enter the emergency contact's name",
-                  }}
                   render={({ field }) => (
                     <Input
                       value={field.value}
@@ -837,9 +837,6 @@ export default function AddParticipantModal({
                 <Controller
                   name="emergencyPhone"
                   control={control}
-                  rules={{
-                    required: "Please enter the emergency contact's number",
-                  }}
                   render={({ field }) => (
                     <Input
                       value={field.value}

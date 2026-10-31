@@ -7,8 +7,8 @@
  *   POST /admin/events/:id/registrations  (multipart or JSON body)
  *
  * Covers gating (anon 401, non-admin 403), validation/404s, the duplicate
- * guard, adding past maxSignUps with the full registration answers, and the
- * admin log entry.
+ * guard, adding past maxSignUps with the full registration answers, optional
+ * leader fields, and the admin log entry.
  *
  * Env: DATABASE_URL, JWT_SECRET, RESEND_API_KEY, STRIPE_SECRET_KEY.
  */
@@ -69,7 +69,8 @@ try {
   const filler = await mkUser(`filler-${tag}@example.com`, "Filler", "STUDENT");
   const target = await mkUser(`target-${tag}@example.com`, "Target", "STUDENT");
   const outsider = await mkUser(`outsider-${tag}@example.com`, "Outsider", "STUDENT");
-  ids.profiles = [admin.id, filler.id, target.id, outsider.id];
+  const leader = await mkUser(`leader-${tag}@example.com`, "Leader", "LEADER");
+  ids.profiles = [admin.id, filler.id, target.id, outsider.id, leader.id];
 
   const event = await prisma.event.create({
     data: {
@@ -201,7 +202,28 @@ try {
     fail("addOverCapacity", e.message);
   }
 
-  // 5. Adding the same account again is rejected.
+  // 5. Leader answers are optional for admins: no roles or certificate.
+  try {
+    const r = await req("POST", base, adminToken, { profileId: leader.id });
+    const body = await r.json().catch(() => ({}));
+    const row = await prisma.registration.findFirst({
+      where: { eventId: event.id, profileId: leader.id },
+    });
+    summary.steps.leaderFieldsOptional = {
+      ok:
+        r.status === 201 &&
+        Boolean(row) &&
+        row?.primaryLeaderRole === null &&
+        Array.isArray(row?.secondaryLeaderRoles) &&
+        row.secondaryLeaderRoles.length === 0 &&
+        row?.safeguardingDoc === null,
+      detail: `status=${r.status} body=${JSON.stringify(body)} row=${JSON.stringify(row)}`,
+    };
+  } catch (e) {
+    fail("leaderFieldsOptional", e.message);
+  }
+
+  // 6. Adding the same account again is rejected.
   try {
     const r = await req("POST", base, adminToken, { profileId: target.id });
     summary.steps.duplicate409 = {
@@ -212,7 +234,7 @@ try {
     fail("duplicate409", e.message);
   }
 
-  // 6. The action is written to the admin log with the capacity override.
+  // 7. The action is written to the admin log with the capacity override.
   try {
     const log = await prisma.adminLog.findFirst({
       where: {
