@@ -133,8 +133,8 @@ model Registration {
 
   spouseId             String?
   spouse               Profile?               @relation("RegistrationSpouse", fields: [spouseId], references: [id], onDelete: SetNull)
-  primaryLeaderRole    PrimaryLeaderRoles?
-  secondaryLeaderRoles SecondaryLeaderRoles[]
+  primaryLeaderRole    String?
+  secondaryLeaderRoles String[]
 
   mediaConsent       Boolean @default(false)
   swimmingPermission Boolean @default(false)
@@ -247,32 +247,23 @@ enum EventStatus {
   COMPLETED
 }
 
-enum PrimaryLeaderRoles {
-  SMALL_GROUP_LEADER
-  SECURITY_TEAM
-  TECH_TEAM
+enum LeaderRoleKind {
+  PRIMARY
+  SECONDARY
 }
 
-enum SecondaryLeaderRoles {
-  FLOOR_LEADER
-  GAME_STATION_LEADER
-  COLOR_TEAM_LEADER
-  MEDIA
-  PRAYER_TEAM
-  REGISTRATION
-  MEDICAL_AND_SAFEGUARDING
-}
-
-// Admin-editable descriptions for the leader volunteer roles. Keyed by the
-// enum value from PrimaryLeaderRoles / SecondaryLeaderRoles. Leaders see these
-// descriptions on the event page behind the "Role information" modal.
-model LeaderRoleInfo {
-  id          String   @id @default(uuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  role        String   @unique
-  description String   @default("")
+// Admin-managed volunteer roles. `key` is the stable value stored on
+// Registration rows (primaryLeaderRole / secondaryLeaderRoles); `label` and
+// `description` are safe to edit at any time.
+model LeaderRole {
+  id          String         @id @default(uuid())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  key         String         @unique
+  label       String
+  description String         @default("")
+  kind        LeaderRoleKind
+  sortOrder   Int            @default(0)
 }
 
 model Notification {

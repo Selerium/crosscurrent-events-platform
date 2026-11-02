@@ -242,7 +242,7 @@ export default function AdminDashboard() {
             </Button>
             <Button variant="outline" asChild>
               <Link href="/admin/roles">
-                <Info /> Role information
+                <Info /> Manage roles
               </Link>
             </Button>
             <Button onClick={() => setShowAddAdmin(true)}>

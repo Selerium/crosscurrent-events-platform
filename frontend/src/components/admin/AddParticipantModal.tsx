@@ -5,10 +5,7 @@ import { Controller, useForm } from "react-hook-form";
 import { Loader2, Search, Upload, UserPlus, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
-import {
-  PRIMARY_LEADER_ROLES,
-  SECONDARY_LEADER_ROLES,
-} from "@/lib/leaderRoles";
+import type { LeaderRoleOption } from "@/lib/leaderRoles";
 import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -229,6 +226,8 @@ export default function AddParticipantModal({
   registeredProfileIds,
   signUps,
   capacity,
+  primaryRoles,
+  secondaryRoles,
   onClose,
   onAdded,
 }: {
@@ -236,6 +235,8 @@ export default function AddParticipantModal({
   registeredProfileIds: string[];
   signUps: number;
   capacity: number;
+  primaryRoles: LeaderRoleOption[];
+  secondaryRoles: LeaderRoleOption[];
   onClose: () => void;
   onAdded: () => Promise<void>;
 }) {
@@ -667,7 +668,7 @@ export default function AddParticipantModal({
                       control={control}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
-                          {PRIMARY_LEADER_ROLES.map((role) => (
+                          {primaryRoles.map((role) => (
                             <button
                               key={role.value}
                               type="button"
@@ -699,7 +700,7 @@ export default function AddParticipantModal({
                       control={control}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
-                          {SECONDARY_LEADER_ROLES.map((role) => {
+                          {secondaryRoles.map((role) => {
                             const selected = field.value.includes(role.value);
                             const disabled =
                               field.value.length >= 3 && !selected;

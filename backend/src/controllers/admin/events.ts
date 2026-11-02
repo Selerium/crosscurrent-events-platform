@@ -2,16 +2,13 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import AppError from "../../lib/appError.ts";
-import { prisma, PaymentMethod, PrimaryLeaderRoles, SecondaryLeaderRoles } from "../../lib/prismaClient.ts";
+import { prisma, PaymentMethod } from "../../lib/prismaClient.ts";
 import { uploadSafeguardingMiddleware, deleteUploadedFile, uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
 import { fanOutCompletionsForProfile } from "../../lib/requiredActions.ts";
 import { isEarlyBirdPayment } from "../../lib/earlyBird.ts";
-import {
-  isPrimaryLeaderRole,
-  isSecondaryLeaderRole,
-} from "../../lib/leaderRoles.ts";
+import { getLeaderRoleKeySets } from "../../lib/leaderRoles.ts";
 import {
   effectiveEventStatus,
   parseRegistrationCloseDate,
@@ -796,17 +793,15 @@ const addRegistrationForAdmin = async (req: any, res: any) => {
 
     // Admins may leave any leader field blank. Validate the fields only when
     // they were actually filled in.
-    if (
-      primaryLeaderRole &&
-      !Object.values(PrimaryLeaderRoles).includes(primaryLeaderRole as any)
-    ) {
+    const validRoles = await getLeaderRoleKeySets();
+
+    if (primaryLeaderRole && !validRoles.primary.has(primaryLeaderRole)) {
       throw new AppError("Invalid primary leader role", 400);
     }
 
-    const validSecondary = Object.values(SecondaryLeaderRoles);
     if (
       secondaryLeaderRoles.length > 3 ||
-      !secondaryLeaderRoles.every((role) => validSecondary.includes(role as any))
+      !secondaryLeaderRoles.every((role) => validRoles.secondary.has(role))
     ) {
       throw new AppError(
         "Secondary leader roles must be up to three distinct valid roles",
@@ -1041,10 +1036,18 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
   if (room !== undefined) data.room = room || null;
   if (earlyBird !== undefined) data.earlyBird = earlyBird;
 
+  const validRoles =
+    primaryLeaderRole !== undefined || secondaryLeaderRoles !== undefined
+      ? await getLeaderRoleKeySets()
+      : null;
+
   if (primaryLeaderRole !== undefined) {
     if (primaryLeaderRole === null || primaryLeaderRole === "") {
       data.primaryLeaderRole = null;
-    } else if (isPrimaryLeaderRole(primaryLeaderRole)) {
+    } else if (
+      typeof primaryLeaderRole === "string" &&
+      validRoles?.primary.has(primaryLeaderRole)
+    ) {
       data.primaryLeaderRole = primaryLeaderRole;
     } else {
       throw new AppError("Invalid primary leader role", 400);
@@ -1057,7 +1060,12 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
     }
 
     const uniqueRoles = [...new Set(secondaryLeaderRoles)];
-    if (!uniqueRoles.every(isSecondaryLeaderRole)) {
+    if (
+      !uniqueRoles.every(
+        (role) =>
+          typeof role === "string" && validRoles?.secondary.has(role)
+      )
+    ) {
       throw new AppError("Invalid secondary leader role", 400);
     }
     data.secondaryLeaderRoles = uniqueRoles;

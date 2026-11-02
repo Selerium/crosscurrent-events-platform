@@ -1,76 +1,180 @@
 "use client";
 
-import { ChevronLeft, Info, Save } from "lucide-react";
+import { ChevronLeft, Info, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
-import api from "@/lib/axios";
 import {
-  PRIMARY_LEADER_ROLES,
-  SECONDARY_LEADER_ROLES,
-  type LeaderRoleInfo,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import api from "@/lib/axios";
+import type {
+  LeaderRoleInfo,
+  LeaderRoleInfoEntry,
 } from "@/lib/leaderRoles";
+import { setLeaderRolesCache } from "@/lib/useLeaderRoles";
+
+type RoleKind = "PRIMARY" | "SECONDARY";
+
+type RoleForm = {
+  label: string;
+  kind: RoleKind;
+  description: string;
+};
+
+type EditorState =
+  | { mode: "create" }
+  | { mode: "edit"; role: LeaderRoleInfoEntry };
+
+const EMPTY_FORM: RoleForm = {
+  label: "",
+  kind: "PRIMARY",
+  description: "",
+};
+
+function errorMessage(err: unknown, fallback: string) {
+  return (
+    (err as { response?: { data?: { message?: string } } }).response?.data
+      ?.message || fallback
+  );
+}
 
 export default function AdminLeaderRolesPage() {
   const router = useRouter();
-  const [descriptions, setDescriptions] = useState<Record<string, string>>({});
+  const [roles, setRoles] = useState<LeaderRoleInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [form, setForm] = useState<RoleForm>(EMPTY_FORM);
+  const [deleteTarget, setDeleteTarget] = useState<LeaderRoleInfoEntry | null>(
+    null,
+  );
 
-  function applyRoleInfo(info: LeaderRoleInfo) {
-    const next: Record<string, string> = {};
-    for (const entry of [...info.primary, ...info.secondary]) {
-      next[entry.role] = entry.description;
-    }
-    setDescriptions(next);
+  function applyRoles(info: LeaderRoleInfo) {
+    setRoles(info);
+    setLeaderRolesCache(info);
   }
 
   useEffect(() => {
+    let cancelled = false;
+
     api
       .get("/admin/leader-roles")
-      .then((res) => applyRoleInfo(res.data.data))
-      .catch(() => toast.error("Could not load role information"))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        if (!cancelled) applyRoles(res.data.data);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          toast.error(errorMessage(err, "Could not load roles"));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  async function handleSave() {
+  function openCreate() {
+    setForm(EMPTY_FORM);
+    setEditor({ mode: "create" });
+  }
+
+  function openEdit(role: LeaderRoleInfoEntry, kind: RoleKind) {
+    setForm({ label: role.label, kind, description: role.description });
+    setEditor({ mode: "edit", role });
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const label = form.label.trim();
+    if (!label) {
+      toast.error("Role name is required");
+      return;
+    }
+
     setSaving(true);
     try {
-      const res = await api.put("/admin/leader-roles", { descriptions });
-      applyRoleInfo(res.data.data);
-      toast.success("Role information saved");
+      const payload = {
+        label,
+        kind: form.kind,
+        description: form.description,
+      };
+
+      const res =
+        editor?.mode === "edit"
+          ? await api.put(
+              `/admin/leader-roles/${encodeURIComponent(editor.role.role)}`,
+              payload,
+            )
+          : await api.post("/admin/leader-roles", payload);
+
+      applyRoles(res.data.data);
+      toast.success(
+        editor?.mode === "edit"
+          ? "Role updated"
+          : `Added ${label}`,
+      );
+      setEditor(null);
     } catch (err) {
-      const message = (
-        err as { response?: { data?: { message?: string } } }
-      ).response?.data?.message;
-      toast.error(message || "Could not save role information");
+      toast.error(errorMessage(err, "Could not save role"));
     } finally {
       setSaving(false);
     }
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+
+    setDeleting(true);
+    try {
+      const res = await api.delete(
+        `/admin/leader-roles/${encodeURIComponent(deleteTarget.role)}`,
+      );
+      applyRoles(res.data.data);
+      toast.success(`Deleted ${deleteTarget.label}`);
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not delete role"));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const sections: {
     key: "primary" | "secondary";
+    kind: RoleKind;
     title: string;
     description: string;
-    roles: typeof PRIMARY_LEADER_ROLES;
+    entries: LeaderRoleInfoEntry[];
   }[] = [
     {
       key: "primary",
+      kind: "PRIMARY",
       title: "Primary roles",
       description:
         "Shown to leaders as their main responsibility for the event.",
-      roles: PRIMARY_LEADER_ROLES,
+      entries: roles?.primary ?? [],
     },
     {
       key: "secondary",
+      kind: "SECONDARY",
       title: "Secondary roles",
       description:
         "Additional responsibilities a leader can be assigned alongside their primary role.",
-      roles: SECONDARY_LEADER_ROLES,
+      entries: roles?.secondary ?? [],
     },
   ];
 
@@ -89,23 +193,23 @@ export default function AdminLeaderRolesPage() {
             <div className="flex items-center gap-2">
               <Info className="size-5" />
               <h1 className="text-2xl font-semibold text-foreground">
-                Role information
+                Manage roles
               </h1>
             </div>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              These descriptions are displayed to leaders on the event page
-              when they open the &quot;Role information&quot; modal. Changes
-              apply to every event.
+              Create, edit, or remove the volunteer roles leaders can be
+              assigned. Descriptions are displayed to leaders on the event page
+              when they open the &quot;Role information&quot; modal.
             </p>
           </div>
-          <Button onClick={handleSave} disabled={saving || loading}>
-            <Save />
-            {saving ? "Saving..." : "Save changes"}
+          <Button onClick={openCreate} disabled={loading}>
+            <Plus />
+            Add role
           </Button>
         </div>
 
         {loading ? (
-          <p className="text-muted-foreground">Loading role information...</p>
+          <p className="text-muted-foreground">Loading roles...</p>
         ) : (
           sections.map((section) => (
             <section
@@ -121,39 +225,204 @@ export default function AdminLeaderRolesPage() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-4">
-                {section.roles.map((role) => (
-                  <div key={role.value} className="flex flex-col gap-2">
-                    <Label htmlFor={`role-${role.value}`}>{role.label}</Label>
-                    <textarea
-                      id={`role-${role.value}`}
-                      value={descriptions[role.value] ?? ""}
-                      onChange={(e) =>
-                        setDescriptions((prev) => ({
-                          ...prev,
-                          [role.value]: e.target.value,
-                        }))
-                      }
-                      rows={3}
-                      placeholder="Describe what this role involves..."
-                      className="w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                    />
-                  </div>
-                ))}
+              <div className="flex flex-col gap-3">
+                {section.entries.length === 0 ? (
+                  <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    No {section.title.toLowerCase()} yet. Add one to make it
+                    available to leaders.
+                  </p>
+                ) : (
+                  section.entries.map((role) => (
+                    <div
+                      key={role.role}
+                      className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
+                    >
+                      <div className="flex min-w-0 flex-col gap-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold text-foreground">
+                            {role.label}
+                          </h3>
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                            {role.role}
+                          </code>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                          {role.description || (
+                            <span className="italic">
+                              No description has been added yet.
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEdit(role, section.kind)}
+                        >
+                          <Pencil />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(role)}
+                        >
+                          <Trash2 />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </section>
           ))
         )}
-
-        {!loading && (
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={saving}>
-              <Save />
-              {saving ? "Saving..." : "Save changes"}
-            </Button>
-          </div>
-        )}
       </div>
+
+      {editor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form
+            onSubmit={handleSave}
+            className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-lg border bg-card p-6"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold">
+                {editor.mode === "edit" ? "Edit role" : "Add role"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditor(null)}
+                className="cursor-pointer"
+                aria-label="Close"
+              >
+                <X width={24} height={24} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="roleLabel">Role name</Label>
+              <Input
+                id="roleLabel"
+                value={form.label}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, label: e.target.value }))
+                }
+                placeholder="e.g. Worship Team"
+                required
+              />
+              {editor.mode === "edit" && (
+                <p className="text-xs text-muted-foreground">
+                  The internal key{" "}
+                  <code className="font-mono">{editor.role.role}</code> stays the
+                  same so existing registrations keep their role.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="roleKind">Role type</Label>
+              <Select
+                value={form.kind}
+                onValueChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    kind: value as RoleKind,
+                  }))
+                }
+              >
+                <SelectTrigger id="roleKind" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PRIMARY">Primary role</SelectItem>
+                  <SelectItem value="SECONDARY">Secondary role</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="roleDescription">Description</Label>
+              <textarea
+                id="roleDescription"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                rows={5}
+                placeholder="Describe what this role involves..."
+                className="w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditor(null)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving
+                  ? "Saving..."
+                  : editor.mode === "edit"
+                    ? "Save changes"
+                    : "Add role"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold">Delete role</span>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="cursor-pointer"
+                aria-label="Close"
+              >
+                <X width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete{" "}
+              <strong>{deleteTarget.label}</strong>? This cannot be undone.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Roles that are already assigned to a registration cannot be
+              deleted until they are removed from those registrations.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete role"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

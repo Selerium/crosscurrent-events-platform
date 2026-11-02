@@ -49,10 +49,10 @@ import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import AddParticipantModal from "@/components/admin/AddParticipantModal";
 import api from "@/lib/axios";
 import {
-  PRIMARY_LEADER_ROLES,
-  SECONDARY_LEADER_ROLES,
   leaderRoleLabel,
+  type LeaderRoleOption,
 } from "@/lib/leaderRoles";
+import { useLeaderRoles } from "@/lib/useLeaderRoles";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -120,6 +120,7 @@ function isLeaderParticipant(p: Participant): boolean {
 export default function AdminEventPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const { roleInfo, primaryRoles, secondaryRoles } = useLeaderRoles();
   const [eventInfo, setEventInfo] = useState<AdminEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(0);
@@ -1310,6 +1311,8 @@ export default function AdminEventPage() {
                         <ParticipantRolesDropdown
                           participant={p}
                           eventId={params.id}
+                          primaryRoleOptions={primaryRoles}
+                          secondaryRoleOptions={secondaryRoles}
                           onSaved={(roles) =>
                             setParticipants((prev) =>
                               prev.map((x) =>
@@ -1409,12 +1412,12 @@ export default function AdminEventPage() {
                     )}
                     {p.primaryLeaderRole && (
                       <div className="mt-1 grid grid-cols-2 gap-0.5 text-xs text-muted-foreground">
-                        <p>Primary: {leaderRoleLabel(p.primaryLeaderRole)}</p>
+                        <p>Primary: {leaderRoleLabel(p.primaryLeaderRole, roleInfo)}</p>
                         {p.secondaryLeaderRoles.length > 0 && (
                           <p>
                             Secondary:{" "}
                             {p.secondaryLeaderRoles
-                              .map(leaderRoleLabel)
+                              .map((role) => leaderRoleLabel(role, roleInfo))
                               .join(", ")}
                           </p>
                         )}
@@ -1488,6 +1491,8 @@ export default function AdminEventPage() {
           registeredProfileIds={participants.map((p) => p.profileId)}
           signUps={eventInfo.paidSignUps}
           capacity={eventInfo.capacity}
+          primaryRoles={primaryRoles}
+          secondaryRoles={secondaryRoles}
           onClose={() => setShowAddParticipant(false)}
           onAdded={refreshParticipantData}
         />
@@ -1748,10 +1753,14 @@ function InfoBlock({
 function ParticipantRolesDropdown({
   participant,
   eventId,
+  primaryRoleOptions,
+  secondaryRoleOptions,
   onSaved,
 }: {
   participant: Participant;
   eventId: string;
+  primaryRoleOptions: LeaderRoleOption[];
+  secondaryRoleOptions: LeaderRoleOption[];
   onSaved: (roles: {
     primaryLeaderRole: string;
     secondaryLeaderRoles: string[];
@@ -1779,6 +1788,14 @@ function ParticipantRolesDropdown({
   function toggleSecondaryRole(role: string) {
     setSecondaryRoles((prev) =>
       prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
+    );
+  }
+
+  function roleLabel(role: string) {
+    return (
+      [...primaryRoleOptions, ...secondaryRoleOptions].find(
+        (option) => option.value === role,
+      )?.label ?? leaderRoleLabel(role)
     );
   }
 
@@ -1841,7 +1858,7 @@ function ParticipantRolesDropdown({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">No primary role</SelectItem>
-                {PRIMARY_LEADER_ROLES.map((role) => (
+                {primaryRoleOptions.map((role) => (
                   <SelectItem key={role.value} value={role.value}>
                     {role.label}
                   </SelectItem>
@@ -1853,7 +1870,7 @@ function ParticipantRolesDropdown({
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">Secondary roles</Label>
             <div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto rounded-md border p-1">
-              {SECONDARY_LEADER_ROLES.map((role) => (
+              {secondaryRoleOptions.map((role) => (
                 <label
                   key={role.value}
                   className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-muted"
@@ -1872,9 +1889,9 @@ function ParticipantRolesDropdown({
 
           {primaryRole && (
             <p className="rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
-              Primary: {leaderRoleLabel(primaryRole)}
+              Primary: {roleLabel(primaryRole)}
               {secondaryRoles.length > 0 &&
-                ` · Secondary: ${secondaryRoles.map(leaderRoleLabel).join(", ")}`}
+                ` · Secondary: ${secondaryRoles.map(roleLabel).join(", ")}`}
             </p>
           )}
 

@@ -3,81 +3,185 @@ import AppError from "../../lib/appError.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
 import { prisma } from "../../lib/prismaClient.ts";
 import {
-  groupLeaderRoleInfo,
-  isKnownLeaderRole,
+  getGroupedLeaderRoles,
+  type GroupedLeaderRoles,
 } from "../../lib/leaderRoles.ts";
 
 const adminLeaderRolesHandler = express.Router();
 
-adminLeaderRolesHandler.get("/", async (_req, res) => {
-  const rows = await prisma.leaderRoleInfo.findMany({
-    select: { role: true, description: true },
-  });
+const MAX_LABEL_LENGTH = 100;
+const MAX_DESCRIPTION_LENGTH = 4000;
 
-  res.status(200).json({
-    data: groupLeaderRoleInfo(rows),
-    error: false,
-    message: "",
+type RoleKind = "PRIMARY" | "SECONDARY";
+
+function sendRoles(res: express.Response, data: GroupedLeaderRoles) {
+  res.status(200).json({ data, error: false, message: "" });
+}
+
+function parseLabel(value: unknown): string {
+  const label = typeof value === "string" ? value.trim() : "";
+  if (!label) throw new AppError("Role name is required", 400);
+  if (label.length > MAX_LABEL_LENGTH) {
+    throw new AppError(
+      `Role name must be ${MAX_LABEL_LENGTH} characters or fewer`,
+      400
+    );
+  }
+  return label;
+}
+
+function parseDescription(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value !== "string") {
+    throw new AppError("Description must be a string", 400);
+  }
+  if (value.length > MAX_DESCRIPTION_LENGTH) {
+    throw new AppError(
+      `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`,
+      400
+    );
+  }
+  return value;
+}
+
+function parseKind(value: unknown): RoleKind {
+  if (value === "PRIMARY" || value === "SECONDARY") return value;
+  throw new AppError("Role type must be PRIMARY or SECONDARY", 400);
+}
+
+/** Turns a display label into a stable enum-style key (e.g. `Tech Team`). */
+function toRoleKey(label: string): string {
+  return label
+    .trim()
+    .toUpperCase()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+}
+
+async function nextSortOrder(kind: RoleKind): Promise<number> {
+  const result = await prisma.leaderRole.aggregate({
+    where: { kind },
+    _max: { sortOrder: true },
   });
+  return (result._max.sortOrder ?? -1) + 1;
+}
+
+adminLeaderRolesHandler.get("/", async (_req, res) => {
+  sendRoles(res, await getGroupedLeaderRoles());
 });
 
-/**
- * Bulk-save role descriptions.
- * Body: { descriptions: { [role]: string } }
- */
-adminLeaderRolesHandler.put("/", async (req, res) => {
-  const descriptions = req.body?.descriptions;
+adminLeaderRolesHandler.post("/", async (req, res) => {
+  const label = parseLabel(req.body?.label);
+  const description = parseDescription(req.body?.description);
+  const kind = parseKind(req.body?.kind);
+  const key = toRoleKey(label);
 
-  if (
-    !descriptions ||
-    typeof descriptions !== "object" ||
-    Array.isArray(descriptions)
-  ) {
-    throw new AppError("descriptions must be an object of role descriptions", 400);
+  if (!key) throw new AppError("Role name must contain letters or numbers", 400);
+
+  const existing = await prisma.leaderRole.findUnique({ where: { key } });
+  if (existing) {
+    throw new AppError(`A role named "${existing.label}" already exists`, 409);
   }
 
-  const entries = Object.entries(descriptions as Record<string, unknown>);
-
-  for (const [role, description] of entries) {
-    if (!isKnownLeaderRole(role)) {
-      throw new AppError(`Unknown leader role: ${role}`, 400);
-    }
-    if (typeof description !== "string") {
-      throw new AppError(`Description for ${role} must be a string`, 400);
-    }
-    if (description.length > 4000) {
-      throw new AppError(`Description for ${role} is too long`, 400);
-    }
-  }
-
-  await prisma.$transaction(
-    entries.map(([role, description]) =>
-      prisma.leaderRoleInfo.upsert({
-        where: { role },
-        create: { role, description: description as string },
-        update: { description: description as string },
-      })
-    )
-  );
+  const role = await prisma.leaderRole.create({
+    data: {
+      key,
+      label,
+      description,
+      kind,
+      sortOrder: await nextSortOrder(kind),
+    },
+  });
 
   logAdminAction({
     adminId: req.user.id,
     adminName: req.user.name,
-    action: "leader_role.update_descriptions",
+    action: "leader_role.create",
     targetType: "leader_role",
-    details: { roles: entries.map(([role]) => role) },
+    targetId: role.id,
+    details: { role: role.key, label: role.label, kind: role.kind },
     success: true,
   });
 
-  const rows = await prisma.leaderRoleInfo.findMany({
-    select: { role: true, description: true },
+  sendRoles(res, await getGroupedLeaderRoles());
+});
+
+adminLeaderRolesHandler.put("/:role", async (req, res) => {
+  const key = req.params.role;
+
+  const existing = await prisma.leaderRole.findUnique({ where: { key } });
+  if (!existing) throw new AppError("Role not found", 404);
+
+  const label = parseLabel(req.body?.label);
+  const description = parseDescription(req.body?.description);
+  const kind = parseKind(req.body?.kind);
+
+  // Keep the ordering stable when a role moves between sections.
+  const sortOrder =
+    kind === existing.kind ? existing.sortOrder : await nextSortOrder(kind);
+
+  const role = await prisma.leaderRole.update({
+    where: { key },
+    data: { label, description, kind, sortOrder },
   });
 
-  res.status(200).json({
-    data: groupLeaderRoleInfo(rows),
-    error: false,
-    message: "",
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "leader_role.update",
+    targetType: "leader_role",
+    targetId: role.id,
+    details: {
+      role: role.key,
+      previousLabel: existing.label,
+      label: role.label,
+      kind: role.kind,
+    },
+    success: true,
   });
+
+  sendRoles(res, await getGroupedLeaderRoles());
+});
+
+adminLeaderRolesHandler.delete("/:role", async (req, res) => {
+  const key = req.params.role;
+
+  const existing = await prisma.leaderRole.findUnique({ where: { key } });
+  if (!existing) throw new AppError("Role not found", 404);
+
+  const assignedCount = await prisma.registration.count({
+    where: {
+      OR: [
+        { primaryLeaderRole: key },
+        { secondaryLeaderRoles: { has: key } },
+      ],
+    },
+  });
+
+  if (assignedCount > 0) {
+    throw new AppError(
+      `Cannot delete "${existing.label}" because it is assigned to ${assignedCount} registration${
+        assignedCount === 1 ? "" : "s"
+      }. Remove it from those registrations first.`,
+      409
+    );
+  }
+
+  await prisma.leaderRole.delete({ where: { key } });
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "leader_role.delete",
+    targetType: "leader_role",
+    targetId: existing.id,
+    details: { role: existing.key, label: existing.label },
+    success: true,
+  });
+
+  sendRoles(res, await getGroupedLeaderRoles());
 });
 
 export default adminLeaderRolesHandler;

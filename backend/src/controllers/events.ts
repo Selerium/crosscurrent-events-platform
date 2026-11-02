@@ -1,11 +1,8 @@
 import express from "express";
 import crypto from "crypto";
 import AppError from "../lib/appError.ts";
-import {
-  prisma,
-  PrimaryLeaderRoles,
-  SecondaryLeaderRoles,
-} from "../lib/prismaClient.ts";
+import { prisma } from "../lib/prismaClient.ts";
+import { getLeaderRoleKeySets } from "../lib/leaderRoles.ts";
 import {
   uploadSafeguardingMiddleware,
   deleteUploadedFile,
@@ -149,16 +146,15 @@ const registerForEvent = async (req: any, res: any) => {
     primaryLeaderRole = asString(req.body.primaryLeaderRole) || null;
     secondaryLeaderRoles = asStringArray(req.body.secondaryLeaderRoles);
 
-    const validPrimary = Object.values(PrimaryLeaderRoles);
-    if (!primaryLeaderRole || !validPrimary.includes(primaryLeaderRole as any)) {
+    const validRoles = await getLeaderRoleKeySets();
+    if (!primaryLeaderRole || !validRoles.primary.has(primaryLeaderRole)) {
       throw new AppError("A valid primary leader role is required", 400);
     }
 
-    const validSecondary = Object.values(SecondaryLeaderRoles);
     const uniqueSecondary = [...new Set(secondaryLeaderRoles)];
     if (
       uniqueSecondary.length !== 3 ||
-      !uniqueSecondary.every((r) => validSecondary.includes(r as any))
+      !uniqueSecondary.every((r) => validRoles.secondary.has(r))
     ) {
       throw new AppError(
         "Exactly three distinct secondary leader roles are required",

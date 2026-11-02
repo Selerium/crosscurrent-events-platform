@@ -26,8 +26,6 @@ import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  PRIMARY_LEADER_ROLES,
-  SECONDARY_LEADER_ROLES,
   leaderRoleLabel,
   type LeaderRoleInfo,
 } from "@/lib/leaderRoles";
@@ -955,14 +953,14 @@ export default function EventPage() {
                       }}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
-                          {PRIMARY_LEADER_ROLES.map((role) => (
+                          {(roleInfo?.primary ?? []).map((role) => (
                             <button
-                              key={role.value}
+                              key={role.role}
                               type="button"
-                              onClick={() => field.onChange(role.value)}
+                              onClick={() => field.onChange(role.role)}
                               className={cn(
                                 "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
-                                field.value === role.value
+                                field.value === role.role
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-muted hover:bg-muted/70",
                               )}
@@ -992,21 +990,21 @@ export default function EventPage() {
                       }}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
-                          {SECONDARY_LEADER_ROLES.map((role) => {
-                            const selected = field.value.includes(role.value);
+                          {(roleInfo?.secondary ?? []).map((role) => {
+                            const selected = field.value.includes(role.role);
                             const disabled =
                               field.value.length >= 3 && !selected;
                             return (
                               <button
-                                key={role.value}
+                                key={role.role}
                                 type="button"
                                 disabled={disabled}
                                 onClick={() => {
                                   const next = selected
                                     ? field.value.filter(
-                                        (r) => r !== role.value,
+                                        (r) => r !== role.role,
                                       )
-                                    : [...field.value, role.value];
+                                    : [...field.value, role.role];
                                   field.onChange(next);
                                 }}
                                 className={cn(
@@ -1272,7 +1270,7 @@ export default function EventPage() {
               {eventData.user.primaryLeaderRole ? (
                 <div className="flex flex-col gap-2 rounded-lg border p-3">
                   <span className="w-fit rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
-                    {leaderRoleLabel(eventData.user.primaryLeaderRole)}
+                    {leaderRoleLabel(eventData.user.primaryLeaderRole, roleInfo)}
                   </span>
                   <p className="text-sm text-muted-foreground">
                     {roleDescription(
@@ -1300,7 +1298,7 @@ export default function EventPage() {
                       className="flex flex-col gap-2 rounded-lg border p-3"
                     >
                       <span className="w-fit rounded-full border bg-muted px-3 py-1 text-xs font-semibold text-foreground">
-                        {leaderRoleLabel(role)}
+                        {leaderRoleLabel(role, roleInfo)}
                       </span>
                       <p className="text-sm text-muted-foreground">
                         {roleDescription("secondary", role) ||
@@ -1660,7 +1658,7 @@ export default function EventPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           {eventData.user.primaryLeaderRole && (
                             <span className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
-                              {leaderRoleLabel(eventData.user.primaryLeaderRole)}
+                              {leaderRoleLabel(eventData.user.primaryLeaderRole, roleInfo)}
                             </span>
                           )}
                           {eventData.user.secondaryLeaderRoles.map((role) => (
@@ -1668,7 +1666,7 @@ export default function EventPage() {
                               key={role}
                               className="rounded-full border bg-muted px-3 py-1 text-xs font-semibold text-foreground"
                             >
-                              {leaderRoleLabel(role)}
+                              {leaderRoleLabel(role, roleInfo)}
                             </span>
                           ))}
                         </div>
@@ -1881,9 +1879,9 @@ export default function EventPage() {
                             <p>Swimming: {r.swimming ? "Yes" : "No"}</p>
                             {r.group && <p>Group: {r.group}</p>}
                             {r.room && <p>Room: {r.room}</p>}
-                            {r.primaryLeaderRole && <p>Role: {leaderRoleLabel(r.primaryLeaderRole)}</p>}
+                            {r.primaryLeaderRole && <p>Role: {leaderRoleLabel(r.primaryLeaderRole, roleInfo)}</p>}
                             {r.secondaryLeaderRoles && r.secondaryLeaderRoles.length > 0 && (
-                              <p>Secondary: {r.secondaryLeaderRoles.map(leaderRoleLabel).join(", ")}</p>
+                              <p>Secondary: {r.secondaryLeaderRoles.map((role) => leaderRoleLabel(role, roleInfo)).join(", ")}</p>
                             )}
                             {r.allergies && r.allergies.length > 0 && <p className="text-red-600">Allergies: {r.allergies.join(", ")}</p>}
                             {r.medications && r.medications.length > 0 && <p>Medications: {r.medications.join(", ")}</p>}

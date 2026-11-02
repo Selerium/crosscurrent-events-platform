@@ -1,18 +1,13 @@
 import express from "express";
-import { prisma } from "../lib/prismaClient.ts";
-import { groupLeaderRoleInfo } from "../lib/leaderRoles.ts";
+import { getGroupedLeaderRoles } from "../lib/leaderRoles.ts";
 
 const leaderRolesHandler = express.Router();
 
-// Role descriptions are safe for any authenticated user; leaders render them
-// in the "Role information" modal on the event page.
+// Role metadata is safe for any authenticated user; leaders render it in the
+// "Role information" modal and registration forms use it to list choices.
 leaderRolesHandler.get("/", async (_req, res) => {
-  const rows = await prisma.leaderRoleInfo.findMany({
-    select: { role: true, description: true },
-  });
-
   res.status(200).json({
-    data: groupLeaderRoleInfo(rows),
+    data: await getGroupedLeaderRoles(),
     error: false,
     message: "",
   });
