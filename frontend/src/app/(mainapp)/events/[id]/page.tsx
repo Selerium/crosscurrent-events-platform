@@ -55,6 +55,35 @@ type MemberList = {
   members: Member[];
 };
 
+function normalizeMemberList(value: unknown): MemberList | null {
+  if (!value) return null;
+
+  // Older API responses returned the group as a plain name string.
+  if (typeof value === "string") {
+    return { name: value, members: [] };
+  }
+
+  if (typeof value !== "object") return null;
+
+  const record = value as { name?: unknown; members?: unknown };
+  if (typeof record.name !== "string") return null;
+
+  const members = Array.isArray(record.members)
+    ? record.members
+        .filter(
+          (member): member is Record<string, unknown> =>
+            !!member && typeof member === "object",
+        )
+        .map((member) => ({
+          name: typeof member.name === "string" ? member.name : "",
+          role: typeof member.role === "string" ? member.role : "STUDENT",
+          mobile: typeof member.mobile === "string" ? member.mobile : null,
+        }))
+    : [];
+
+  return { name: record.name, members };
+}
+
 type EventData = {
   id: string;
   name: string;
@@ -302,27 +331,30 @@ function SpousePicker({ onChange }: SpousePickerProps) {
 }
 
 type MembersCardProps = {
-  title: string;
-  list: MemberList;
+  label: "Room" | "Group";
+  list: MemberList | null;
   canViewPhones: boolean;
   showPhones: boolean;
   onTogglePhones: () => void;
 };
 
 function MembersCard({
-  title,
+  label,
   list,
   canViewPhones,
   showPhones,
   onTogglePhones,
 }: MembersCardProps) {
-  const hasPhone = list.members.some((member) => member.mobile);
+  const members = list?.members ?? [];
+  const hasPhone = members.some((member) => member.mobile);
 
   return (
     <div className="flex flex-col gap-2 p-4 rounded-lg border">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-bold">{title}</span>
-        {canViewPhones && hasPhone && (
+        <span className="font-bold">
+          {list ? `${label}: ${list.name}` : label}
+        </span>
+        {list && canViewPhones && hasPhone && (
           <Button
             variant="outline"
             size="sm"
@@ -338,12 +370,16 @@ function MembersCard({
           </Button>
         )}
       </div>
-      {list.members.length === 0 ? (
+      {!list ? (
+        <span className="text-sm text-muted-foreground">
+          You have not been assigned to a {label.toLowerCase()} yet.
+        </span>
+      ) : members.length === 0 ? (
         <span className="text-sm text-muted-foreground">
           No one else has been assigned yet.
         </span>
       ) : (
-        list.members.map((member, idx) => (
+        members.map((member, idx) => (
           <div
             key={`${member.name}-${idx}`}
             className="flex items-center justify-between gap-2"
@@ -458,7 +494,13 @@ export default function EventPage() {
             endTime: item.endTime,
           })),
         ),
-        user: data.user || null,
+        user: data.user
+          ? {
+              ...data.user,
+              room: normalizeMemberList(data.user.room),
+              group: normalizeMemberList(data.user.group),
+            }
+          : null,
         registrants: data.registrants || [],
       });
 
@@ -1756,28 +1798,24 @@ export default function EventPage() {
                         </div>
                       </div>
                     )}
-                  {eventData.user.room && (
-                    <MembersCard
-                      title={`Room: ${eventData.user.room.name}`}
-                      list={eventData.user.room}
-                      canViewPhones={userRole === "LEADER" || isPrimary}
-                      showPhones={showMemberPhones}
-                      onTogglePhones={() =>
-                        setShowMemberPhones((prev) => !prev)
-                      }
-                    />
-                  )}
-                  {eventData.user.group && (
-                    <MembersCard
-                      title={`Group: ${eventData.user.group.name}`}
-                      list={eventData.user.group}
-                      canViewPhones={userRole === "LEADER" || isPrimary}
-                      showPhones={showMemberPhones}
-                      onTogglePhones={() =>
-                        setShowMemberPhones((prev) => !prev)
-                      }
-                    />
-                  )}
+                  <MembersCard
+                    label="Room"
+                    list={eventData.user.room}
+                    canViewPhones={userRole === "LEADER" || isPrimary}
+                    showPhones={showMemberPhones}
+                    onTogglePhones={() =>
+                      setShowMemberPhones((prev) => !prev)
+                    }
+                  />
+                  <MembersCard
+                    label="Group"
+                    list={eventData.user.group}
+                    canViewPhones={userRole === "LEADER" || isPrimary}
+                    showPhones={showMemberPhones}
+                    onTogglePhones={() =>
+                      setShowMemberPhones((prev) => !prev)
+                    }
+                  />
                   <div className="flex flex-col gap-2 p-4 rounded-lg border">
                     <span className="font-bold">Allergies</span>
                     {eventData.user.allergies.map((allergy) => (
