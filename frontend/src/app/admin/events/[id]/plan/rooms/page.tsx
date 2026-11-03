@@ -91,17 +91,20 @@ export default function PlanRoomsPage() {
   // always use the full unfiltered lists.
   const [participantSearch, setParticipantSearch] = useState("");
   const [slotSearch, setSlotSearch] = useState("");
-  // Mixing leaders and students in one room is allowed, but only after the
-  // admin explicitly confirms it.
+  // Mixing leaders/students or placing a leader in a mixed-gender room is
+  // allowed, but only after the admin explicitly confirms it.
   const [pendingMixedAssignment, setPendingMixedAssignment] = useState<{
     participantId: string;
     slotLabel: string;
+    genderMix: boolean;
+    roleMix: boolean;
   } | null>(null);
   // Auto-assign may also need confirmation when existing occupants and the
-  // generated plan would put leaders and students in the same room.
+  // generated plan would create a mixed room.
   const [pendingMixedBulkAssignments, setPendingMixedBulkAssignments] = useState<{
     assignments: { id: string; room: string }[];
-    mixedLabels: string[];
+    roleLabels: string[];
+    genderLabels: string[];
   } | null>(null);
 
   // Pristine server state. Everything above is a local draft until Save:
@@ -304,15 +307,30 @@ export default function PlanRoomsPage() {
     if (!selected) return;
 
     const occupants = participants.filter((p) => p.room === slotLabel && p.id !== selectedId);
-    if (selected.gender && occupants.some((o) => o.gender && o.gender !== selected.gender)) {
-      toast.error("Cannot assign: mixed-gender rooms are not allowed");
+    const genderMix = Boolean(
+      selected.gender &&
+        occupants.some((o) => o.gender && o.gender !== selected.gender)
+    );
+    const roleMix = occupants.some((o) => o.role !== selected.role);
+
+    // Only leaders may be placed in a mixed-gender room. Students still need
+    // same-gender rooms.
+    if (genderMix && selected.role !== "LEADER") {
+      toast.error(
+        "Cannot assign: only leaders can be placed in mixed-gender rooms"
+      );
       return;
     }
 
-    // Leaders and students may share a room, but that decision needs an
-    // explicit confirmation instead of a silent assignment.
-    if (occupants.some((o) => o.role !== selected.role)) {
-      setPendingMixedAssignment({ participantId: selectedId, slotLabel });
+    // Mixed rooms are allowed when they are an intentional admin decision, so
+    // ask first instead of assigning silently.
+    if (genderMix || roleMix) {
+      setPendingMixedAssignment({
+        participantId: selectedId,
+        slotLabel,
+        genderMix,
+        roleMix,
+      });
       return;
     }
 
@@ -430,25 +448,47 @@ export default function PlanRoomsPage() {
     }
 
     const assignments: { id: string; room: string }[] = [];
-    const mixedLabels = new Set<string>();
+    const roleLabels = new Set<string>();
+    const genderLabels = new Set<string>();
+    const invalidGenderLabels = new Set<string>();
     plan.forEach((members, roomIndex) => {
       const label = slotNames[roomIndex] || `Room ${roomIndex + 1}`;
-      const roles = new Set([
-        ...participants
-          .filter((p) => p.room === label)
-          .map((p) => p.role),
-        ...members.map((p) => p.role),
-      ]);
-      if (roles.size > 1) mixedLabels.add(label);
+      const combined = [
+        ...participants.filter((p) => p.room === label),
+        ...members,
+      ];
+      const roles = new Set(combined.map((p) => p.role));
+      const genders = new Set(combined.map((p) => p.gender).filter(Boolean));
+
+      if (roles.size > 1) roleLabels.add(label);
+      if (genders.size > 1) {
+        genderLabels.add(label);
+        // A mixed-gender room is only acceptable when the incoming group
+        // contains a leader; student cohorts must stay same-gender.
+        if (!members.some((p) => p.role === "LEADER")) {
+          invalidGenderLabels.add(label);
+        }
+      }
+
       for (const p of members) {
         assignments.push({ id: p.id, room: label });
       }
     });
 
-    if (mixedLabels.size > 0) {
+    if (invalidGenderLabels.size > 0) {
+      toast.error(
+        `Cannot assign: only leaders can be placed in mixed-gender rooms (${[
+          ...invalidGenderLabels,
+        ].join(", ")})`
+      );
+      return;
+    }
+
+    if (roleLabels.size > 0 || genderLabels.size > 0) {
       setPendingMixedBulkAssignments({
         assignments,
-        mixedLabels: [...mixedLabels],
+        roleLabels: [...roleLabels],
+        genderLabels: [...genderLabels],
       });
       return;
     }
@@ -602,6 +642,11 @@ export default function PlanRoomsPage() {
             />
           </label>
 
+          <p className="mb-4 text-xs text-muted-foreground">
+            Students must stay in same-gender rooms. Leaders can be placed in a
+            mixed-gender room after confirming the action.
+          </p>
+
           {filteredRoomSlots.length === 0 && (
             <div className="text-sm text-muted-foreground">No rooms match</div>
           )}
@@ -651,6 +696,14 @@ export default function PlanRoomsPage() {
                     Mixed leaders &amp; students
                   </p>
                 )}
+                {new Set(
+                  slot.registrants.map((r) => r.gender).filter(Boolean)
+                ).size > 1 && (
+                  <p className="mb-2 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-pink-600">
+                    <AlertTriangle className="size-3" />
+                    Mixed genders
+                  </p>
+                )}
                 <div className="flex flex-col gap-2">
                   {slot.registrants.map((p) => (
                     <div
@@ -698,7 +751,7 @@ export default function PlanRoomsPage() {
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-lg font-bold">
                 <AlertTriangle className="size-5 text-amber-600" />
-                Mix leaders and students?
+                Confirm mixed room
               </span>
               <button
                 type="button"
@@ -713,8 +766,21 @@ export default function PlanRoomsPage() {
               <strong>{pendingParticipant.name}</strong> is a{" "}
               {pendingParticipant.role === "LEADER" ? "leader" : "student"}.
               Room <strong>{pendingMixedAssignment.slotLabel}</strong> already
-              contains participants with a different role. Are you sure you
-              want leaders and students to share this room?
+              contains:
+            </p>
+            <ul className="list-disc pl-5 text-sm text-muted-foreground">
+              {pendingMixedAssignment.genderMix && (
+                <li>participants of a different gender</li>
+              )}
+              {pendingMixedAssignment.roleMix && (
+                <li>participants with a different role</li>
+              )}
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              {pendingMixedAssignment.genderMix
+                ? "Leaders may share mixed-gender rooms. "
+                : "Leaders and students may share a room. "}
+              Are you sure you want to continue?
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -723,9 +789,7 @@ export default function PlanRoomsPage() {
               >
                 Cancel
               </Button>
-              <Button onClick={confirmMixedAssignment}>
-                Yes, mix them
-              </Button>
+              <Button onClick={confirmMixedAssignment}>Yes, continue</Button>
             </div>
           </div>
         </div>
@@ -737,7 +801,7 @@ export default function PlanRoomsPage() {
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-lg font-bold">
                 <AlertTriangle className="size-5 text-amber-600" />
-                Mix leaders and students?
+                Confirm mixed rooms
               </span>
               <button
                 type="button"
@@ -749,17 +813,32 @@ export default function PlanRoomsPage() {
               </button>
             </div>
             <p className="text-sm text-muted-foreground">
-              Automatically assigning these participants would put leaders and
-              students in the same room
-              {pendingMixedBulkAssignments.mixedLabels.length > 0 && (
-                <>
-                  {": "}
+              Automatically assigning these participants would create mixed
+              rooms:
+            </p>
+            <ul className="list-disc pl-5 text-sm text-muted-foreground">
+              {pendingMixedBulkAssignments.roleLabels.length > 0 && (
+                <li>
+                  Leaders and students together in:{" "}
                   <strong>
-                    {pendingMixedBulkAssignments.mixedLabels.join(", ")}
+                    {pendingMixedBulkAssignments.roleLabels.join(", ")}
                   </strong>
-                </>
+                </li>
               )}
-              . Are you sure you want to continue?
+              {pendingMixedBulkAssignments.genderLabels.length > 0 && (
+                <li>
+                  Mixed genders in:{" "}
+                  <strong>
+                    {pendingMixedBulkAssignments.genderLabels.join(", ")}
+                  </strong>
+                </li>
+              )}
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              {pendingMixedBulkAssignments.genderLabels.length > 0
+                ? "Leaders may share mixed-gender rooms. "
+                : ""}
+              Are you sure you want to continue?
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -769,7 +848,7 @@ export default function PlanRoomsPage() {
                 Cancel
               </Button>
               <Button onClick={confirmMixedBulkAssignments}>
-                Yes, mix them
+                Yes, continue
               </Button>
             </div>
           </div>
