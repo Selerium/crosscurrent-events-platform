@@ -1,7 +1,7 @@
 "use client";
 
 import { isAxiosError } from "axios";
-import { ChevronLeft, Church, LayoutGrid, RotateCcw, Search, Wand2, X } from "lucide-react";
+import { ChevronLeft, Church, Eye, EyeOff, LayoutGrid, RotateCcw, Search, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -28,6 +28,7 @@ type Participant = {
   church: string;
   churchId: string;
   group: string;
+  hiddenInGroup?: boolean;
   paid: boolean;
 };
 
@@ -36,6 +37,7 @@ type PlanSnapshot = {
   maxPerGroup: number;
   groupNames: string[];
   assignments: Record<string, string>;
+  hidden: Record<string, boolean>;
 };
 
 function genderAgeChip(p: Participant) {
@@ -70,11 +72,22 @@ function churchChip(p: Participant) {
   );
 }
 
+function hiddenChip(p: Participant) {
+  if (!p.hiddenInGroup) return null;
+  return (
+    <span className="flex items-center gap-1 rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+      <EyeOff className="size-2.5" />
+      Hidden
+    </span>
+  );
+}
+
 function ParticipantChips({ p }: { p: Participant }) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       {genderAgeChip(p)}
       {roleChip(p)}
+      {hiddenChip(p)}
       {churchChip(p)}
     </div>
   );
@@ -110,9 +123,14 @@ export default function PlanGroupsPage() {
         (res.data.data || []).filter((p: Participant) => p.paid)
       ),
     ])
-      .then(([info, parts]: [AdminEvent, Participant[]]) => {
+      .then(([info, rawParts]: [AdminEvent, Participant[]]) => {
         const ng = info.groups || 1;
         const mpg = info.maxInGroup || 1;
+        // A hidden flag only makes sense while the person is in a group.
+        const parts: Participant[] = rawParts.map((p) => ({
+          ...p,
+          hiddenInGroup: p.hiddenInGroup === true && Boolean(p.group),
+        }));
         // Persisted titles are the source of truth, but titles still in use are
         // always kept so a legacy/stale event can never hide its occupants.
         const resolved = resolvePlanNames(
@@ -131,6 +149,9 @@ export default function PlanGroupsPage() {
           maxPerGroup: mpg,
           groupNames: resolved.names,
           assignments: Object.fromEntries(parts.map((p) => [p.id, p.group || ""])),
+          hidden: Object.fromEntries(
+            parts.map((p) => [p.id, p.hiddenInGroup === true])
+          ),
         });
       })
       .catch(() => toast.error("Failed to load planning data"))
@@ -227,6 +248,7 @@ export default function PlanGroupsPage() {
         assignments: participants.map((p) => ({
           id: p.id,
           group: p.group || null,
+          hiddenInGroup: p.hiddenInGroup === true,
         })),
       });
       const saved = res.data.data as {
@@ -242,6 +264,9 @@ export default function PlanGroupsPage() {
         maxPerGroup: saved.maxInGroup,
         groupNames: saved.groupNames,
         assignments: Object.fromEntries(snapshotAssignments(participants)),
+        hidden: Object.fromEntries(
+          participants.map((p) => [p.id, p.hiddenInGroup === true])
+        ),
       });
       setDirty(false);
       toast.success("Plan saved");
@@ -266,6 +291,7 @@ export default function PlanGroupsPage() {
       prev.map((p) => ({
         ...p,
         group: snap.assignments[p.id] ?? p.group,
+        hiddenInGroup: snap.hidden[p.id] ?? false,
       }))
     );
     setSelectedId(null);
@@ -273,8 +299,22 @@ export default function PlanGroupsPage() {
   }
 
   function handleRemoveFromSlot(participantId: string) {
+    // Someone who is no longer in a group cannot stay hidden in one.
     setParticipants((prev) =>
-      prev.map((p) => (p.id === participantId ? { ...p, group: "" } : p))
+      prev.map((p) =>
+        p.id === participantId ? { ...p, group: "", hiddenInGroup: false } : p
+      )
+    );
+    setDirty(true);
+  }
+
+  function handleToggleHidden(participantId: string) {
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === participantId && p.role === "LEADER" && p.group
+          ? { ...p, hiddenInGroup: !p.hiddenInGroup }
+          : p
+      )
     );
     setDirty(true);
   }
@@ -323,7 +363,9 @@ export default function PlanGroupsPage() {
   }
 
   function handleResetAll() {
-    setParticipants((prev) => prev.map((p) => ({ ...p, group: "" })));
+    setParticipants((prev) =>
+      prev.map((p) => ({ ...p, group: "", hiddenInGroup: false }))
+    );
     setDirty(true);
   }
 
@@ -375,7 +417,9 @@ export default function PlanGroupsPage() {
     setParticipants((prev) =>
       prev.map((p) => {
         const assignment = assignments.find((a) => a.id === p.id);
-        return assignment ? { ...p, group: assignment.group } : p;
+        return assignment
+          ? { ...p, group: assignment.group, hiddenInGroup: false }
+          : p;
       })
     );
     setDirty(true);
@@ -583,6 +627,12 @@ export default function PlanGroupsPage() {
             />
           </label>
 
+          <p className="mb-4 text-xs text-muted-foreground">
+            Leaders in a group can be hidden from other group members with the
+            eye icon. Hidden members still count toward capacity and remain
+            visible to admins.
+          </p>
+
           {filteredGroupSlots.length === 0 && (
             <div className="text-sm text-muted-foreground">No groups match</div>
           )}
@@ -640,6 +690,28 @@ export default function PlanGroupsPage() {
                         <div className="truncate">{p.name}</div>
                         <ParticipantChips p={p} />
                       </div>
+                      {p.role === "LEADER" && (
+                        <button
+                          onClick={() => handleToggleHidden(p.id)}
+                          disabled={saving}
+                          className={`flex items-center px-2 ${
+                            p.hiddenInGroup
+                              ? "text-amber-600 hover:text-amber-700"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                          title={
+                            p.hiddenInGroup
+                              ? "Visible to group members – click to hide"
+                              : "Hide this leader from group members"
+                          }
+                        >
+                          {p.hiddenInGroup ? (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleRemoveFromSlot(p.id)}
                         disabled={saving}

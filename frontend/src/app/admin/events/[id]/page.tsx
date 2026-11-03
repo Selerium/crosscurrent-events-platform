@@ -10,6 +10,7 @@ import {
   Clock,
   DoorOpen,
   Edit3,
+  EyeOff,
   FileText,
   LayoutGrid,
   Lock,
@@ -102,6 +103,7 @@ type Participant = {
   parentOnePhone: string;
   group: string;
   room: string;
+  hiddenInGroup: boolean;
 };
 
 type ParticipantFilter = "all" | "leaders" | "students";
@@ -1307,6 +1309,15 @@ export default function AdminEventPage() {
                           Student
                         </span>
                       )}
+                      {p.hiddenInGroup && (
+                        <span
+                          className="flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                          title="This leader belongs to their group but is hidden from other group members"
+                        >
+                          <EyeOff className="size-3" />
+                          Hidden in group
+                        </span>
+                      )}
                       {isLeaderParticipant(p) && (
                         <ParticipantRolesDropdown
                           participant={p}
@@ -1378,6 +1389,8 @@ export default function AdminEventPage() {
                     <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">
                       {p.church && <p>{p.church}</p>}
                       {p.phone && <p>{p.phone}</p>}
+                      {p.group && <p>Group: {p.group}</p>}
+                      {p.room && <p>Room: {p.room}</p>}
                       {p.gender && <p className="capitalize">{p.gender.toLowerCase()}</p>}
                       <p>Shirt: {p.shirtSize}</p>
                       <p>Swimming: {p.swimming ? "Yes" : "No"}</p>

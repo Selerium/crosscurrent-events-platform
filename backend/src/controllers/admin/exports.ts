@@ -273,6 +273,7 @@ adminExportsHandler.get("/events", async (req, res) => {
       { header: "Swimming Permission", key: "swimmingPermission", width: 18 },
       { header: "Parent Verified", key: "parentVerified", width: 16 },
       { header: "Group", key: "group", width: 15 },
+      { header: "Hidden in Group", key: "hiddenInGroup", width: 16 },
       { header: "Room", key: "room", width: 15 },
       { header: "Leader Role", key: "primaryLeaderRole", width: 20 },
       { header: "Secondary Roles", key: "secondaryLeaderRoles", width: 35 },
@@ -300,6 +301,7 @@ adminExportsHandler.get("/events", async (req, res) => {
         swimmingPermission: r.swimmingPermission ? "Yes" : "No",
         parentVerified: r.parentVerified ? "Yes" : "No",
         group: r.group || "",
+        hiddenInGroup: r.hiddenInGroup ? "Yes" : "No",
         room: r.room || "",
         primaryLeaderRole: r.primaryLeaderRole
           ? r.primaryLeaderRole.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())

@@ -1,7 +1,7 @@
 "use client";
 
 import { isAxiosError } from "axios";
-import { ChevronLeft, DoorOpen, RotateCcw, Search, Wand2, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, DoorOpen, RotateCcw, Search, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -91,6 +91,18 @@ export default function PlanRoomsPage() {
   // always use the full unfiltered lists.
   const [participantSearch, setParticipantSearch] = useState("");
   const [slotSearch, setSlotSearch] = useState("");
+  // Mixing leaders and students in one room is allowed, but only after the
+  // admin explicitly confirms it.
+  const [pendingMixedAssignment, setPendingMixedAssignment] = useState<{
+    participantId: string;
+    slotLabel: string;
+  } | null>(null);
+  // Auto-assign may also need confirmation when existing occupants and the
+  // generated plan would put leaders and students in the same room.
+  const [pendingMixedBulkAssignments, setPendingMixedBulkAssignments] = useState<{
+    assignments: { id: string; room: string }[];
+    mixedLabels: string[];
+  } | null>(null);
 
   // Pristine server state. Everything above is a local draft until Save:
   // no request leaves the browser (and no user is notified) beforehand.
@@ -271,6 +283,21 @@ export default function PlanRoomsPage() {
     setDirty(true);
   }
 
+  function applyAssignments(assignments: { id: string; room: string }[]) {
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const assignment = assignments.find((a) => a.id === p.id);
+        return assignment ? { ...p, room: assignment.room } : p;
+      })
+    );
+    setDirty(true);
+  }
+
+  function assignToSlot(participantId: string, slotLabel: string) {
+    applyAssignments([{ id: participantId, room: slotLabel }]);
+    setSelectedId(null);
+  }
+
   function handleSlotClick(slotLabel: string) {
     if (!selectedId) return;
     const selected = participants.find((p) => p.id === selectedId);
@@ -281,16 +308,24 @@ export default function PlanRoomsPage() {
       toast.error("Cannot assign: mixed-gender rooms are not allowed");
       return;
     }
+
+    // Leaders and students may share a room, but that decision needs an
+    // explicit confirmation instead of a silent assignment.
     if (occupants.some((o) => o.role !== selected.role)) {
-      toast.error("Cannot assign: leaders and students cannot share rooms");
+      setPendingMixedAssignment({ participantId: selectedId, slotLabel });
       return;
     }
 
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === selectedId ? { ...p, room: slotLabel } : p))
+    assignToSlot(selectedId, slotLabel);
+  }
+
+  function confirmMixedAssignment() {
+    if (!pendingMixedAssignment) return;
+    assignToSlot(
+      pendingMixedAssignment.participantId,
+      pendingMixedAssignment.slotLabel
     );
-    setSelectedId(null);
-    setDirty(true);
+    setPendingMixedAssignment(null);
   }
 
   function startRename(index: number) {
@@ -395,21 +430,41 @@ export default function PlanRoomsPage() {
     }
 
     const assignments: { id: string; room: string }[] = [];
+    const mixedLabels = new Set<string>();
     plan.forEach((members, roomIndex) => {
       const label = slotNames[roomIndex] || `Room ${roomIndex + 1}`;
+      const roles = new Set([
+        ...participants
+          .filter((p) => p.room === label)
+          .map((p) => p.role),
+        ...members.map((p) => p.role),
+      ]);
+      if (roles.size > 1) mixedLabels.add(label);
       for (const p of members) {
         assignments.push({ id: p.id, room: label });
       }
     });
 
-    setParticipants((prev) =>
-      prev.map((p) => {
-        const assignment = assignments.find((a) => a.id === p.id);
-        return assignment ? { ...p, room: assignment.room } : p;
-      })
-    );
-    setDirty(true);
+    if (mixedLabels.size > 0) {
+      setPendingMixedBulkAssignments({
+        assignments,
+        mixedLabels: [...mixedLabels],
+      });
+      return;
+    }
+
+    applyAssignments(assignments);
   }
+
+  function confirmMixedBulkAssignments() {
+    if (!pendingMixedBulkAssignments) return;
+    applyAssignments(pendingMixedBulkAssignments.assignments);
+    setPendingMixedBulkAssignments(null);
+  }
+
+  const pendingParticipant = pendingMixedAssignment
+    ? participants.find((p) => p.id === pendingMixedAssignment.participantId) ?? null
+    : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -590,6 +645,12 @@ export default function PlanRoomsPage() {
                     {slot.registrants.length}/{maxPerRoom}
                   </span>
                 </div>
+                {new Set(slot.registrants.map((r) => r.role)).size > 1 && (
+                  <p className="mb-2 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+                    <AlertTriangle className="size-3" />
+                    Mixed leaders &amp; students
+                  </p>
+                )}
                 <div className="flex flex-col gap-2">
                   {slot.registrants.map((p) => (
                     <div
@@ -630,6 +691,90 @@ export default function PlanRoomsPage() {
           </div>
         </div>
       </div>
+
+      {pendingMixedAssignment && pendingParticipant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-lg font-bold">
+                <AlertTriangle className="size-5 text-amber-600" />
+                Mix leaders and students?
+              </span>
+              <button
+                type="button"
+                onClick={() => setPendingMixedAssignment(null)}
+                className="cursor-pointer"
+                aria-label="Close"
+              >
+                <X width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              <strong>{pendingParticipant.name}</strong> is a{" "}
+              {pendingParticipant.role === "LEADER" ? "leader" : "student"}.
+              Room <strong>{pendingMixedAssignment.slotLabel}</strong> already
+              contains participants with a different role. Are you sure you
+              want leaders and students to share this room?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPendingMixedAssignment(null)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={confirmMixedAssignment}>
+                Yes, mix them
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingMixedBulkAssignments && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-lg font-bold">
+                <AlertTriangle className="size-5 text-amber-600" />
+                Mix leaders and students?
+              </span>
+              <button
+                type="button"
+                onClick={() => setPendingMixedBulkAssignments(null)}
+                className="cursor-pointer"
+                aria-label="Close"
+              >
+                <X width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Automatically assigning these participants would put leaders and
+              students in the same room
+              {pendingMixedBulkAssignments.mixedLabels.length > 0 && (
+                <>
+                  {": "}
+                  <strong>
+                    {pendingMixedBulkAssignments.mixedLabels.join(", ")}
+                  </strong>
+                </>
+              )}
+              . Are you sure you want to continue?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPendingMixedBulkAssignments(null)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={confirmMixedBulkAssignments}>
+                Yes, mix them
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

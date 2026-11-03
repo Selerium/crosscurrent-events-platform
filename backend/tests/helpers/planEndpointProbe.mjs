@@ -11,6 +11,7 @@
  *  - a slot that still holds people cannot be removed by lowering the count,
  *    but moving them out and lowering in the same request succeeds
  *  - an in-use title can never be dropped from the title list
+ *  - leaders can be hidden from the group roster (students cannot)
  *  - other dimensions and invalid payloads are handled
  *
  * Env: DATABASE_URL, JWT_SECRET, RESEND_API_KEY, STRIPE_SECRET_KEY.
@@ -77,7 +78,8 @@ try {
   const admin = await mkUser(`admin-${tag}@example.com`, "Plan Admin", "ADMIN");
   const studentA = await mkUser(`a-${tag}@example.com`, "Student A", "STUDENT");
   const studentB = await mkUser(`b-${tag}@example.com`, "Student B", "STUDENT");
-  ids.profiles = [admin.id, studentA.id, studentB.id];
+  const leader = await mkUser(`l-${tag}@example.com`, "Leader L", "LEADER");
+  ids.profiles = [admin.id, studentA.id, studentB.id, leader.id];
 
   // Legacy shape: one room configured, no titles persisted, but registrations
   // already point at "B204"/"A103". This is exactly what used to vanish.
@@ -118,6 +120,7 @@ try {
 
   const regA = await mkRegistration(studentA.id, "B204", "Alpha");
   const regB = await mkRegistration(studentB.id, "A103", "Beta");
+  const regL = await mkRegistration(leader.id, null, null);
 
   server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -202,6 +205,76 @@ try {
     };
   } catch (e) {
     fail("savePersists", e.message);
+  }
+
+  // 3a. A leader can be assigned to a group as a hidden member.
+  try {
+    const r = await req("PATCH", `${base}/plan`, adminToken, {
+      assignments: [{ id: regL.id, group: "Alpha", hiddenInGroup: true }],
+    });
+    const savedL = await prisma.registration.findUnique({
+      where: { id: regL.id },
+    });
+    summary.steps.hiddenLeaderPersists = {
+      ok:
+        r.status === 200 &&
+        savedL?.group === "Alpha" &&
+        savedL?.hiddenInGroup === true,
+      detail: `status=${r.status} group=${savedL?.group} hidden=${savedL?.hiddenInGroup}`,
+    };
+  } catch (e) {
+    fail("hiddenLeaderPersists", e.message);
+  }
+
+  // 3b. Non-leaders cannot be hidden in a group.
+  try {
+    const r = await req("PATCH", `${base}/plan`, adminToken, {
+      assignments: [{ id: regA.id, group: "Alpha", hiddenInGroup: true }],
+    });
+    const savedA = await prisma.registration.findUnique({
+      where: { id: regA.id },
+    });
+    summary.steps.studentHiddenRejected = {
+      ok: r.status === 400 && savedA?.hiddenInGroup === false,
+      detail: `status=${r.status} message=${JSON.stringify(r.data?.message)} hidden=${savedA?.hiddenInGroup}`,
+    };
+  } catch (e) {
+    fail("studentHiddenRejected", e.message);
+  }
+
+  // 3c. The group roster returned to other members omits hidden leaders.
+  try {
+    const r = await req("GET", `/events/${event.id}`, tokenFor(studentA.id));
+    const group = r.data?.data?.user?.group;
+    const names = (group?.members ?? []).map((m) => m.name);
+    summary.steps.hiddenLeaderFilteredFromGroup = {
+      ok:
+        r.status === 200 &&
+        group?.name === "Alpha" &&
+        names.length === 0,
+      detail: `status=${r.status} group=${JSON.stringify(group)}`,
+    };
+  } catch (e) {
+    fail("hiddenLeaderFilteredFromGroup", e.message);
+  }
+
+  // 3d. Unhiding the leader restores them to the group roster.
+  try {
+    await req("PATCH", `${base}/plan`, adminToken, {
+      assignments: [{ id: regL.id, hiddenInGroup: false }],
+    });
+    const r = await req("GET", `/events/${event.id}`, tokenFor(studentA.id));
+    const group = r.data?.data?.user?.group;
+    const names = (group?.members ?? []).map((m) => m.name);
+    summary.steps.unhiddenLeaderVisibleInGroup = {
+      ok:
+        r.status === 200 &&
+        group?.name === "Alpha" &&
+        names.includes("Leader L"),
+      detail: `status=${r.status} group=${JSON.stringify(group)}`,
+    };
+  } catch (e) {
+    fail("unhiddenLeaderVisibleInGroup", e.message);
   }
 
   // 4. Plan saves never notify registrants.

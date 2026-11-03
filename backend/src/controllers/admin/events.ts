@@ -63,7 +63,12 @@ const PLAN_DIMENSIONS: PlanDimension[] = [
   },
 ];
 
-type PlanAssignment = { id: string; room?: string | null; group?: string | null };
+type PlanAssignment = {
+  id: string;
+  room?: string | null;
+  group?: string | null;
+  hiddenInGroup?: boolean;
+};
 
 type PlanValues = { count: number; maxPer: number; names: string[] };
 
@@ -346,15 +351,25 @@ adminEventsHandler.patch("/:id/plan", async (req, res) => {
 
     const registrations = await tx.registration.findMany({
       where: { eventId: event.id },
-      select: { id: true, room: true, group: true },
+      select: {
+        id: true,
+        room: true,
+        group: true,
+        hiddenInGroup: true,
+        profile: { select: { role: true } },
+      },
     });
 
     // Stored assignments overlaid with the incoming changes = final plan.
     const finalRoom = new Map<string, string | null>();
     const finalGroup = new Map<string, string | null>();
+    const finalHidden = new Map<string, boolean>();
+    const roles = new Map<string, string | null>();
     for (const registration of registrations) {
       finalRoom.set(registration.id, registration.room);
       finalGroup.set(registration.id, registration.group);
+      finalHidden.set(registration.id, registration.hiddenInGroup);
+      roles.set(registration.id, registration.profile.role);
     }
 
     for (const assignment of assignments) {
@@ -371,6 +386,23 @@ adminEventsHandler.patch("/:id/plan", async (req, res) => {
         const normalised = value === null ? null : value.trim() || null;
         (field === "room" ? finalRoom : finalGroup).set(assignment.id, normalised);
       }
+
+      if (assignment.hiddenInGroup !== undefined) {
+        if (typeof assignment.hiddenInGroup !== "boolean") {
+          throw new AppError("hiddenInGroup must be a boolean", 400);
+        }
+        // Hiding is a leader-only concept: it protects a leader's details from
+        // the group roster they are assigned to.
+        if (assignment.hiddenInGroup && roles.get(assignment.id) !== "LEADER") {
+          throw new AppError("Only leaders can be hidden in a group", 400);
+        }
+        finalHidden.set(assignment.id, assignment.hiddenInGroup);
+      }
+    }
+
+    // A person who is not in a group cannot be hidden in one.
+    for (const [id, hidden] of finalHidden) {
+      if (hidden && !finalGroup.get(id)) finalHidden.set(id, false);
     }
 
     const dimensions: Record<"room" | "group", PlanValues> = {
@@ -424,6 +456,24 @@ adminEventsHandler.patch("/:id/plan", async (req, res) => {
 
     await applyPlanAssignments(tx, changesFor("room", finalRoom), "room");
     await applyPlanAssignments(tx, changesFor("group", finalGroup), "group");
+
+    // Hidden-in-group is per-person rather than one shared value, so group the
+    // changed rows by their target flag to keep the number of statements small.
+    const hiddenByValue = new Map<boolean, string[]>();
+    for (const registration of registrations) {
+      const before = registration.hiddenInGroup;
+      const after = finalHidden.get(registration.id) ?? false;
+      if (before === after) continue;
+      const ids = hiddenByValue.get(after);
+      if (ids) ids.push(registration.id);
+      else hiddenByValue.set(after, [registration.id]);
+    }
+    for (const [hidden, ids] of hiddenByValue) {
+      await tx.registration.updateMany({
+        where: { id: { in: ids } },
+        data: { hiddenInGroup: hidden },
+      });
+    }
 
     return { id: event.id, ...updateData };
   });
@@ -722,6 +772,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
       parentOnePhone: r.profile.parentOnePhone || "",
       group: r.group || "",
       room: r.room || "",
+      hiddenInGroup: r.hiddenInGroup,
     };
   });
 
@@ -1032,7 +1083,11 @@ adminEventsHandler.patch("/:id/participants/:participantId", async (req, res) =>
   if (!registration) throw new AppError("Registration not found", 404);
 
   const data: Record<string, unknown> = {};
-  if (group !== undefined) data.group = group || null;
+  if (group !== undefined) {
+    data.group = group || null;
+    // Leaving a group also clears the hidden-in-group marker.
+    if (!group) data.hiddenInGroup = false;
+  }
   if (room !== undefined) data.room = room || null;
   if (earlyBird !== undefined) data.earlyBird = earlyBird;
 
@@ -1304,6 +1359,7 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
     { header: "Parent 2 Phone", key: "parentTwoPhone", width: 18 },
     { header: "Spouse", key: "spouse", width: 25 },
     { header: "Group", key: "group", width: 15 },
+    { header: "Hidden in Group", key: "hiddenInGroup", width: 16 },
     { header: "Room", key: "room", width: 15 },
     { header: "Primary Leader Role", key: "primaryLeaderRole", width: 25 },
     { header: "Secondary Leader Roles", key: "secondaryLeaderRoles", width: 40 },
@@ -1351,6 +1407,7 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
       parentTwoPhone: p.parentTwoPhone ?? "",
       spouse: r.spouse?.name ?? p.spouseName ?? "",
       group: r.group ?? "",
+      hiddenInGroup: r.hiddenInGroup ? "Yes" : "No",
       room: r.room ?? "",
       primaryLeaderRole: r.primaryLeaderRole ?? "",
       secondaryLeaderRoles: Array.isArray(r.secondaryLeaderRoles)

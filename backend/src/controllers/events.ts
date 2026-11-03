@@ -480,6 +480,9 @@ eventsHandler.get("/:id", async (req, res) => {
                 eventId: event.id,
                 group: value,
                 profileId: { not: req.user!.id },
+                // Leaders flagged as hidden in the plan still belong to the
+                // group, but their details are not exposed to other members.
+                hiddenInGroup: false,
               };
 
         const members = await prisma.registration.findMany({

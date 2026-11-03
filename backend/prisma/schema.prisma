@@ -130,6 +130,10 @@ model Registration {
   selfPay     Boolean
   room        String?
   group       String?
+  // Leaders can belong to a group without other members seeing them in the
+  // group member list. The assignment is kept, but the public event endpoint
+  // filters these rows out of the group roster. Admins still see them.
+  hiddenInGroup Boolean @default(false)
 
   spouseId             String?
   spouse               Profile?               @relation("RegistrationSpouse", fields: [spouseId], references: [id], onDelete: SetNull)
