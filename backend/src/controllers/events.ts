@@ -452,33 +452,57 @@ eventsHandler.get("/:id", async (req, res) => {
     });
 
     if (registration) {
-      let room = null;
-      if (registration.room) {
-        const roomMembers = await prisma.registration.findMany({
-          where: {
-            eventId: event.id,
-            room: registration.room,
-            profileId: { not: req.user.id },
-          },
+      // Contact numbers are only exposed to approved leaders.
+      const viewerIsLeader =
+        viewer?.approved === true && viewer.role === "LEADER";
+
+      const findMembers = async (
+        field: "room" | "group",
+        value: string | null,
+      ) => {
+        if (!value) return null;
+
+        const where =
+          field === "room"
+            ? {
+                eventId: event.id,
+                room: value,
+                profileId: { not: req.user!.id },
+              }
+            : {
+                eventId: event.id,
+                group: value,
+                profileId: { not: req.user!.id },
+              };
+
+        const members = await prisma.registration.findMany({
+          where,
           include: {
-            profile: { select: { name: true, phone: true } },
+            profile: { select: { name: true, role: true, phone: true } },
           },
+          orderBy: { profile: { name: "asc" } },
         });
 
-        room = {
-          name: registration.room,
-          members: roomMembers.map((m) => ({
+        return {
+          name: value,
+          members: members.map((m) => ({
             name: m.profile.name,
-            mobile: m.profile.phone || "",
+            role: m.profile.role || "STUDENT",
+            mobile: viewerIsLeader ? m.profile.phone || "" : null,
           })),
         };
-      }
+      };
+
+      const [room, group] = await Promise.all([
+        findMembers("room", registration.room),
+        findMembers("group", registration.group),
+      ]);
 
       user = {
         paid: registration.paid,
         parentVerified: registration.parentVerified,
         room,
-        group: registration.group,
+        group,
         swimming: registration.swimming,
         allergies: registration.allergies,
         medication: registration.medications,

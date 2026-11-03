@@ -10,6 +10,8 @@ import {
   CircleDollarSign,
   Clock,
   Download,
+  Eye,
+  EyeOff,
   Info,
   MapPin,
   Phone,
@@ -42,6 +44,17 @@ type ScheduleItem = {
   location: string;
 };
 
+type Member = {
+  name: string;
+  role: string;
+  mobile: string | null;
+};
+
+type MemberList = {
+  name: string;
+  members: Member[];
+};
+
 type EventData = {
   id: string;
   name: string;
@@ -60,8 +73,8 @@ type EventData = {
   user: {
     paid: boolean;
     parentVerified: boolean;
-    room: { name: string; members: { name: string; mobile: string }[] } | null;
-    group: string | null;
+    room: MemberList | null;
+    group: MemberList | null;
     swimming: boolean;
     allergies: string[];
     medication: string[];
@@ -288,6 +301,76 @@ function SpousePicker({ onChange }: SpousePickerProps) {
   );
 }
 
+type MembersCardProps = {
+  title: string;
+  list: MemberList;
+  canViewPhones: boolean;
+  showPhones: boolean;
+  onTogglePhones: () => void;
+};
+
+function MembersCard({
+  title,
+  list,
+  canViewPhones,
+  showPhones,
+  onTogglePhones,
+}: MembersCardProps) {
+  const hasPhone = list.members.some((member) => member.mobile);
+
+  return (
+    <div className="flex flex-col gap-2 p-4 rounded-lg border">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-bold">{title}</span>
+        {canViewPhones && hasPhone && (
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={onTogglePhones}
+          >
+            {showPhones ? (
+              <EyeOff width={14} height={14} />
+            ) : (
+              <Eye width={14} height={14} />
+            )}
+            {showPhones ? "Hide phone numbers" : "Show phone numbers"}
+          </Button>
+        )}
+      </div>
+      {list.members.length === 0 ? (
+        <span className="text-sm text-muted-foreground">
+          No one else has been assigned yet.
+        </span>
+      ) : (
+        list.members.map((member, idx) => (
+          <div
+            key={`${member.name}-${idx}`}
+            className="flex items-center justify-between gap-2"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate">{member.name}</span>
+              {member.role === "LEADER" && (
+                <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                  LEADER
+                </span>
+              )}
+            </div>
+            {showPhones && member.mobile && (
+              <div className="flex shrink-0 items-center gap-2">
+                <Phone width={14} height={14} />
+                <a href={`tel:${member.mobile}`} className="underline">
+                  {member.mobile}
+                </a>
+              </div>
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 export default function EventPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -304,6 +387,7 @@ export default function EventPage() {
   const [allergyDraft, setAllergyDraft] = useState("");
   const [userApproved, setUserApproved] = useState(true);
   const [userRole, setUserRole] = useState("");
+  const [showMemberPhones, setShowMemberPhones] = useState(false);
   const [isPrimary, setIsPrimary] = useState(false);
   const [downloadingRegs, setDownloadingRegs] = useState(false);
   const [safeguardingFile, setSafeguardingFile] = useState<File | null>(null);
@@ -1673,36 +1757,26 @@ export default function EventPage() {
                       </div>
                     )}
                   {eventData.user.room && (
-                    <>
-                      <div className="flex flex-col gap-2 p-4 rounded-lg border">
-                        <span className="font-bold">
-                          {eventData.user.room.name}
-                        </span>
-                        {eventData.user.room.members.map((member) => (
-                          <div
-                            key={member.name}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span>{member.name}</span>
-                            <div className="flex items-center gap-2">
-                              <Phone width={14} height={14} />
-                              <a
-                                href={`tel:${member.mobile}`}
-                                className="underline"
-                              >
-                                {member.mobile}
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
+                    <MembersCard
+                      title={`Room: ${eventData.user.room.name}`}
+                      list={eventData.user.room}
+                      canViewPhones={userRole === "LEADER"}
+                      showPhones={showMemberPhones}
+                      onTogglePhones={() =>
+                        setShowMemberPhones((prev) => !prev)
+                      }
+                    />
                   )}
                   {eventData.user.group && (
-                    <div className="flex justify-between gap-2 p-4 rounded-lg border">
-                      <span className="font-bold">Group</span>
-                      <span>{eventData.user.group}</span>
-                    </div>
+                    <MembersCard
+                      title={`Group: ${eventData.user.group.name}`}
+                      list={eventData.user.group}
+                      canViewPhones={userRole === "LEADER"}
+                      showPhones={showMemberPhones}
+                      onTogglePhones={() =>
+                        setShowMemberPhones((prev) => !prev)
+                      }
+                    />
                   )}
                   <div className="flex flex-col gap-2 p-4 rounded-lg border">
                     <span className="font-bold">Allergies</span>
