@@ -368,7 +368,12 @@ eventsHandler.get("/:id", async (req, res) => {
   if (req.user?.id) {
     const viewer = await prisma.profile.findUnique({
       where: { id: req.user.id },
-      select: { churchId: true, approved: true, role: true },
+      select: {
+        churchId: true,
+        approved: true,
+        role: true,
+        primaryForChurch: true,
+      },
     });
 
     if (viewer?.churchId && viewer.approved) {
@@ -452,9 +457,11 @@ eventsHandler.get("/:id", async (req, res) => {
     });
 
     if (registration) {
-      // Contact numbers are only exposed to approved leaders.
+      // Contact numbers are only exposed to approved leaders, including the
+      // church's primary contact.
       const viewerIsLeader =
-        viewer?.approved === true && viewer.role === "LEADER";
+        viewer?.approved === true &&
+        (viewer.role === "LEADER" || viewer.primaryForChurch);
 
       const findMembers = async (
         field: "room" | "group",

@@ -1760,7 +1760,7 @@ export default function EventPage() {
                     <MembersCard
                       title={`Room: ${eventData.user.room.name}`}
                       list={eventData.user.room}
-                      canViewPhones={userRole === "LEADER"}
+                      canViewPhones={userRole === "LEADER" || isPrimary}
                       showPhones={showMemberPhones}
                       onTogglePhones={() =>
                         setShowMemberPhones((prev) => !prev)
@@ -1771,7 +1771,7 @@ export default function EventPage() {
                     <MembersCard
                       title={`Group: ${eventData.user.group.name}`}
                       list={eventData.user.group}
-                      canViewPhones={userRole === "LEADER"}
+                      canViewPhones={userRole === "LEADER" || isPrimary}
                       showPhones={showMemberPhones}
                       onTogglePhones={() =>
                         setShowMemberPhones((prev) => !prev)
