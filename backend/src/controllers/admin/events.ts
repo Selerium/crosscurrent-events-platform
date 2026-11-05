@@ -9,6 +9,7 @@ import { logAdminAction } from "../../lib/adminLog.ts";
 import { fanOutCompletionsForProfile } from "../../lib/requiredActions.ts";
 import { isEarlyBirdPayment } from "../../lib/earlyBird.ts";
 import { getLeaderRoleKeySets } from "../../lib/leaderRoles.ts";
+import { loadPointsContext, resolvePlanNames } from "../../lib/points.ts";
 import {
   effectiveEventStatus,
   parseRegistrationCloseDate,
@@ -296,6 +297,33 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     );
   }
 
+  // Points groups reference plan groups by slot index, so shrinking the group
+  // count must not detach an assigned slot. The admin removes it from the
+  // points group first.
+  if (data.groups !== undefined) {
+    const nextGroupCount = Math.trunc(Number(data.groups));
+    if (!Number.isFinite(nextGroupCount) || nextGroupCount < 1) {
+      throw new AppError("groups must be a positive number", 400);
+    }
+
+    const assignedSlot = await prisma.pointsGroupSlot.findFirst({
+      where: { eventId: req.params.id, slotIndex: { gte: nextGroupCount } },
+      include: { pointsGroup: { select: { name: true } } },
+    });
+    if (assignedSlot) {
+      const context = await loadPointsContext(req.params.id);
+      const name =
+        context.names[assignedSlot.slotIndex] ??
+        `Group ${assignedSlot.slotIndex + 1}`;
+      throw new AppError(
+        `Cannot reduce groups to ${nextGroupCount}: "${name}" belongs to ` +
+          `points group "${assignedSlot.pointsGroup.name}". Remove it from ` +
+          `that points group first.`,
+        400
+      );
+    }
+  }
+
   let updated;
   try {
     updated = await prisma.event.update({
@@ -429,6 +457,35 @@ adminEventsHandler.patch("/:id/plan", async (req, res) => {
         body,
         dimensions[dimension.field],
         assignedTitles
+      );
+    }
+
+    // A plan group that belongs to a points group cannot be removed: points
+    // history and membership are keyed to the slot, so silently dropping it
+    // would corrupt the points screen.
+    const removedAssignedSlot = await tx.pointsGroupSlot.findFirst({
+      where: {
+        eventId: event.id,
+        slotIndex: { gte: dimensions.group.count },
+      },
+      include: { pointsGroup: { select: { name: true } } },
+    });
+    if (removedAssignedSlot) {
+      const oldNames = resolvePlanNames(
+        event.groupNames,
+        registrations
+          .map((registration) => registration.group)
+          .filter((group): group is string => Boolean(group)),
+        event.groups
+      );
+      const name =
+        oldNames[removedAssignedSlot.slotIndex] ??
+        `Group ${removedAssignedSlot.slotIndex + 1}`;
+      throw new AppError(
+        `Cannot reduce groups to ${dimensions.group.count}: "${name}" belongs ` +
+          `to points group "${removedAssignedSlot.pointsGroup.name}". Remove ` +
+          `it from that points group first.`,
+        400
       );
     }
 
@@ -773,6 +830,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
       group: r.group || "",
       room: r.room || "",
       hiddenInGroup: r.hiddenInGroup,
+      pointsMaster: r.pointsMaster,
     };
   });
 

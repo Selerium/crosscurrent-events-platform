@@ -19,6 +19,7 @@ import {
   Upload,
   Users,
   XIcon,
+  Trophy,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -1756,6 +1757,18 @@ export default function EventPage() {
                 >
                   <CircleDollarSign />
                   Scholarship requests
+                </Button>
+              )}
+              {(eventData.user || userRole === "ADMIN") && (
+                <Button
+                  variant="outline"
+                  className="w-full p-4 justify-center"
+                  asChild
+                >
+                  <Link href={`/events/${params.id}/points`}>
+                    <Trophy />
+                    Event points
+                  </Link>
                 </Button>
               )}
               {eventData.user && (

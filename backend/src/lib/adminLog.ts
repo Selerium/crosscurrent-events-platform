@@ -13,7 +13,7 @@ export async function logAdminAction(params: {
     await prisma.adminLog.create({
       data: {
         adminId: params.adminId,
-        adminName: params.adminName,
+        adminName: params.adminName ?? "",
         action: params.action,
         targetType: params.targetType,
         targetId: params.targetId ?? null,

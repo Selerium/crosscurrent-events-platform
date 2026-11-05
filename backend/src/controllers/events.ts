@@ -14,6 +14,10 @@ import {
   effectiveEventStatus,
   isRegistrationOpen,
 } from "../lib/registrationWindow.ts";
+import {
+  assertCanManagePoints,
+  buildPointsView,
+} from "../lib/points.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -349,6 +353,83 @@ eventsHandler.delete("/:id/register", async (req, res) => {
   });
 
   res.status(200).json({ data: null, error: false, message: "" });
+});
+
+eventsHandler.get("/:id/points", async (req, res) => {
+  const data = await buildPointsView(req.params.id, req.user!.id);
+  res.status(200).json({ data, error: false, message: "" });
+});
+
+eventsHandler.post("/:id/points/entries", async (req, res) => {
+  const event = await prisma.event.findUnique({
+    where: { id: req.params.id },
+    select: { id: true },
+  });
+  if (!event) throw new AppError("Event not found", 404);
+
+  const manager = await assertCanManagePoints(event.id, req.user!.id);
+
+  const pointsGroupId = asString(req.body?.pointsGroupId).trim();
+  if (!pointsGroupId) throw new AppError("pointsGroupId is required", 400);
+
+  const pointsGroup = await prisma.pointsGroup.findFirst({
+    where: { id: pointsGroupId, eventId: event.id },
+    select: { id: true },
+  });
+  if (!pointsGroup) throw new AppError("Points group not found", 404);
+
+  let delta: number;
+  let reason: string;
+  let presetId: string | null = null;
+
+  const rawPresetId = asString(req.body?.presetId).trim();
+  if (rawPresetId) {
+    const preset = await prisma.pointsPreset.findFirst({
+      where: { id: rawPresetId, eventId: event.id },
+    });
+    if (!preset) throw new AppError("Preset not found", 404);
+
+    // Preset values are authoritative: the client cannot alter the logged
+    // points or the reason.
+    delta = preset.delta;
+    reason = preset.reason;
+    presetId = preset.id;
+  } else {
+    delta = Math.trunc(Number(req.body?.delta));
+    if (!Number.isInteger(delta) || delta === 0) {
+      throw new AppError("Points must be a non-zero whole number", 400);
+    }
+    if (Math.abs(delta) > 100000) {
+      throw new AppError("Points value is too large", 400);
+    }
+
+    reason = asString(req.body?.reason).trim();
+    if (!reason) {
+      throw new AppError("A reason is required when adjusting points", 400);
+    }
+    if (reason.length > 500) {
+      throw new AppError("Reason must be 500 characters or fewer", 400);
+    }
+  }
+
+  const entry = await prisma.pointsEntry.create({
+    data: {
+      eventId: event.id,
+      pointsGroupId: pointsGroup.id,
+      delta,
+      reason,
+      presetId,
+      createdById: req.user!.id,
+      createdByName: manager.name || req.user!.name || "",
+    },
+    select: { id: true, delta: true, reason: true, createdAt: true },
+  });
+
+  res.status(201).json({
+    data: entry,
+    error: false,
+    message: "Points updated",
+  });
 });
 
 eventsHandler.get("/:id", async (req, res) => {

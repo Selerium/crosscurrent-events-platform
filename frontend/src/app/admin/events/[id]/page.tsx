@@ -23,6 +23,7 @@ import {
   UserPlus,
   XIcon,
   Download,
+  Trophy,
 } from "lucide-react";
 import { downloadBlob } from "@/lib/downloadFile";
 import Link from "next/link";
@@ -679,6 +680,11 @@ export default function AdminEventPage() {
                 <Button variant="outline" asChild>
                   <Link href={`/admin/events/${params.id}/plan/rooms`}>
                     <DoorOpen /> Plan Rooms
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href={`/admin/events/${params.id}/plan/points`}>
+                    <Trophy /> Plan Points
                   </Link>
                 </Button>
                 {eventInfo.status === "active" && (

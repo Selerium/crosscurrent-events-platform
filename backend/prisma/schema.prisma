@@ -135,6 +135,9 @@ model Registration {
   // filters these rows out of the group roster. Admins still see them.
   hiddenInGroup Boolean @default(false)
 
+  // Event-wide permission to award/remove points for any points group.
+  pointsMaster Boolean @default(false)
+
   spouseId             String?
   spouse               Profile?               @relation("RegistrationSpouse", fields: [spouseId], references: [id], onDelete: SetNull)
   primaryLeaderRole    String?
@@ -192,6 +195,93 @@ model Event {
   scholarshipPayments ScholarshipPayment[]
 
   requiredActions RequiredAction[]
+
+  pointsGroups     PointsGroup[]
+  pointsGroupSlots PointsGroupSlot[]
+  pointsEntries    PointsEntry[]
+  pointsPresets    PointsPreset[]
+}
+
+// Admin-created grouping of one or more plan groups. Each plan group can
+// belong to at most one points group (enforced on PointsGroupSlot).
+model PointsGroup {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name String
+
+  slots   PointsGroupSlot[]
+  entries PointsEntry[]
+
+  @@unique([eventId, name])
+  @@index([eventId])
+}
+
+// Membership of a plan group (identified by its position in Event.groupNames)
+// in a points group. Positional identity means renaming a plan group keeps the
+// points group and its history intact.
+model PointsGroupSlot {
+  id String @id @default(uuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  pointsGroupId String
+  pointsGroup   PointsGroup @relation(fields: [pointsGroupId], references: [id], onDelete: Cascade)
+
+  slotIndex Int
+
+  @@unique([eventId, slotIndex])
+  @@index([pointsGroupId])
+}
+
+// Append-only points log. A reason is required for every adjustment; entries
+// are never edited or deleted.
+model PointsEntry {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  pointsGroupId String
+  pointsGroup   PointsGroup @relation(fields: [pointsGroupId], references: [id], onDelete: Cascade)
+
+  delta  Int
+  reason String
+
+  presetId String?
+  preset   PointsPreset? @relation(fields: [presetId], references: [id], onDelete: SetNull)
+
+  createdById   String
+  createdByName String
+
+  @@index([eventId, createdAt])
+  @@index([pointsGroupId])
+}
+
+// Admin-managed quick-pick adjustments for points masters. `delta` sign
+// decides whether the preset appears under "add" or "remove".
+model PointsPreset {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  label     String
+  delta     Int
+  reason    String
+  sortOrder Int    @default(0)
+
+  entries PointsEntry[]
+
+  @@index([eventId])
 }
 
 model ScholarshipPayment {
