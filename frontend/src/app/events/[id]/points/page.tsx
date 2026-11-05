@@ -94,10 +94,10 @@ function PodiumCard({
   const height = rank === 1 ? "min-h-44" : rank === 2 ? "min-h-36" : "min-h-28";
   const tone =
     rank === 1
-      ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30"
+      ? "border-amber-400 bg-amber-50 dark:border-amber-500/70 dark:bg-amber-900/30"
       : rank === 2
-        ? "border-slate-300 bg-slate-50 dark:bg-slate-900/40"
-        : "border-orange-300 bg-orange-50 dark:bg-orange-950/30";
+        ? "border-slate-300 bg-slate-50 dark:border-slate-500/70 dark:bg-slate-800/50"
+        : "border-orange-300 bg-orange-50 dark:border-orange-500/70 dark:bg-orange-900/30";
 
   return (
     <div
@@ -112,10 +112,10 @@ function PodiumCard({
         className={cn(
           "mb-2 size-6",
           rank === 1
-            ? "text-amber-500"
+            ? "text-amber-500 dark:text-amber-400"
             : rank === 2
-              ? "text-slate-400"
-              : "text-orange-500"
+              ? "text-slate-400 dark:text-slate-300"
+              : "text-orange-500 dark:text-orange-400"
         )}
       />
       <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -336,28 +336,23 @@ export default function EventPointsPage() {
             <h2 className="font-bold">Your points group</h2>
           </div>
 
-          {data.viewer.planGroup ? (
+          {myGroup ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Your plan group
+                  Your points group
                 </p>
-                <p className="mt-1 text-lg font-bold">{data.viewer.planGroup}</p>
+                <p className="mt-1 text-lg font-bold">{myGroup.name}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Points group:{" "}
-                  <span className="font-semibold text-foreground">
-                    {data.viewer.pointsGroupName ?? "Not assigned yet"}
-                  </span>
+                  Current total:{" "}
+                  <span className="font-bold text-foreground">
+                    {myGroup.total}
+                  </span>{" "}
+                  points
                 </p>
-                {myGroup && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Current total:{" "}
-                    <span className="font-bold text-foreground">
-                      {myGroup.total}
-                    </span>{" "}
-                    points
-                  </p>
-                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Your group is highlighted in the standings below.
+                </p>
               </div>
 
               <div className="rounded-lg border p-4">
@@ -367,11 +362,7 @@ export default function EventPointsPage() {
                     Leaders in your points group
                   </p>
                 </div>
-                {!myGroup ? (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Your plan group has not been added to a points group yet.
-                  </p>
-                ) : myGroup.leaders.length === 0 ? (
+                {myGroup.leaders.length === 0 ? (
                   <p className="mt-2 text-sm text-muted-foreground">
                     No leaders are assigned to this points group yet.
                   </p>
@@ -381,7 +372,6 @@ export default function EventPointsPage() {
                       <span
                         key={leader.registrationId}
                         className="rounded-full border px-2 py-1 text-xs font-medium"
-                        title={leader.planGroup}
                       >
                         {leader.name}
                       </span>
@@ -394,7 +384,7 @@ export default function EventPointsPage() {
             <p className="mt-3 text-sm text-muted-foreground">
               {data.canManage
                 ? "You are viewing as an admin or points master. You can manage every points group below."
-                : "You are not registered in a plan group for this event yet."}
+                : "You have not been added to a points group yet."}
             </p>
           )}
         </section>
@@ -445,9 +435,6 @@ export default function EventPointsPage() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {group.planGroups.join(", ")}
-                          </p>
                         </div>
                         <span className="text-lg font-black">{group.total}</span>
                       </div>
@@ -635,60 +622,62 @@ export default function EventPointsPage() {
           </section>
         )}
 
-        <section className="rounded-lg border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-bold">Points log</h2>
-            <span className="text-xs text-muted-foreground">
-              Latest {data.entries.length} adjustments
-            </span>
-          </div>
-
-          {data.entries.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              No points have been added or removed yet.
-            </p>
-          ) : (
-            <div className="mt-3 divide-y rounded-lg border">
-              {data.entries.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex flex-wrap items-start gap-3 p-3"
-                >
-                  <span
-                    className={cn(
-                      "flex min-w-16 items-center justify-center rounded-md px-2 py-1 text-sm font-bold",
-                      entry.delta > 0
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
-                        : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
-                    )}
-                  >
-                    {entry.delta > 0 ? "+" : ""}
-                    {entry.delta}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">
-                        {entry.pointsGroupName}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {entry.createdByName ?? "Points master"} ·{" "}
-                        {new Date(entry.createdAt).toLocaleString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      {entry.reason}
-                    </p>
-                  </div>
-                </div>
-              ))}
+        {data.canManage && (
+          <section className="rounded-lg border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-bold">Points log</h2>
+              <span className="text-xs text-muted-foreground">
+                Latest {data.entries.length} adjustments
+              </span>
             </div>
-          )}
-        </section>
+
+            {data.entries.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                No points have been added or removed yet.
+              </p>
+            ) : (
+              <div className="mt-3 divide-y rounded-lg border">
+                {data.entries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex flex-wrap items-start gap-3 p-3"
+                  >
+                    <span
+                      className={cn(
+                        "flex min-w-16 items-center justify-center rounded-md px-2 py-1 text-sm font-bold",
+                        entry.delta > 0
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                          : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
+                      )}
+                    >
+                      {entry.delta > 0 ? "+" : ""}
+                      {entry.delta}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">
+                          {entry.pointsGroupName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {entry.createdByName ?? "Points master"} ·{" "}
+                          {new Date(entry.createdAt).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {entry.reason}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Backpack className="size-3.5" />

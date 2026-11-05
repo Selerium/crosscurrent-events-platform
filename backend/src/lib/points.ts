@@ -227,7 +227,7 @@ export type PointsView = {
 
 /**
  * Builds the points screen payload. Only event registrants and admins may
- * view it; actor names are redacted for everyone who cannot manage points.
+ * view it. The adjustment log is returned only to points masters and admins.
  */
 export async function buildPointsView(
   eventId: string,
@@ -252,7 +252,7 @@ export async function buildPointsView(
   }
 
   const canManage = isAdmin || viewerRegistration?.pointsMaster === true;
-  const [pointsGroups, totals, presets, entries] = await Promise.all([
+  const [pointsGroups, totals, presets] = await Promise.all([
     prisma.pointsGroup.findMany({
       where: { eventId },
       include: { slots: { select: { slotIndex: true } } },
@@ -263,13 +263,18 @@ export async function buildPointsView(
       where: { eventId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
-    prisma.pointsEntry.findMany({
-      where: { eventId },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-      include: { pointsGroup: { select: { name: true } } },
-    }),
   ]);
+
+  // The points log is management-only. Ordinary registrants see standings and
+  // their own points group, but never the adjustment history.
+  const entries = canManage
+    ? await prisma.pointsEntry.findMany({
+        where: { eventId },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+        include: { pointsGroup: { select: { name: true } } },
+      })
+    : [];
 
   const groups = summarisePointsGroups(context, pointsGroups, totals);
 
@@ -307,8 +312,7 @@ export async function buildPointsView(
       pointsGroupName: entry.pointsGroup.name,
       delta: entry.delta,
       reason: entry.reason,
-      // Only points masters and admins see who adjusted the score.
-      createdByName: canManage ? entry.createdByName : null,
+      createdByName: entry.createdByName,
     })),
   };
 }

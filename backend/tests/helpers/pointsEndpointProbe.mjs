@@ -8,7 +8,7 @@
  *  - points masters manage any points group; non-masters cannot
  *  - custom adjustments require a reason
  *  - presets apply their own delta and reason
- *  - totals, ranking and actor-name redaction
+ *  - totals, ranking and a management-only points log
  *  - plan groups assigned to a points group cannot be removed
  *
  * Env: DATABASE_URL, JWT_SECRET, RESEND_API_KEY, STRIPE_SECRET_KEY.
@@ -254,7 +254,7 @@ try {
     detail: `preset=${preset.status} entry=${presetEntry.status} delta=${presetEntry.data?.data?.delta}`,
   };
 
-  // 8. Totals rank the groups and the log is visible.
+  // 8. Totals rank the groups; the log is hidden from ordinary registrants.
   const after = await req("GET", pointsUrl, studentToken);
   const redGroup = after.data?.data?.groups?.find((g) => g.id === redId);
   const blueGroup = after.data?.data?.groups?.find((g) => g.id === blueId);
@@ -264,19 +264,20 @@ try {
       redGroup?.total === 25 &&
       blueGroup?.total === 0 &&
       after.data?.data?.groups?.[0]?.id === redId &&
-      after.data?.data?.entries?.length === 2,
-    detail: `red=${redGroup?.total} blue=${blueGroup?.total} first=${after.data?.data?.groups?.[0]?.id} entries=${after.data?.data?.entries?.length}`,
+      after.data?.data?.entries?.length === 0,
+    detail: `red=${redGroup?.total} blue=${blueGroup?.total} first=${after.data?.data?.groups?.[0]?.id} studentEntries=${after.data?.data?.entries?.length}`,
   };
 
-  // 9. Ordinary registrants cannot see who adjusted points.
+  // 9. Only points masters/admins see the adjustment log and actor names.
   const managerView = await req("GET", pointsUrl, leaderAToken);
-  summary.steps.actorRedaction = {
+  summary.steps.logVisibility = {
     ok:
-      after.data?.data?.entries?.every((e) => e.createdByName === null) &&
+      managerView.data?.data?.entries?.length === 2 &&
       managerView.data?.data?.entries?.every(
         (e) => e.createdByName === "Leader Ada"
-      ),
-    detail: `student=${JSON.stringify(after.data?.data?.entries?.[0]?.createdByName)} manager=${JSON.stringify(managerView.data?.data?.entries?.[0]?.createdByName)}`,
+      ) &&
+      after.data?.data?.entries?.length === 0,
+    detail: `managerEntries=${managerView.data?.data?.entries?.length} managerActor=${JSON.stringify(managerView.data?.data?.entries?.[0]?.createdByName)} studentEntries=${after.data?.data?.entries?.length}`,
   };
 
   // 10. Non-masters and non-registrants are rejected.
