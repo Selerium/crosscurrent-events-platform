@@ -118,12 +118,12 @@ function PodiumCard({
               : "text-orange-500 dark:text-orange-400"
         )}
       />
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="text-black text-xs font-semibold uppercase tracking-wide">
         {rankLabel(rank)}
       </span>
-      <span className="mt-1 line-clamp-2 font-bold">{group.name}</span>
-      <span className="mt-1 text-2xl font-black">{group.total}</span>
-      <span className="text-xs text-muted-foreground">points</span>
+      <span className="text-black mt-1 line-clamp-2 font-bold">{group.name}</span>
+      <span className="text-black mt-1 text-2xl font-black">{group.total}</span>
+      <span className="text-black text-xs">points</span>
       {isMine && (
         <span className="mt-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">
           Your group
