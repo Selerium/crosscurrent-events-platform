@@ -9,5 +9,11 @@ declare namespace Express {
             exp?: number;
             sub?: string;
         };
+        checkInActor?: {
+            profileId: string;
+            name: string;
+            isAdmin: boolean;
+            registrationId: string | null;
+        };
     }
 }

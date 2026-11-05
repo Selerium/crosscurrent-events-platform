@@ -50,6 +50,7 @@ import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data"
 import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import AddParticipantModal from "@/components/admin/AddParticipantModal";
 import api from "@/lib/axios";
+import { CHECK_IN_LEADER_ROLE } from "@/lib/checkIn";
 import {
   leaderRoleLabel,
   type LeaderRoleOption,
@@ -117,6 +118,13 @@ function isLeaderParticipant(p: Participant): boolean {
     p.role === "LEADER" ||
     Boolean(p.primaryLeaderRole) ||
     p.secondaryLeaderRoles.length > 0
+  );
+}
+
+function isCheckInStaff(p: Participant): boolean {
+  return (
+    p.primaryLeaderRole === CHECK_IN_LEADER_ROLE ||
+    p.secondaryLeaderRoles.includes(CHECK_IN_LEADER_ROLE)
   );
 }
 
@@ -685,6 +693,11 @@ export default function AdminEventPage() {
                 <Button variant="outline" asChild>
                   <Link href={`/admin/events/${params.id}/plan/points`}>
                     <Trophy /> Plan Points
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href={`/check-in/${params.id}`}>
+                    <CheckCircle /> Check In
                   </Link>
                 </Button>
                 {eventInfo.status === "active" && (
@@ -1315,6 +1328,11 @@ export default function AdminEventPage() {
                           Student
                         </span>
                       )}
+                      {isCheckInStaff(p) && (
+                        <span className="rounded-md bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
+                          Check-in staff
+                        </span>
+                      )}
                       {p.hiddenInGroup && (
                         <span
                           className="flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
@@ -1904,6 +1922,10 @@ function ParticipantRolesDropdown({
                 </label>
               ))}
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              The Registration role grants access to this event&apos;s check-in
+              page.
+            </p>
           </div>
 
           {primaryRole && (

@@ -22,6 +22,7 @@ import adminEmailsHandler from "./admin/emails.ts";
 import adminVideosHandler from "./admin/videos.ts";
 import adminLeaderRolesHandler from "./admin/leaderRoles.ts";
 import leaderRolesHandler from "./leaderRoles.ts";
+import checkInHandler from "./checkIn.ts";
 import checkTokens from "../middleware/checkTokens.ts";
 import requireAdmin from "../middleware/requireAdmin.ts";
 
@@ -52,6 +53,7 @@ protectedRouter.use('/profile/first-time', firstTimeHandler)
 protectedRouter.use('/churches', churchHandler)
 protectedRouter.use('/events', eventsHandler)
 protectedRouter.use('/leader-roles', leaderRolesHandler)
+protectedRouter.use('/check-in', checkInHandler)
 protectedRouter.use('/payments', paymentsHandler)
 protectedRouter.use('/profiles', profilesHandler)
 protectedRouter.use('/admin', adminRouter)

@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import api from "@/lib/axios";
+import { CHECK_IN_LEADER_ROLE } from "@/lib/checkIn";
 import type {
   LeaderRoleInfo,
   LeaderRoleInfoEntry,
@@ -245,6 +246,11 @@ export default function AdminLeaderRolesPage() {
                           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
                             {role.role}
                           </code>
+                          {role.role === CHECK_IN_LEADER_ROLE && (
+                            <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                              Check-in access
+                            </span>
+                          )}
                         </div>
                         <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                           {role.description || (
@@ -269,6 +275,12 @@ export default function AdminLeaderRolesPage() {
                           size="sm"
                           className="text-destructive hover:text-destructive"
                           onClick={() => setDeleteTarget(role)}
+                          disabled={role.role === CHECK_IN_LEADER_ROLE}
+                          title={
+                            role.role === CHECK_IN_LEADER_ROLE
+                              ? "The Registration role grants check-in access and cannot be deleted."
+                              : undefined
+                          }
                         >
                           <Trash2 />
                           Delete

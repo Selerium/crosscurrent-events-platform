@@ -156,15 +156,25 @@ export function SiteHeader({
                       <Link href="/admin/emails">Email</Link>
                     </Button>
                     <Button asChild variant="ghost">
+                      <Link href="/check-in">Check-in</Link>
+                    </Button>
+                    <Button asChild variant="ghost">
                       <Link href="/admin/logs">Logs</Link>
                     </Button>
                   </>
                 ) : (
-                  <Button asChild variant="ghost">
-                    <Link href="/my-church" onClick={handleMyChurchClick}>
-                      My Church
-                    </Link>
-                  </Button>
+                  <>
+                    <Button asChild variant="ghost">
+                      <Link href="/my-church" onClick={handleMyChurchClick}>
+                        My Church
+                      </Link>
+                    </Button>
+                    {user.role === "LEADER" && (
+                      <Button asChild variant="ghost">
+                        <Link href="/check-in">Check-in</Link>
+                      </Button>
+                    )}
+                  </>
                 )}
                 <Button asChild variant="ghost">
                   <Link href="/notifications">
@@ -256,6 +266,14 @@ export function SiteHeader({
                     </Button>
                     <Button asChild variant="ghost" className="justify-start">
                       <Link
+                        href="/check-in"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        Check-in
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link
                         href="/admin/logs"
                         onClick={() => setMobileOpen(false)}
                       >
@@ -264,17 +282,29 @@ export function SiteHeader({
                     </Button>
                   </>
                 ) : (
-                  <Button asChild variant="ghost" className="justify-start">
-                    <Link
-                      href="/my-church"
-                      onClick={(e) => {
-                        handleMyChurchClick(e);
-                        setMobileOpen(false);
-                      }}
-                    >
-                      My Church
-                    </Link>
-                  </Button>
+                  <>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link
+                        href="/my-church"
+                        onClick={(e) => {
+                          handleMyChurchClick(e);
+                          setMobileOpen(false);
+                        }}
+                      >
+                        My Church
+                      </Link>
+                    </Button>
+                    {user.role === "LEADER" && (
+                      <Button asChild variant="ghost" className="justify-start">
+                        <Link
+                          href="/check-in"
+                          onClick={() => setMobileOpen(false)}
+                        >
+                          Check-in
+                        </Link>
+                      </Button>
+                    )}
+                  </>
                 )}
                 <Button asChild variant="ghost" className="justify-start">
                   <Link

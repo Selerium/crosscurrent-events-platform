@@ -22,6 +22,8 @@ const actionLabels: Record<string, string> = {
   "profile.update": "Profile Updated",
   "admin.create": "Admin Created",
   "email.bulk_send": "Bulk Email Sent",
+  "check_in.checked_in": "Checked In",
+  "check_in.no_show": "No Show",
 };
 
 const targetTypeLabels: Record<string, string> = {

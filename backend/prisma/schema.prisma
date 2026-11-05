@@ -158,6 +158,15 @@ model Registration {
   earlyBird      Boolean @default(false)
   paymentMethod  PaymentMethod @default(STRIPE)
   paymentSession String?
+
+  // Check-in state. `checkInVersion` is the optimistic-concurrency token used
+  // by the check-in API so simultaneous staff/admins cannot overwrite each
+  // other silently. Actor details live in CheckInLog.
+  checkInStatus   CheckInStatus @default(PENDING)
+  checkInStatusAt DateTime?
+  checkInVersion  Int           @default(0)
+
+  @@index([eventId, checkInStatus])
 }
 
 model Event {
@@ -341,6 +350,12 @@ enum EventStatus {
   COMPLETED
 }
 
+enum CheckInStatus {
+  PENDING
+  CHECKED_IN
+  NO_SHOW
+}
+
 enum LeaderRoleKind {
   PRIMARY
   SECONDARY
@@ -392,6 +407,31 @@ model AdminLog {
   @@index([adminId])
   @@index([createdAt])
   @@index([targetType, targetId])
+}
+
+// Append-only check-in audit trail. Actor IDs are stored as scalars rather
+// than relations so history survives profile/registration deletion.
+model CheckInLog {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  registrationId String
+  eventId        String
+  profileId      String
+
+  previousStatus CheckInStatus
+  status         CheckInStatus
+
+  // Which leader registration performed the action. Null for admins who are
+  // not registered for the event.
+  actorProfileId      String
+  actorRegistrationId String?
+  actorName           String
+  actorIsAdmin        Boolean @default(false)
+
+  @@index([registrationId, createdAt])
+  @@index([eventId, createdAt])
+  @@index([actorProfileId])
 }
 
 enum RequiredActionType {

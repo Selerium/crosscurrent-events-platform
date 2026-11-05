@@ -6,6 +6,7 @@ import {
   getGroupedLeaderRoles,
   type GroupedLeaderRoles,
 } from "../../lib/leaderRoles.ts";
+import { CHECK_IN_LEADER_ROLE } from "../../lib/checkIn.ts";
 
 const adminLeaderRolesHandler = express.Router();
 
@@ -150,6 +151,13 @@ adminLeaderRolesHandler.delete("/:role", async (req, res) => {
 
   const existing = await prisma.leaderRole.findUnique({ where: { key } });
   if (!existing) throw new AppError("Role not found", 404);
+
+  if (key === CHECK_IN_LEADER_ROLE) {
+    throw new AppError(
+      "The Registration role grants check-in page access and cannot be deleted. Rename it instead.",
+      400
+    );
+  }
 
   const assignedCount = await prisma.registration.count({
     where: {
