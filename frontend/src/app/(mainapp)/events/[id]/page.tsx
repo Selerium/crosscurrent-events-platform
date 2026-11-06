@@ -2,6 +2,7 @@
 
 import api from "@/lib/axios";
 import { downloadBlob } from "@/lib/downloadFile";
+import { CheckInStatusPill } from "@/components/check-in/CheckInStatusPill";
 import { Button } from "@/components/ui/button";
 import {
   Banknote,
@@ -32,6 +33,7 @@ import {
   leaderRoleLabel,
   type LeaderRoleInfo,
 } from "@/lib/leaderRoles";
+import type { CheckInStatus } from "@/lib/checkInStatus";
 import {
   formatUaeDate,
   isRegistrationClosed,
@@ -103,6 +105,7 @@ type EventData = {
   user: {
     paid: boolean;
     parentVerified: boolean;
+    checkInStatus: CheckInStatus;
     room: MemberList | null;
     group: MemberList | null;
     swimming: boolean;
@@ -112,7 +115,7 @@ type EventData = {
     primaryLeaderRole: string | null;
     secondaryLeaderRoles: string[];
   } | null;
-  registrants: { id: string; name: string; role: string; ageCategory?: string | null; gender?: string; age?: number | null; paid: boolean; earlyBird?: boolean; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
+  registrants: { id: string; name: string; role: string; ageCategory?: string | null; gender?: string; age?: number | null; paid: boolean; earlyBird?: boolean; checkInStatus: CheckInStatus; shirtSize?: string; swimming?: boolean; allergies?: string[]; medications?: string[]; group?: string | null; room?: string | null; primaryLeaderRole?: string | null; secondaryLeaderRoles?: string[]; emergencyName?: string; emergencyPhone?: string; notes?: string; selfPay?: boolean }[];
 };
 
 type UserData = {
@@ -1572,6 +1575,9 @@ export default function EventPage() {
                     {eventData.user.paid ? "PAID" : "PAYMENT PENDING"}
                   </span>
                 )}
+                {eventData.user && (
+                  <CheckInStatusPill status={eventData.user.checkInStatus} />
+                )}
                 {userRole === "STUDENT" &&
                   eventData.user &&
                   !eventData.user.paid &&
@@ -1777,6 +1783,10 @@ export default function EventPage() {
                   <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
                     <span className="font-bold">Shirt size</span>
                     <span>{eventData.user.shirtSize}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
+                    <span className="font-bold">Check-in</span>
+                    <CheckInStatusPill status={eventData.user.checkInStatus} />
                   </div>
                   {userRole === "LEADER" &&
                     (eventData.user.primaryLeaderRole ||
@@ -1997,6 +2007,7 @@ export default function EventPage() {
                           <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${r.paid ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}>
                             {r.paid ? "Paid" : "Unpaid"}
                           </span>
+                          <CheckInStatusPill status={r.checkInStatus} />
                         </div>
                         {userRole === "LEADER" && (
                           <div className="mt-1 grid grid-cols-2 gap-0.5 text-sm text-muted-foreground">

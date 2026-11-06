@@ -49,8 +49,10 @@ import {
 import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data";
 import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import AddParticipantModal from "@/components/admin/AddParticipantModal";
+import { CheckInStatusPill } from "@/components/check-in/CheckInStatusPill";
 import api from "@/lib/axios";
 import { CHECK_IN_LEADER_ROLE } from "@/lib/checkIn";
+import type { CheckInStatus } from "@/lib/checkInStatus";
 import {
   leaderRoleLabel,
   type LeaderRoleOption,
@@ -83,6 +85,7 @@ type Participant = {
   church: string;
   paid: boolean;
   earlyBird: boolean;
+  checkInStatus: CheckInStatus;
   paymentMethod: string;
   shirtSize: string;
   swimming: boolean;
@@ -1261,6 +1264,7 @@ export default function AdminEventPage() {
                       >
                         {p.paid ? "PAID" : "UNPAID"}
                       </span>
+                      <CheckInStatusPill status={p.checkInStatus} />
                       {p.paid && (
                         <span
                           className={cn(

@@ -494,6 +494,7 @@ eventsHandler.get("/:id", async (req, res) => {
             age,
             paid: r.paid,
             earlyBird: r.earlyBird,
+            checkInStatus: r.checkInStatus,
             shirtSize: r.shirtSize,
             swimming: r.swimming,
             allergies: r.allergies,
@@ -528,6 +529,7 @@ eventsHandler.get("/:id", async (req, res) => {
             gender: r.profile.gender || "",
             age,
             paid: r.paid,
+            checkInStatus: r.checkInStatus,
           };
         });
       }
@@ -592,6 +594,7 @@ eventsHandler.get("/:id", async (req, res) => {
       user = {
         paid: registration.paid,
         parentVerified: registration.parentVerified,
+        checkInStatus: registration.checkInStatus,
         room,
         group,
         swimming: registration.swimming,

@@ -1,4 +1,7 @@
-export type CheckInStatus = "PENDING" | "CHECKED_IN" | "NO_SHOW";
+import type { CheckInStatus } from "@/lib/checkInStatus";
+
+export type { CheckInStatus };
+export { checkInStatusLabel } from "@/lib/checkInStatus";
 
 export type CheckInEvent = {
   id: string;
@@ -117,15 +120,4 @@ export function formatEventDateRange(startDate: string, endDate: string) {
   const start = formatter.format(new Date(startDate));
   const end = formatter.format(new Date(endDate));
   return startDate === endDate ? start : `${start} - ${end}`;
-}
-
-export function checkInStatusLabel(status: CheckInStatus): string {
-  switch (status) {
-    case "CHECKED_IN":
-      return "Checked in";
-    case "NO_SHOW":
-      return "No show";
-    default:
-      return "Pending";
-  }
 }

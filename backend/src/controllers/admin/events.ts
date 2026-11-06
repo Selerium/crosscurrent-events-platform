@@ -807,6 +807,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
       churchId: r.profile.churchId || "",
       paid: r.paid,
       earlyBird: r.earlyBird,
+      checkInStatus: r.checkInStatus,
       paymentMethod: r.paymentMethod,
       shirtSize: r.shirtSize,
       swimming: r.swimming,
