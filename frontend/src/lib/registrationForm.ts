@@ -13,12 +13,19 @@ export type AdditionalQuestionOption = {
   label: string;
 };
 
+/** Show this question only when an earlier dropdown has the selected answer. */
+export type AdditionalQuestionCondition = {
+  questionId: string;
+  optionId: string;
+};
+
 export type AdditionalQuestion = {
   id: string;
   type: AdditionalQuestionType;
   label: string;
   helpText?: string;
   required: boolean;
+  showIf?: AdditionalQuestionCondition;
   /** Stable option IDs are also the values stored in additional answers. */
   options?: AdditionalQuestionOption[];
   /** Pill questions are single-select unless this is true. */
@@ -89,6 +96,51 @@ export function emptyAdditionalAnswers(
   }, {});
 }
 
+export function isQuestionVisible(
+  question: AdditionalQuestion,
+  answers: AdditionalAnswers,
+): boolean {
+  if (!question.showIf) return true;
+  return answers[question.showIf.questionId] === question.showIf.optionId;
+}
+
+/** Drops conditions whose parent question or option no longer exists. */
+export function sanitizeQuestionConditions(
+  questions: AdditionalQuestion[],
+): AdditionalQuestion[] {
+  const earlier: AdditionalQuestion[] = [];
+  return questions.map((question) => {
+    const next = { ...question };
+    const condition = next.showIf;
+    if (condition) {
+      const parent = earlier.find((entry) => entry.id === condition.questionId);
+      const optionExists =
+        parent?.type === "options" &&
+        parent.options?.some((option) => option.id === condition.optionId);
+      if (!parent || parent.type !== "options" || !optionExists) {
+        delete next.showIf;
+      }
+    }
+    earlier.push(next);
+    return next;
+  });
+}
+
+/** Clears answers for questions hidden by the current parent answers. */
+export function pruneHiddenAnswers(
+  questions: AdditionalQuestion[],
+  answers: AdditionalAnswers,
+): AdditionalAnswers {
+  const next = { ...answers };
+  for (const question of questions) {
+    if (!isQuestionVisible(question, next)) {
+      next[question.id] =
+        question.type === "pills" && question.multiple ? [] : null;
+    }
+  }
+  return next;
+}
+
 function questionName(question: AdditionalQuestion, index: number): string {
   return question.label.trim() || `Question ${index + 1}`;
 }
@@ -113,6 +165,7 @@ export function validateAdditionalAnswers(
   enforceRequired = true,
 ): string | null {
   for (const [index, question] of questions.entries()) {
+    if (!isQuestionVisible(question, answers)) continue;
     const name = questionName(question, index);
     const answer = answers[question.id] as AdditionalAnswerValue | undefined;
     const empty =
@@ -199,31 +252,33 @@ export function formatAdditionalAnswers(
   questions: AdditionalQuestion[],
   answers: AdditionalAnswers,
 ): FormattedAdditionalAnswer[] {
-  return questions.map((question) => {
-    const answer = answers[question.id] as AdditionalAnswerValue | undefined;
+  return questions
+    .filter((question) => isQuestionVisible(question, answers))
+    .map((question) => {
+      const answer = answers[question.id] as AdditionalAnswerValue | undefined;
 
-    if (answer == null) {
-      return { id: question.id, label: question.label, value: null };
-    }
+      if (answer == null) {
+        return { id: question.id, label: question.label, value: null };
+      }
 
-    if (question.type !== "options" && question.type !== "pills") {
+      if (question.type !== "options" && question.type !== "pills") {
+        return {
+          id: question.id,
+          label: question.label,
+          value: Array.isArray(answer) ? [...answer] : answer,
+        };
+      }
+
+      const optionLabel = (optionId: string) =>
+        (question.options ?? []).find((option) => option.id === optionId)?.label ??
+        optionId;
+
       return {
         id: question.id,
         label: question.label,
-        value: Array.isArray(answer) ? [...answer] : answer,
+        value: Array.isArray(answer)
+          ? answer.map(optionLabel)
+          : optionLabel(answer),
       };
-    }
-
-    const optionLabel = (optionId: string) =>
-      (question.options ?? []).find((option) => option.id === optionId)?.label ??
-      optionId;
-
-    return {
-      id: question.id,
-      label: question.label,
-      value: Array.isArray(answer)
-        ? answer.map(optionLabel)
-        : optionLabel(answer),
-    };
-  });
+    });
 }

@@ -108,6 +108,7 @@ type EventData = RegistrationRequirements & {
   maxSignUps: number;
   location: string;
   price: number;
+  minimumAge: number | null;
   earlyBirdPrice: number | null;
   earlyBirdDate: Date | null;
   registrationCloseDate: string | null;
@@ -1713,6 +1714,12 @@ export default function EventPage() {
                   <CalendarDays width={24} height={24} />
                   {registrationClosed ? "Registration closed on" : "Registration closes on"}{" "}
                   {formatUaeDate(eventData.registrationCloseDate)}
+                </span>
+              )}
+              {eventData.minimumAge != null && (
+                <span className="flex gap-2 w-fit">
+                  <Users width={24} height={24} /> Minimum age:{" "}
+                  {eventData.minimumAge} (at event date)
                 </span>
               )}
               <span className="flex gap-2 w-fit">

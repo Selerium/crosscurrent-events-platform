@@ -41,6 +41,7 @@ type EventForm = {
   maxSignUps: number;
   location: string;
   price: number;
+  minimumAge: string;
   earlyBirdPrice: number | undefined;
   earlyBirdDate: Date | undefined;
 };
@@ -49,6 +50,7 @@ export default function CreateEventPage() {
   const router = useRouter();
   const { register, handleSubmit, formState, control, watch } = useForm<EventForm>({
     defaultValues: {
+      minimumAge: "",
       earlyBirdPrice: undefined,
       earlyBirdDate: undefined,
       startDate: undefined,
@@ -122,6 +124,14 @@ export default function CreateEventPage() {
       toast.error("Registration close date must be today or later");
       return;
     }
+    const minimumAge = data.minimumAge === "" ? null : Number(data.minimumAge);
+    if (
+      minimumAge !== null &&
+      (!Number.isInteger(minimumAge) || minimumAge < 0 || minimumAge > 120)
+    ) {
+      toast.error("Minimum age must be a whole number between 0 and 120");
+      return;
+    }
     try {
       await api.post("/admin/events", {
         name: data.name,
@@ -132,6 +142,7 @@ export default function CreateEventPage() {
         maxSignUps: Number(data.maxSignUps),
         location: data.location,
         price: Number(data.price),
+        minimumAge,
         earlyBirdPrice: data.earlyBirdPrice
           ? Number(data.earlyBirdPrice)
           : undefined,
@@ -355,6 +366,21 @@ export default function CreateEventPage() {
                 placeholder="50"
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="minimumAge">Minimum age (optional)</Label>
+            <Input
+              {...register("minimumAge")}
+              id="minimumAge"
+              type="number"
+              min={0}
+              max={120}
+              placeholder="No minimum"
+            />
+            <p className="text-sm text-muted-foreground">
+              Checked against each participant&apos;s age on the event start date.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

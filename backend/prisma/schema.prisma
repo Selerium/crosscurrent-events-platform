@@ -197,6 +197,10 @@ model Event {
   schedule       Json[]
   price          Int
 
+  // Optional eligibility rule: minimum age at the event's start date.
+  // NULL means there is no age restriction for this event.
+  minimumAge Int?
+
   // Ordered event-specific additional registration question definitions.
   additionalQuestions Json @default("[]") @db.JsonB
 

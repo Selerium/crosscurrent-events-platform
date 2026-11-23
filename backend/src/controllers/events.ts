@@ -27,6 +27,7 @@ import {
   registrationRequirementsFromEvent,
   resolveRoommateRegistrationId,
 } from "../lib/registrationFields.ts";
+import { meetsMinimumAge } from "../lib/eventAge.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -47,7 +48,7 @@ const eventsHandler = express.Router();
 eventsHandler.get("", async (req, res) => {
   const profile = await prisma.profile.findUnique({
     where: { id: req.user!.id },
-    select: { role: true },
+    select: { role: true, dob: true },
   });
   const isAdmin = profile?.role === "ADMIN";
 
@@ -65,24 +66,31 @@ eventsHandler.get("", async (req, res) => {
     orderBy: { startDate: "asc" },
   });
 
-  const data = events.map((e) => ({
-    id: e.id,
-    name: e.name,
-    brief: e.brief,
-    location: e.location,
-    startDate: e.startDate,
-    endDate: e.endDate,
-    signedUp: e._count.registrations,
-    maxSignUps: e.maxSignUps,
-    price: e.price,
-    earlyBirdPrice: e.earlyBirdPrice,
-    earlyBirdDate: e.earlyBirdDate,
-    registrationCloseDate: e.registrationCloseDate,
-    status:
-      e._count.registrations >= e.maxSignUps
-        ? "closed"
-        : statusMap[effectiveEventStatus(e)] || "closed",
-  }));
+  // Events with an age rule are hidden from users who are too young on the
+  // event's start date (and from users with no date of birth on file).
+  const data = events
+    .filter((e) =>
+      isAdmin || meetsMinimumAge(profile?.dob, e.minimumAge, e.startDate)
+    )
+    .map((e) => ({
+      id: e.id,
+      name: e.name,
+      brief: e.brief,
+      location: e.location,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      signedUp: e._count.registrations,
+      maxSignUps: e.maxSignUps,
+      price: e.price,
+      minimumAge: e.minimumAge,
+      earlyBirdPrice: e.earlyBirdPrice,
+      earlyBirdDate: e.earlyBirdDate,
+      registrationCloseDate: e.registrationCloseDate,
+      status:
+        e._count.registrations >= e.maxSignUps
+          ? "closed"
+          : statusMap[effectiveEventStatus(e)] || "closed",
+    }));
 
   res.status(200).json({ data, error: false, message: "" });
 });
@@ -119,6 +127,15 @@ const registerForEvent = async (req: any, res: any) => {
 
   if (!profile) {
     throw new AppError("Profile not found", 404);
+  }
+
+  if (!meetsMinimumAge(profile.dob, event.minimumAge, event.startDate)) {
+    throw new AppError(
+      profile.dob
+        ? "You do not meet the minimum age for this event"
+        : "Add your date of birth to your profile before registering for this event",
+      400,
+    );
   }
 
   if (!profile.approved) {
@@ -223,6 +240,9 @@ const registerForEvent = async (req: any, res: any) => {
 
     const lockedEvent = await tx.event.findUnique({ where: { id: event.id } });
     event = lockedEvent;
+    if (!meetsMinimumAge(profile.dob, event.minimumAge, event.startDate)) {
+      throw new AppError("You do not meet the minimum age for this event", 400);
+    }
     const additionalAnswers = normalizeAdditionalAnswers(
       req.body.additionalAnswers,
       lockedEvent.additionalQuestions,
@@ -593,6 +613,27 @@ eventsHandler.get("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
+  if (event.minimumAge != null && req.user?.id) {
+    const viewer = await prisma.profile.findUnique({
+      where: { id: req.user.id },
+      select: { role: true, dob: true },
+    });
+    if (
+      viewer?.role !== "ADMIN" &&
+      !meetsMinimumAge(viewer?.dob, event.minimumAge, event.startDate)
+    ) {
+      // Existing registrants keep access so they can view or cancel their
+      // registration if the minimum age changed after they signed up.
+      const existing = await prisma.registration.findFirst({
+        where: { eventId: event.id, profileId: req.user.id },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new AppError("You do not meet the minimum age for this event", 403);
+      }
+    }
+  }
+
   let user = null;
   let registrants: Record<string, unknown>[] = [];
   if (req.user?.id) {
@@ -774,6 +815,7 @@ eventsHandler.get("/:id", async (req, res) => {
     maxSignUps: event.maxSignUps,
     location: event.location,
     price: event.price,
+    minimumAge: event.minimumAge,
     earlyBirdPrice: event.earlyBirdPrice,
     earlyBirdDate: event.earlyBirdDate,
     registrationCloseDate: event.registrationCloseDate,

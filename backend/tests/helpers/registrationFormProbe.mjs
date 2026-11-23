@@ -193,6 +193,23 @@ try {
   });
   const otherEvent = await mkEvent(`Other Registration Event ${tag}`);
 
+  const underage = await mkUser(`underage-${tag}@example.com`, "Underage Student", "STUDENT");
+  await prisma.profile.update({
+    where: { id: underage.id },
+    data: { dob: new Date("2012-01-01T00:00:00+04:00") },
+  });
+  const eligible = await mkUser(`eligible-${tag}@example.com`, "Eligible Student", "STUDENT");
+  await prisma.profile.update({
+    where: { id: eligible.id },
+    data: { dob: new Date("2000-01-01T00:00:00+04:00") },
+  });
+  const futureStart = new Date(Date.now() + 30 * 86400000);
+  const minimumAgeEvent = await mkEvent(`Minimum Age Event ${tag}`, {
+    minimumAge: 16,
+    startDate: futureStart,
+    endDate: new Date(futureStart.getTime() + 86400000),
+  });
+
   const roommateRegistration = await mkRegistration(event.id, roommateTarget.id);
   await mkRegistration(otherEvent.id, otherEventPerson.id);
 
@@ -534,6 +551,64 @@ try {
     );
   } catch (error) {
     fail("checkInDto", error);
+  }
+
+  // 12. Minimum age: hidden in lists, blocked on detail and registration, but
+  // visible to admins and eligible attendees.
+  const underageToken = tokenFor(underage.id);
+  const eligibleToken = tokenFor(eligible.id);
+  try {
+    const underageList = await req("GET", "/events", underageToken);
+    const eligibleList = await req("GET", "/events", eligibleToken);
+    const listHasAgeEvent = (response) =>
+      (response.data?.data ?? []).some((item) => item.id === minimumAgeEvent.id);
+
+    const underageDetail = await req(
+      "GET",
+      `/events/${minimumAgeEvent.id}`,
+      underageToken
+    );
+    const eligibleDetail = await req(
+      "GET",
+      `/events/${minimumAgeEvent.id}`,
+      eligibleToken
+    );
+    const adminDetail = await req(
+      "GET",
+      `/events/${minimumAgeEvent.id}`,
+      adminToken
+    );
+
+    const registerAttempt = await req(
+      "POST",
+      `/events/${minimumAgeEvent.id}/register`,
+      underageToken,
+      { shirtSize: "M" }
+    );
+
+    step(
+      "minimumAge",
+      underageList.status === 200 &&
+        listHasAgeEvent(underageList) === false &&
+        listHasAgeEvent(eligibleList) === true &&
+        underageDetail.status === 403 &&
+        eligibleDetail.status === 200 &&
+        adminDetail.status === 200 &&
+        registerAttempt.status === 400 &&
+        /minimum age/i.test(registerAttempt.data?.message ?? ""),
+      {
+        underageListStatus: underageList.status,
+        underageSeesAgeEvent: listHasAgeEvent(underageList),
+        eligibleSeesAgeEvent: listHasAgeEvent(eligibleList),
+        underageDetailStatus: underageDetail.status,
+        eligibleDetailStatus: eligibleDetail.status,
+        adminDetailStatus: adminDetail.status,
+        registerStatus: registerAttempt.status,
+        registerMessage: registerAttempt.data?.message,
+      }
+    );
+  } catch (error) {
+    fail("minimumAge", error);
   }
 } catch (error) {
   summary.fatal = String(error?.stack ?? error);

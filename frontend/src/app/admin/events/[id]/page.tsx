@@ -55,6 +55,11 @@ import api from "@/lib/axios";
 import { CHECK_IN_LEADER_ROLE } from "@/lib/checkIn";
 import type { CheckInStatus } from "@/lib/checkInStatus";
 import {
+  defaultRegistrationRequirements,
+  type AdditionalQuestion,
+  type RegistrationRequirements,
+} from "@/lib/registrationForm";
+import {
   leaderRoleLabel,
   type LeaderRoleOption,
 } from "@/lib/leaderRoles";
@@ -150,7 +155,14 @@ export default function AdminEventPage() {
   const [editEndDate, setEditEndDate] = useState<Date | null>(null);
   const [editLocation, setEditLocation] = useState("");
   const [editPrice, setEditPrice] = useState(0);
+  const [editMinimumAge, setEditMinimumAge] = useState("");
   const [editMaxSignUps, setEditMaxSignUps] = useState(0);
+  const [editAdditionalQuestions, setEditAdditionalQuestions] = useState<
+    AdditionalQuestion[]
+  >([]);
+  const [editRequirements, setEditRequirements] = useState<RegistrationRequirements>({
+    ...defaultRegistrationRequirements,
+  });
   const [editEarlyBirdPrice, setEditEarlyBirdPrice] = useState("");
   const [editEarlyBirdDate, setEditEarlyBirdDate] = useState<Date | null>(null);
   const [editRegistrationCloseDate, setEditRegistrationCloseDate] =
@@ -473,7 +485,18 @@ export default function AdminEventPage() {
     setEditEndDate(new Date(eventInfo.endDate));
     setEditLocation(eventInfo.location);
     setEditPrice(eventInfo.price);
+    setEditMinimumAge(
+      eventInfo.minimumAge != null ? String(eventInfo.minimumAge) : "",
+    );
     setEditMaxSignUps(eventInfo.capacity);
+    setEditAdditionalQuestions(eventInfo.additionalQuestions ?? []);
+    setEditRequirements({
+      requireSafeguardingDoc: eventInfo.requireSafeguardingDoc,
+      requirePrimaryLeaderRole: eventInfo.requirePrimaryLeaderRole,
+      requireSecondaryLeaderRoles: eventInfo.requireSecondaryLeaderRoles,
+      requireSwimmingPermission: eventInfo.requireSwimmingPermission,
+      requireShirtSize: eventInfo.requireShirtSize,
+    });
     setEditEarlyBirdPrice(
       eventInfo.earlyBirdPrice != null ? String(eventInfo.earlyBirdPrice) : ""
     );
@@ -565,6 +588,16 @@ export default function AdminEventPage() {
       );
       return;
     }
+    const parsedMinimumAge = editMinimumAge === "" ? null : Number(editMinimumAge);
+    if (
+      parsedMinimumAge !== null &&
+      (!Number.isInteger(parsedMinimumAge) ||
+        parsedMinimumAge < 0 ||
+        parsedMinimumAge > 120)
+    ) {
+      toast.error("Minimum age must be a whole number between 0 and 120");
+      return;
+    }
     setSaving(true);
     try {
       await api.patch(`/admin/events/${params.id}`, {
@@ -574,6 +607,7 @@ export default function AdminEventPage() {
         endDate: editEndDate.toISOString(),
         location: editLocation,
         price: editPrice,
+        minimumAge: parsedMinimumAge,
         maxSignUps: editMaxSignUps,
         earlyBirdPrice: editEarlyBirdPrice
           ? Number(editEarlyBirdPrice)
@@ -585,6 +619,8 @@ export default function AdminEventPage() {
           ? dateKeyFromPicker(editRegistrationCloseDate)
           : null,
         schedule: editSchedule,
+        additionalQuestions: editAdditionalQuestions,
+        ...editRequirements,
       });
       setEventInfo({
         ...eventInfo,
@@ -594,6 +630,7 @@ export default function AdminEventPage() {
         endDate: editEndDate.toISOString(),
         location: editLocation,
         price: editPrice,
+        minimumAge: parsedMinimumAge,
         capacity: editMaxSignUps,
         earlyBirdPrice: editEarlyBirdPrice
           ? Number(editEarlyBirdPrice)
@@ -605,7 +642,15 @@ export default function AdminEventPage() {
           ? dateKeyFromPicker(editRegistrationCloseDate)
           : null,
         schedule: editSchedule,
+        additionalQuestions: editAdditionalQuestions,
+        ...editRequirements,
       });
+      try {
+        await refreshParticipantData();
+      } catch {
+        // The save succeeded; a stale participant list is preferable to an
+        // error message that suggests the save failed.
+      }
       setEditing(false);
       toast.success("Event updated");
     } catch (err: any) {
@@ -733,11 +778,21 @@ export default function AdminEventPage() {
         <hr />
 
         <RegistrationFormEditor
-          event={eventInfo}
-          onSaved={async (updated) => {
-            setEventInfo(updated);
-            await refreshParticipantData();
-          }}
+          questions={editing ? editAdditionalQuestions : eventInfo.additionalQuestions ?? []}
+          onQuestionsChange={setEditAdditionalQuestions}
+          requirements={
+            editing
+              ? editRequirements
+              : {
+                  requireSafeguardingDoc: eventInfo.requireSafeguardingDoc,
+                  requirePrimaryLeaderRole: eventInfo.requirePrimaryLeaderRole,
+                  requireSecondaryLeaderRoles: eventInfo.requireSecondaryLeaderRoles,
+                  requireSwimmingPermission: eventInfo.requireSwimmingPermission,
+                  requireShirtSize: eventInfo.requireShirtSize,
+                }
+          }
+          onRequirementsChange={setEditRequirements}
+          disabled={!editing}
         />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -955,6 +1010,23 @@ export default function AdminEventPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-2 rounded-lg border p-4">
+                  <Label htmlFor="edit-minimum-age">
+                    Minimum age (optional)
+                  </Label>
+                  <Input
+                    id="edit-minimum-age"
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={editMinimumAge}
+                    onChange={(e) => setEditMinimumAge(e.target.value)}
+                    placeholder="No minimum"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Checked against each participant&apos;s age on the event start date.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 rounded-lg border p-4">
                   <Label htmlFor="edit-early-bird-price">
                     Early Bird Price (AED)
                   </Label>
@@ -1066,6 +1138,15 @@ export default function AdminEventPage() {
                   icon={<Banknote width={20} height={20} />}
                   label="Price"
                   value={currencyFormatter.format(eventInfo.price)}
+                />
+                <InfoBlock
+                  icon={<Users width={20} height={20} />}
+                  label="Minimum age"
+                  value={
+                    eventInfo.minimumAge != null
+                      ? `${eventInfo.minimumAge} at event date`
+                      : "None"
+                  }
                 />
                 {eventInfo.earlyBirdPrice != null && (
                   <InfoBlock

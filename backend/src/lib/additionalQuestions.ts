@@ -5,11 +5,18 @@ export type QuestionOption = {
   label: string;
 };
 
+/** Shows a question only when an earlier dropdown has this answer selected. */
+export type QuestionCondition = {
+  questionId: string;
+  optionId: string;
+};
+
 type AdditionalQuestionBase = {
   id: string;
   label: string;
   helpText?: string;
   required: boolean;
+  showIf?: QuestionCondition;
 };
 
 export type AdditionalQuestion =
@@ -157,6 +164,46 @@ function validateSelectionLimit(
   return value;
 }
 
+function validateCondition(
+  input: unknown,
+  earlierQuestions: AdditionalQuestion[],
+  description: string
+): QuestionCondition | undefined {
+  if (input === undefined || input === null) return undefined;
+  if (!isPlainObject(input)) {
+    badRequest(`${description} showIf must be an object`);
+  }
+
+  const questionId = validateUuid(
+    input.questionId,
+    `${description} showIf questionId`
+  );
+  const optionId = validateUuid(
+    input.optionId,
+    `${description} showIf optionId`
+  );
+
+  const parent = earlierQuestions.find(
+    (question) => question.id.toLowerCase() === questionId.toLowerCase()
+  );
+  if (!parent) {
+    badRequest(`${description} showIf must reference an earlier question`);
+  }
+  if (parent.type !== "options") {
+    badRequest(`${description} showIf question must be a dropdown question`);
+  }
+
+  const option = parent.options.find(
+    (entry) => entry.id.toLowerCase() === optionId.toLowerCase()
+  );
+  if (!option) {
+    badRequest(`${description} showIf option does not belong to the referenced question`);
+  }
+
+  // Store canonical IDs so answer comparison stays exact.
+  return { questionId: parent.id, optionId: option.id };
+}
+
 /** Validates and returns a canonical copy of an event's additional questions. */
 export function validateAdditionalQuestions(input: unknown): AdditionalQuestion[] {
   if (!Array.isArray(input)) {
@@ -167,8 +214,9 @@ export function validateAdditionalQuestions(input: unknown): AdditionalQuestion[
   }
 
   const questionIds = new Set<string>();
+  const questions: AdditionalQuestion[] = [];
 
-  return input.map((questionInput: unknown, index: number) => {
+  for (const [index, questionInput] of input.entries()) {
     const description = `Question ${index + 1}`;
     if (!isPlainObject(questionInput)) {
       badRequest(`${description} must be an object`);
@@ -209,27 +257,33 @@ export function validateAdditionalQuestions(input: unknown): AdditionalQuestion[
       base.helpText = helpText;
     }
 
+    const showIf = validateCondition(questionInput.showIf, questions, description);
+    if (showIf) base.showIf = showIf;
+
     if (type === "text") {
       if (questionInput.options !== undefined) {
         badRequest(`${description} text questions cannot have options`);
       }
-      return {
+      questions.push({
         ...base,
         type,
         maxLength: validateTextMaxLength(questionInput.maxLength, description),
-      };
+      });
+      continue;
     }
 
     if (type === "date") {
       if (questionInput.options !== undefined) {
         badRequest(`${description} date questions cannot have options`);
       }
-      return { ...base, type };
+      questions.push({ ...base, type });
+      continue;
     }
 
     const options = validateOptions(questionInput.options, description);
     if (type === "options") {
-      return { ...base, type, options };
+      questions.push({ ...base, type, options });
+      continue;
     }
 
     const multiple = questionInput.multiple === undefined ? false : questionInput.multiple;
@@ -256,15 +310,17 @@ export function validateAdditionalQuestions(input: unknown): AdditionalQuestion[
       badRequest(`${description} minSelections cannot exceed maxSelections`);
     }
 
-    return {
+    questions.push({
       ...base,
       type,
       options,
       multiple,
       minSelections,
       maxSelections,
-    };
-  });
+    });
+  }
+
+  return questions;
 }
 
 function parseAnswersInput(input: unknown): Record<string, unknown> {
@@ -309,6 +365,15 @@ function normalizeNullableScalar(value: unknown, description: string): string | 
   return value.trim() === "" ? null : value;
 }
 
+/** A conditional question is visible only when its parent dropdown has the selected answer. */
+export function isQuestionVisible(
+  question: AdditionalQuestion,
+  answers: Record<string, AdditionalAnswerValue | undefined>
+): boolean {
+  if (!question.showIf) return true;
+  return answers[question.showIf.questionId] === question.showIf.optionId;
+}
+
 function normalizeWithQuestions(
   input: unknown,
   questions: AdditionalQuestion[],
@@ -328,6 +393,13 @@ function normalizeWithQuestions(
   for (const question of questions) {
     const description = `Question "${question.label}"`;
     const value = answersInput[question.id];
+
+    // Parents are always earlier in the list, so normalized answers already
+    // contain everything needed to evaluate this question's condition.
+    if (!isQuestionVisible(question, normalized)) {
+      normalized[question.id] = question.type === "pills" && question.multiple ? [] : null;
+      continue;
+    }
 
     if (question.type === "text") {
       if (value !== undefined && value !== null && typeof value !== "string") {
@@ -472,6 +544,16 @@ export function assertQuestionEditsAreSafe(
       );
     }
 
+    if (
+      (current.showIf?.questionId ?? null) !== (next.showIf?.questionId ?? null) ||
+      (current.showIf?.optionId ?? null) !== (next.showIf?.optionId ?? null)
+    ) {
+      throw new AppError(
+        `Conditional visibility for "${current.label}" cannot change after registrations exist`,
+        400,
+      );
+    }
+
     const nextOptionIds = new Set((next.options ?? []).map((option) => option.id));
     for (const option of current.options ?? []) {
       if (!nextOptionIds.has(option.id)) {
@@ -502,29 +584,31 @@ export function formatAdditionalAnswers(
   const questions = validateAdditionalQuestions(questionsInput);
   const normalized = normalizeWithQuestions(answers, questions, false);
 
-  return questions.map((question) => {
-    const answer = normalized[question.id];
-    let value: string;
+  return questions
+    .filter((question) => isQuestionVisible(question, normalized))
+    .map((question) => {
+      const answer = normalized[question.id];
+      let value: string;
 
-    if (question.type === "pills" && question.multiple) {
-      const selections = answer as string[];
-      value = selections.length === 0
-        ? "Not provided"
-        : selections
-            .map(
-              (selection) =>
-                question.options.find((option) => option.id === selection)?.label ?? selection
-            )
-            .join(", ");
-    } else if (question.type === "options" || question.type === "pills") {
-      const selection = answer as string | null;
-      value = selection === null
-        ? "Not provided"
-        : question.options.find((option) => option.id === selection)?.label ?? selection;
-    } else {
-      value = answer === null ? "Not provided" : (answer as string);
-    }
+      if (question.type === "pills" && question.multiple) {
+        const selections = answer as string[];
+        value = selections.length === 0
+          ? "Not provided"
+          : selections
+              .map(
+                (selection) =>
+                  question.options.find((option) => option.id === selection)?.label ?? selection
+              )
+              .join(", ");
+      } else if (question.type === "options" || question.type === "pills") {
+        const selection = answer as string | null;
+        value = selection === null
+          ? "Not provided"
+          : question.options.find((option) => option.id === selection)?.label ?? selection;
+      } else {
+        value = answer === null ? "Not provided" : (answer as string);
+      }
 
-    return { id: question.id, label: question.label, value };
-  });
+      return { id: question.id, label: question.label, value };
+    });
 }

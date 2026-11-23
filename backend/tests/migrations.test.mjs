@@ -169,7 +169,7 @@ test("all migrations apply and protect the registration form contract", { skip: 
       WHERE table_name IN ('Event', 'Registration')
         AND column_name IN (
           'additionalQuestions', 'additionalAnswers', 'roommateRegistrationId',
-          'shirtSize', 'requireSafeguardingDoc', 'requirePrimaryLeaderRole',
+          'shirtSize', 'minimumAge', 'requireSafeguardingDoc', 'requirePrimaryLeaderRole',
           'requireSecondaryLeaderRoles', 'requireSwimmingPermission', 'requireShirtSize'
         )
       ORDER BY table_name, column_name
@@ -178,6 +178,7 @@ test("all migrations apply and protect the registration form contract", { skip: 
       .filter(Boolean);
     assert.deepEqual(columns, [
       "Event|additionalQuestions|NO|'[]'::jsonb",
+      "Event|minimumAge|YES|",
       "Event|requirePrimaryLeaderRole|NO|true",
       "Event|requireSafeguardingDoc|NO|true",
       "Event|requireSecondaryLeaderRoles|NO|true",
@@ -193,6 +194,7 @@ test("all migrations apply and protect the registration form contract", { skip: 
       FROM pg_constraint
       WHERE conname IN (
         'Event_additionalQuestions_array_check',
+        'Event_minimumAge_range_check',
         'Registration_additionalAnswers_object_check',
         'Registration_roommate_not_self_check',
         'Registration_roommateRegistrationId_fkey'
@@ -204,6 +206,7 @@ test("all migrations apply and protect the registration form contract", { skip: 
       .sort();
     assert.deepEqual(constraints, [
       "Event_additionalQuestions_array_check|c| ",
+      "Event_minimumAge_range_check|c| ",
       "Registration_additionalAnswers_object_check|c| ",
       "Registration_roommateRegistrationId_fkey|f|n",
       "Registration_roommate_not_self_check|c|",

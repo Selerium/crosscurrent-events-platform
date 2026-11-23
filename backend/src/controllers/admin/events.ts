@@ -16,12 +16,14 @@ import {
 } from "../../lib/registrationWindow.ts";
 import { expireOpenCheckoutSessions } from "../../lib/stripeCheckout.ts";
 import {
-  assertQuestionEditsAreSafe,
-  emptyAdditionalAnswers,
   formatAdditionalAnswers,
   normalizeAdditionalAnswers,
   validateAdditionalQuestions,
 } from "../../lib/additionalQuestions.ts";
+import {
+  hasRegistrationFormUpdate,
+  saveRegistrationForm,
+} from "../../lib/registrationFormSave.ts";
 import {
   additionalAnswerExportColumns,
   additionalAnswerExportValues,
@@ -48,6 +50,18 @@ const asStringArray = (value: unknown): string[] => {
   if (value == null || value === "") return [];
   return [String(value)];
 };
+
+function parseMinimumAge(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 120) {
+    throw new AppError(
+      "Minimum age must be a whole number between 0 and 120",
+      400,
+    );
+  }
+  return number;
+}
 
 type PlanDimension = {
   field: "room" | "group";
@@ -237,6 +251,7 @@ adminEventsHandler.post("", async (req, res) => {
   const additionalQuestions = validateAdditionalQuestions(
     req.body.additionalQuestions ?? [],
   );
+  const minimumAge = parseMinimumAge(req.body.minimumAge);
 
   if (!name || !brief || !startDate || !endDate || !maxSignUps || !location || price === undefined) {
     throw new AppError("Missing required fields", 400);
@@ -266,6 +281,7 @@ adminEventsHandler.post("", async (req, res) => {
         maxSignUps: Number(maxSignUps),
         location,
         price: Number(price),
+        minimumAge,
         earlyBirdPrice: earlyBirdPrice ? Number(earlyBirdPrice) : null,
         earlyBirdDate: parseEarlyBirdDateOrThrow(earlyBirdDate),
         registrationCloseDate: closeDate,
@@ -290,7 +306,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
-  const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule, eventStatus, groups, maxInGroup, room, maxInRoom } = req.body;
+  const { name, brief, startDate, endDate, maxSignUps, location, price, minimumAge, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule, eventStatus, groups, maxInGroup, room, maxInRoom } = req.body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
@@ -300,6 +316,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
   if (maxSignUps !== undefined) data.maxSignUps = Number(maxSignUps);
   if (location !== undefined) data.location = location;
   if (price !== undefined) data.price = Number(price);
+  if (minimumAge !== undefined) data.minimumAge = parseMinimumAge(minimumAge);
   if (earlyBirdPrice !== undefined) data.earlyBirdPrice = earlyBirdPrice ? Number(earlyBirdPrice) : null;
   if (earlyBirdDate !== undefined) data.earlyBirdDate = parseEarlyBirdDateOrThrow(earlyBirdDate);
   if (registrationCloseDate !== undefined) {
@@ -359,9 +376,18 @@ adminEventsHandler.patch("/:id", async (req, res) => {
 
   let updated;
   try {
-    updated = await prisma.event.update({
-      where: { id: req.params.id },
-      data,
+    updated = await prisma.$transaction(async (tx: any) => {
+      const eventUpdate = await tx.event.update({
+        where: { id: req.params.id },
+        data,
+      });
+      // The admin event page saves the whole form (event details plus
+      // registration questions) in one PATCH. Reuse the locked, safe-edit
+      // registration-form save so both paths stay consistent.
+      if (hasRegistrationFormUpdate(req.body)) {
+        return await saveRegistrationForm(tx, req.params.id, req.body);
+      }
+      return eventUpdate;
     });
   } catch (err) {
     logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus, error: String(err) }, success: false });
@@ -398,62 +424,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
  */
 adminEventsHandler.put("/:id/registration-form", async (req, res) => {
   const updated = await prisma.$transaction(async (tx: any) => {
-    // Serialize form edits with registration creation, which takes the same
-    // lock before reading event additionalQuestions.
-    const locked: any[] = await tx.$queryRaw`
-      SELECT "id" FROM "Event" WHERE "id" = ${req.params.id} FOR UPDATE
-    `;
-    if (locked.length === 0) throw new AppError("Event not found", 404);
-
-    const event = await tx.event.findUnique({
-      where: { id: req.params.id },
-      include: {
-        registrations: { select: { id: true, additionalAnswers: true } },
-      },
-    });
-    const currentQuestions = validateAdditionalQuestions(event.additionalQuestions);
-    const nextQuestions = validateAdditionalQuestions(
-      req.body.additionalQuestions ?? [],
-    );
-    const requirements = readRegistrationRequirements(
-      req.body,
-      registrationRequirementsFromEvent(event),
-    );
-
-    if (event.registrations.length > 0) {
-      assertQuestionEditsAreSafe(currentQuestions, nextQuestions);
-    }
-
-    const eventUpdate = await tx.event.update({
-      where: { id: event.id },
-      data: { additionalQuestions: nextQuestions, ...requirements },
-    });
-
-    if (event.registrations.length > 0) {
-      const emptyAnswers = emptyAdditionalAnswers(nextQuestions);
-      for (const registration of event.registrations) {
-        const previous =
-          registration.additionalAnswers &&
-          typeof registration.additionalAnswers === "object" &&
-          !Array.isArray(registration.additionalAnswers)
-            ? registration.additionalAnswers
-            : {};
-        const answers = Object.fromEntries(
-          nextQuestions.map((question) => [
-            question.id,
-            Object.prototype.hasOwnProperty.call(previous, question.id)
-              ? previous[question.id]
-              : emptyAnswers[question.id],
-          ]),
-        );
-        await tx.registration.update({
-          where: { id: registration.id },
-          data: { additionalAnswers: answers },
-        });
-      }
-    }
-
-    return eventUpdate;
+    return await saveRegistrationForm(tx, req.params.id, req.body);
   });
 
   logAdminAction({
@@ -783,6 +754,7 @@ adminEventsHandler.get("", async (req, res) => {
       unpaidSignUps: e._count.registrations - paidRegistrations.length,
       capacity: e.maxSignUps,
       price: e.price,
+      minimumAge: e.minimumAge,
       earlyBirdPrice: e.earlyBirdPrice,
       earlyBirdDate: e.earlyBirdDate,
       revenue,
@@ -847,6 +819,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
     unpaidSignUps: event._count.registrations - paidRegistrations.length,
     capacity: event.maxSignUps,
     price: event.price,
+    minimumAge: event.minimumAge,
     earlyBirdPrice: event.earlyBirdPrice,
     earlyBirdDate: event.earlyBirdDate,
     revenue,

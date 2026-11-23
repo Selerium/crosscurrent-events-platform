@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   value: RegistrationRequirements;
   onChange: (requirements: RegistrationRequirements) => void;
+  disabled?: boolean;
 };
 
 const FIELDS: Array<{
@@ -21,7 +22,7 @@ const FIELDS: Array<{
   { key: "requireShirtSize", label: "Shirt size", audience: "Everyone" },
 ];
 
-export default function RegistrationRequirementsFields({ value, onChange }: Props) {
+export default function RegistrationRequirementsFields({ value, onChange, disabled = false }: Props) {
   return (
     <section className="flex flex-col gap-3 rounded-lg border p-4">
       <div>
@@ -39,10 +40,10 @@ export default function RegistrationRequirementsFields({ value, onChange }: Prop
               <p className="text-xs text-muted-foreground">{field.audience}</p>
             </div>
             <div className="flex shrink-0 gap-2" aria-label={`${field.label} requirement`}>
-                <Button type="button" size="sm" variant="outline" aria-pressed={!required} className={cn(!required && "bg-primary text-primary-foreground hover:bg-primary/90")} onClick={() => onChange({ ...value, [field.key]: false })}>
+                <Button type="button" size="sm" variant="outline" disabled={disabled} aria-pressed={!required} className={cn(!required && "bg-primary text-primary-foreground hover:bg-primary/90")} onClick={() => onChange({ ...value, [field.key]: false })}>
                   Optional
                 </Button>
-                <Button type="button" size="sm" variant="outline" aria-pressed={required} className={cn(required && "bg-primary text-primary-foreground hover:bg-primary/90")} onClick={() => onChange({ ...value, [field.key]: true })}>
+                <Button type="button" size="sm" variant="outline" disabled={disabled} aria-pressed={required} className={cn(required && "bg-primary text-primary-foreground hover:bg-primary/90")} onClick={() => onChange({ ...value, [field.key]: true })}>
                   Mandatory
                 </Button>
             </div>

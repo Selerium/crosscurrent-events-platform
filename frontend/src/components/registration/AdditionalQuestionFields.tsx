@@ -9,9 +9,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type {
-  AdditionalAnswers,
-  AdditionalQuestion,
+import {
+  isQuestionVisible,
+  pruneHiddenAnswers,
+  type AdditionalAnswers,
+  type AdditionalQuestion,
 } from "@/lib/registrationForm";
 import { cn } from "@/lib/utils";
 
@@ -30,10 +32,17 @@ export default function AdditionalQuestionFields({
   onChange,
   idPrefix = "additional",
 }: Props) {
-  if (questions.length === 0) return null;
+  const visibleQuestions = questions
+    .map((question, index) => ({ question, index }))
+    .filter(({ question }) => isQuestionVisible(question, value));
+
+  if (visibleQuestions.length === 0) return null;
 
   function setAnswer(questionId: string, answer: string | string[] | null) {
-    onChange({ ...value, [questionId]: answer });
+    const next = { ...value, [questionId]: answer };
+    // Changing a parent answer can hide descendant questions; drop their
+    // answers so hidden required questions are not submitted.
+    onChange(pruneHiddenAnswers(questions, next));
   }
 
   return (
@@ -45,7 +54,7 @@ export default function AdditionalQuestionFields({
         </p>
       </div>
 
-      {questions.map((question, index) => {
+      {visibleQuestions.map(({ question, index }) => {
         const answer = value[question.id];
         const inputId = `${idPrefix}-${question.id}`;
         const choiceOptions = question.options ?? [];

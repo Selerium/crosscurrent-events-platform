@@ -26,6 +26,7 @@ export type AdminEvent = RegistrationRequirements & {
   unpaidSignUps: number;
   capacity: number;
   price: number;
+  minimumAge: number | null;
   earlyBirdPrice: number | null;
   earlyBirdDate: string | null;
   registrationCloseDate: string | null;

@@ -500,3 +500,144 @@ test("post-registration edits reject changes that reinterpret stored answers", (
     );
   }
 });
+
+test("conditional questions must reference an earlier dropdown and one of its options", () => {
+  const conditional = textQuestion({
+    id: uuid(6),
+    label: "Vegetarian details",
+    showIf: { questionId: uuid(3).toUpperCase(), optionId: uuid(101).toUpperCase() },
+  });
+
+  assert.deepEqual(
+    validateAdditionalQuestions([optionsQuestion(), conditional])[1].showIf,
+    { questionId: uuid(3), optionId: uuid(101) }
+  );
+
+  const invalidCases = [
+    {
+      name: "unknown parent",
+      showIf: { questionId: uuid(9), optionId: uuid(101) },
+      message: /earlier question/,
+    },
+    {
+      name: "later parent",
+      showIf: { questionId: uuid(6), optionId: uuid(101) },
+      message: /earlier question/,
+    },
+    {
+      name: "non-dropdown parent",
+      showIf: { questionId: uuid(1), optionId: uuid(101) },
+      message: /dropdown/,
+    },
+    {
+      name: "unknown option",
+      showIf: { questionId: uuid(3), optionId: uuid(999) },
+      message: /option does not belong/,
+    },
+  ];
+
+  for (const { name, showIf, message } of invalidCases) {
+    assertBadRequest(
+      () =>
+        validateAdditionalQuestions([
+          textQuestion(),
+          optionsQuestion(),
+          textQuestion({ id: uuid(6), showIf }),
+        ]),
+      message
+    );
+    void name;
+  }
+});
+
+test("hidden conditional questions are not required and their answers are cleared", () => {
+  const questions = validateAdditionalQuestions([
+    optionsQuestion(),
+    textQuestion({
+      id: uuid(6),
+      label: "Vegetarian details",
+      required: true,
+      showIf: { questionId: uuid(3), optionId: uuid(101) },
+    }),
+  ]);
+
+  const hidden = normalizeAdditionalAnswers(
+    { [uuid(3)]: uuid(102), [uuid(6)]: "stale answer" },
+    questions
+  );
+  assert.deepEqual(hidden, { [uuid(3)]: uuid(102), [uuid(6)]: null });
+
+  assertBadRequest(
+    () => normalizeAdditionalAnswers({ [uuid(3)]: uuid(101) }, questions),
+    /is required/
+  );
+  assert.deepEqual(
+    normalizeAdditionalAnswers(
+      { [uuid(3)]: uuid(101), [uuid(6)]: "No nuts" },
+      questions
+    ),
+    { [uuid(3)]: uuid(101), [uuid(6)]: "No nuts" }
+  );
+
+  assert.deepEqual(formatAdditionalAnswers(questions, hidden), [
+    { id: uuid(3), label: "Meal", value: "Chicken" },
+  ]);
+});
+
+test("conditional questions can chain from another conditional dropdown", () => {
+  const questions = validateAdditionalQuestions([
+    optionsQuestion(),
+    optionsQuestion({
+      id: uuid(7),
+      label: "Drink",
+      options: [option(201, "Tea"), option(202, "Coffee")],
+      showIf: { questionId: uuid(3), optionId: uuid(101) },
+    }),
+    textQuestion({
+      id: uuid(8),
+      label: "Milk or sugar?",
+      required: true,
+      showIf: { questionId: uuid(7), optionId: uuid(201) },
+    }),
+  ]);
+
+  assert.deepEqual(
+    normalizeAdditionalAnswers({ [uuid(3)]: uuid(101), [uuid(7)]: uuid(202) }, questions),
+    { [uuid(3)]: uuid(101), [uuid(7)]: uuid(202), [uuid(8)]: null }
+  );
+
+  assertBadRequest(
+    () =>
+      normalizeAdditionalAnswers(
+        { [uuid(3)]: uuid(101), [uuid(7)]: uuid(201) },
+        questions
+      ),
+    /is required/
+  );
+});
+
+test("post-registration edits reject conditional visibility changes", () => {
+  const current = validateAdditionalQuestions([
+    optionsQuestion(),
+    textQuestion({
+      id: uuid(6),
+      showIf: { questionId: uuid(3), optionId: uuid(101) },
+    }),
+  ]);
+
+  const changedOption = structuredClone(current);
+  changedOption[1].showIf.optionId = uuid(102);
+  assertBadRequest(
+    () => assertQuestionEditsAreSafe(current, validateAdditionalQuestions(changedOption)),
+    /Conditional visibility/
+  );
+
+  const removedCondition = structuredClone(current);
+  delete removedCondition[1].showIf;
+  assertBadRequest(
+    () => assertQuestionEditsAreSafe(current, validateAdditionalQuestions(removedCondition)),
+    /Conditional visibility/
+  );
+
+  assert.doesNotThrow(() => assertQuestionEditsAreSafe(current, structuredClone(current)));
+});
