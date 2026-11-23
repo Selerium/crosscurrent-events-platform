@@ -10,6 +10,7 @@ import {
   Clock,
   DoorOpen,
   Edit3,
+  Eye,
   EyeOff,
   FileText,
   LayoutGrid,
@@ -50,6 +51,7 @@ import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data"
 import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import AddParticipantModal from "@/components/admin/AddParticipantModal";
 import RegistrationFormEditor from "@/components/admin/RegistrationFormEditor";
+import RegistrationFormPreviewModal from "@/components/admin/RegistrationFormPreviewModal";
 import { CheckInStatusPill } from "@/components/check-in/CheckInStatusPill";
 import api from "@/lib/axios";
 import { CHECK_IN_LEADER_ROLE } from "@/lib/checkIn";
@@ -194,6 +196,8 @@ export default function AdminEventPage() {
   const [showActionForm, setShowActionForm] = useState(false);
   const [closing, setClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPayConfirm, setShowPayConfirm] = useState(false);
   const [payTarget, setPayTarget] = useState<Participant | null>(null);
   const [payEarlyBird, setPayEarlyBird] = useState(false);
@@ -207,6 +211,7 @@ export default function AdminEventPage() {
   const [removingParticipant, setRemovingParticipant] = useState(false);
   const [downloadingAllRegs, setDownloadingAllRegs] = useState(false);
   const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [showRegistrationPreview, setShowRegistrationPreview] = useState(false);
 
   async function refreshParticipantData() {
     const [participantsRes, eventRes] = await Promise.all([
@@ -348,6 +353,23 @@ export default function AdminEventPage() {
       toast.error(err.response?.data?.message || "Could not reopen event");
     } finally {
       setClosing(false);
+    }
+  }
+
+  async function handleDeleteEvent() {
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/events/${params.id}`);
+      toast.success("Event deleted");
+      router.push("/admin/events");
+    } catch (err) {
+      const message = (
+        err as { response?: { data?: { message?: string } } }
+      ).response?.data?.message;
+      toast.error(message || "Could not delete event");
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   }
 
@@ -771,6 +793,22 @@ export default function AdminEventPage() {
                     <Lock /> {closing ? "Reopening..." : "Reopen Event"}
                   </Button>
                 )}
+                {eventInfo.status === "closed" && eventInfo.signUps === 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={deleting}
+                  >
+                    <Trash2 /> {deleting ? "Deleting..." : "Delete Event"}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRegistrationPreview(true)}
+                >
+                  <Eye />
+                  Preview registration form
+                </Button>
                 <Button onClick={startEditing}>
                   <Edit3 />
                   Edit event
@@ -1684,6 +1722,24 @@ export default function AdminEventPage() {
         />
       )}
 
+      {showRegistrationPreview && eventInfo && (
+        <RegistrationFormPreviewModal
+          eventName={eventInfo.name}
+          requirements={{
+            requireSafeguardingDoc: eventInfo.requireSafeguardingDoc,
+            requirePrimaryLeaderRole: eventInfo.requirePrimaryLeaderRole,
+            requireSecondaryLeaderRoles: eventInfo.requireSecondaryLeaderRoles,
+            requireSwimmingPermission: eventInfo.requireSwimmingPermission,
+            requireShirtSize: eventInfo.requireShirtSize,
+          }}
+          questions={eventInfo.additionalQuestions ?? []}
+          registrationAudience={eventInfo.registrationAudience ?? "ALL"}
+          primaryRoles={primaryRoles}
+          secondaryRoles={secondaryRoles}
+          onClose={() => setShowRegistrationPreview(false)}
+        />
+      )}
+
       {showCloseConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
@@ -1706,6 +1762,34 @@ export default function AdminEventPage() {
               </Button>
               <Button variant="destructive" onClick={handleCloseEvent} disabled={closing}>
                 {closing ? "Closing..." : "Yes, close event"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold">Delete Event</span>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="cursor-pointer"
+              >
+                <XIcon width={24} height={24} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete <strong>{eventInfo?.name}</strong>? This permanently removes the event and its setup. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteEvent} disabled={deleting}>
+                {deleting ? "Deleting..." : "Yes, delete event"}
               </Button>
             </div>
           </div>

@@ -16,6 +16,7 @@ const actionLabels: Record<string, string> = {
   "church.member.reject": "Member Rejected",
   "event.create": "Event Created",
   "event.update": "Event Updated",
+  "event.delete": "Event Deleted",
   "event.add_registration": "Participant Added",
   "event.remove_registration": "Participant Removed",
   "profile.delete": "Profile Deleted",

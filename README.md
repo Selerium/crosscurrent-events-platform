@@ -197,6 +197,10 @@ The nightly jobs run inside the already-running backend container so they can re
 
 Install `deploy/crontab.example` with `crontab -e`, replacing `/path/to/crosscurrent-events-platform` with the real checkout path. Both jobs are idempotent, and the API checks remain authoritative if a job is missed.
 
+## Deleting events
+
+Admins can delete a closed event from its admin page once it has no registrations or other event data (scholarship payments, required actions, or points records). An `OPEN` event past its registration close date counts as closed because registration is no longer accepted. Events with data must have that data removed first; the API rejects the deletion with the remaining blockers listed. Deletions are permanent and written to the admin log.
+
 ## Project Status
 
 This is an actively developed application. Recent work has focused on improving administrative registration workflows, payment handling, early-bird logic, filtering, and registration data management.

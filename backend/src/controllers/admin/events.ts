@@ -446,6 +446,89 @@ adminEventsHandler.patch("/:id", async (req, res) => {
 });
 
 /**
+ * Permanently deletes an empty, closed event. Registration locks the event row
+ * before writing, so take the same lock here to keep the eligibility checks and
+ * the delete atomic.
+ */
+adminEventsHandler.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const deleted = await prisma.$transaction(async (tx: any) => {
+    const locked: { id: string }[] = await tx.$queryRaw`
+      SELECT "id" FROM "Event" WHERE "id" = ${id} FOR UPDATE
+    `;
+    if (locked.length === 0) throw new AppError("Event not found", 404);
+
+    const event = await tx.event.findUnique({ where: { id } });
+    if (!event) throw new AppError("Event not found", 404);
+
+    // The admin UI reports an OPEN event past its close date as closed, so use
+    // the same effective status here rather than only the stored status.
+    if (effectiveEventStatus(event) !== "CLOSED") {
+      throw new AppError("Only closed events can be deleted", 409);
+    }
+
+    const [
+      registrations,
+      scholarshipPayments,
+      requiredActions,
+      pointsGroups,
+      pointsGroupSlots,
+      pointsEntries,
+      pointsPresets,
+    ] = await Promise.all([
+      tx.registration.count({ where: { eventId: id } }),
+      tx.scholarshipPayment.count({ where: { eventId: id } }),
+      tx.requiredAction.count({ where: { eventId: id, deletedAt: null } }),
+      tx.pointsGroup.count({ where: { eventId: id } }),
+      tx.pointsGroupSlot.count({ where: { eventId: id } }),
+      tx.pointsEntry.count({ where: { eventId: id } }),
+      tx.pointsPreset.count({ where: { eventId: id } }),
+    ]);
+
+    const pointsRecords =
+      pointsGroups + pointsGroupSlots + pointsEntries + pointsPresets;
+    const blockers: string[] = [];
+    if (registrations) {
+      blockers.push(`${registrations} registration${registrations === 1 ? "" : "s"}`);
+    }
+    if (scholarshipPayments) {
+      blockers.push(
+        `${scholarshipPayments} scholarship payment${scholarshipPayments === 1 ? "" : "s"}`
+      );
+    }
+    if (requiredActions) {
+      blockers.push(
+        `${requiredActions} required action${requiredActions === 1 ? "" : "s"}`
+      );
+    }
+    if (pointsRecords) {
+      blockers.push(`${pointsRecords} points record${pointsRecords === 1 ? "" : "s"}`);
+    }
+    if (blockers.length > 0) {
+      throw new AppError(
+        `Cannot delete an event with ${blockers.join(", ")}. Remove them first.`,
+        409
+      );
+    }
+
+    return tx.event.delete({ where: { id } });
+  });
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.delete",
+    targetType: "event",
+    targetId: deleted.id,
+    details: { name: deleted.name },
+    success: true,
+  });
+
+  res.status(200).json({ data: null, error: false, message: "Event deleted" });
+});
+
+/**
  * Saves registration-form settings without sending a generic event-updated
  * notification. Optional additions are backfilled onto every registration so
  * each answer object continues to contain exactly the current question IDs.
