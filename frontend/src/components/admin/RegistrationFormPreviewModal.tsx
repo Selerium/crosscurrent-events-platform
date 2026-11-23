@@ -24,6 +24,7 @@ type DemoRole = "STUDENT" | "LEADER";
 
 type Props = {
   eventName: string;
+  price: number;
   requirements: RegistrationRequirements;
   questions: AdditionalQuestion[];
   registrationAudience: EventRegistrationAudience;
@@ -126,6 +127,7 @@ const choiceButtonClass =
  */
 export default function RegistrationFormPreviewModal({
   eventName,
+  price,
   requirements,
   questions,
   registrationAudience,
@@ -297,23 +299,25 @@ export default function RegistrationFormPreviewModal({
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
-            <span className="font-bold">
-              Self payment/scholarship{" "}
-              <span className="font-medium text-muted-foreground italic">
-                (only select if you require payment support from your church)
-              </span>{" "}
-            </span>
-            <label className={checkboxLabelClass}>
-              <input
-                type="checkbox"
-                checked={selfPay}
-                onChange={(event) => setSelfPay(event.target.checked)}
-                className={checkboxClass}
-              />
-              <span>I will be requesting a scholarship</span>
-            </label>
-          </div>
+          {price !== 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="font-bold">
+                Self payment/scholarship{" "}
+                <span className="font-medium text-muted-foreground italic">
+                  (only select if you require payment support from your church)
+                </span>{" "}
+              </span>
+              <label className={checkboxLabelClass}>
+                <input
+                  type="checkbox"
+                  checked={selfPay}
+                  onChange={(event) => setSelfPay(event.target.checked)}
+                  className={checkboxClass}
+                />
+                <span>I will be requesting a scholarship</span>
+              </label>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <span className="font-bold">
@@ -571,25 +575,27 @@ export default function RegistrationFormPreviewModal({
             </>
           )}
 
-          <div className="flex flex-col gap-2">
-            <span className="font-bold">
-              Media Consent{" "}
-              <span className="font-medium text-muted-foreground italic">
-                (optional)
+          {requirements.requireMediaConsent && (
+            <div className="flex flex-col gap-2">
+              <span className="font-bold">
+                Media Consent{" "}
+                <span className="font-medium text-muted-foreground italic">
+                  (required)
+                </span>
               </span>
-            </span>
-            <label className={checkboxLabelClass}>
-              <input
-                type="checkbox"
-                checked={mediaConsent}
-                onChange={(event) => setMediaConsent(event.target.checked)}
-                className={checkboxClass}
-              />
-              <span>
-                I consent to being recorded and photographed at the event
-              </span>
-            </label>
-          </div>
+              <label className={checkboxLabelClass}>
+                <input
+                  type="checkbox"
+                  checked={mediaConsent}
+                  onChange={(event) => setMediaConsent(event.target.checked)}
+                  className={checkboxClass}
+                />
+                <span>
+                  I consent to being recorded and photographed at the event
+                </span>
+              </label>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <span className="font-bold">Emergency Contact</span>
@@ -615,21 +621,23 @@ export default function RegistrationFormPreviewModal({
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <span className="font-bold">
-              Any Other Notes{" "}
-              <span className="font-medium text-muted-foreground italic">
-                (optional)
+          {requirements.requireNotes && (
+            <div className="flex flex-col gap-2">
+              <span className="font-bold">
+                Any Other Notes{" "}
+                <span className="font-medium text-muted-foreground italic">
+                  (required)
+                </span>
               </span>
-            </span>
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Anything you want us to know..."
-              rows={3}
-              className={textInputClass}
-            />
-          </div>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Anything you want us to know..."
+                rows={3}
+                className={textInputClass}
+              />
+            </div>
+          )}
 
           <AdditionalQuestionFields
             questions={questions}
@@ -638,33 +646,30 @@ export default function RegistrationFormPreviewModal({
             idPrefix="preview-additional"
           />
 
-          <section className="flex flex-col gap-2 rounded-lg border p-4">
-            <div>
-              <h3 className="font-bold">
-                Ideal roommate{" "}
-                <span className="text-sm font-medium italic text-muted-foreground">
-                  (optional)
-                </span>
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Unconfirmed preference only; this does not assign a room or
-                notify the other person.
+          {requirements.requireRoommate && (
+            <section className="flex flex-col gap-2 rounded-lg border p-4">
+              <div>
+                <h3 className="font-bold">Ideal roommate</h3>
+                <p className="text-sm text-muted-foreground">
+                  Unconfirmed preference only; this does not assign a room or
+                  notify the other person.
+                </p>
+              </div>
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search people registered for this event"
+                  className="pl-9"
+                  aria-label="Demo ideal roommate search"
+                  readOnly
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Preview only — no registrants are loaded.
               </p>
-            </div>
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search people registered for this event"
-                className="pl-9"
-                aria-label="Demo ideal roommate search"
-                readOnly
-              />
-            </label>
-            <p className="text-xs text-muted-foreground">
-              Preview only — no registrants are loaded.
-            </p>
-          </section>
+            </section>
+          )}
 
           <p className="font-bold">
             NOTE:{" "}

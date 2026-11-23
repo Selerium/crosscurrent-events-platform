@@ -233,6 +233,7 @@ function SpousePicker({
 
 export default function AddParticipantModal({
   eventId,
+  price,
   registeredProfileIds,
   signUps,
   capacity,
@@ -243,6 +244,7 @@ export default function AddParticipantModal({
   onAdded,
 }: {
   eventId: string;
+  price: number;
   registeredProfileIds: string[];
   signUps: number;
   capacity: number;
@@ -338,7 +340,7 @@ export default function AddParticipantModal({
         formData.append("roommateRegistrationId", roommate.registrationId);
       }
       formData.append("swimming", String(data.swimming));
-      formData.append("selfPay", String(data.selfPay));
+      if (price !== 0) formData.append("selfPay", String(data.selfPay));
       data.medications.forEach((item) => formData.append("medications", item));
       data.allergies.forEach((item) => formData.append("allergies", item));
       formData.append("mediaConsent", String(data.mediaConsent));
@@ -601,30 +603,32 @@ export default function AddParticipantModal({
                 </div>
               )}
 
-              <div className="flex flex-col gap-2">
-                <span className="font-bold">
-                  Self payment/scholarship{" "}
-                  <span className="font-medium italic text-muted-foreground">
-                    (only select if they require payment support from their
-                    church)
+              {price !== 0 && (
+                <div className="flex flex-col gap-2">
+                  <span className="font-bold">
+                    Self payment/scholarship{" "}
+                    <span className="font-medium italic text-muted-foreground">
+                      (only select if they require payment support from their
+                      church)
+                    </span>
                   </span>
-                </span>
-                <Controller
-                  name="selfPay"
-                  control={control}
-                  render={({ field }) => (
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
-                      <input
-                        type="checkbox"
-                        checked={field.value}
-                        onChange={field.onChange}
-                        className="size-4 accent-neutral-600"
-                      />
-                      <span>Requesting a scholarship</span>
-                    </label>
-                  )}
-                />
-              </div>
+                  <Controller
+                    name="selfPay"
+                    control={control}
+                    render={({ field }) => (
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="size-4 accent-neutral-600"
+                        />
+                        <span>Requesting a scholarship</span>
+                      </label>
+                    )}
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <span className="font-bold">

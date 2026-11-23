@@ -214,6 +214,9 @@ model Event {
   requireSecondaryLeaderRoles Boolean @default(true)
   requireSwimmingPermission   Boolean @default(false)
   requireShirtSize            Boolean @default(true)
+  requireMediaConsent         Boolean @default(false)
+  requireNotes                Boolean @default(false)
+  requireRoommate             Boolean @default(false)
 
   earlyBirdPrice Int?
   earlyBirdDate  DateTime?

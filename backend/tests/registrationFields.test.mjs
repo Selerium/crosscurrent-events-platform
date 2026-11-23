@@ -20,6 +20,9 @@ test("legacy events keep the effective default requirement set", () => {
     // The old UI said required, but the API never enforced it.
     requireSwimmingPermission: false,
     requireShirtSize: true,
+    requireMediaConsent: false,
+    requireNotes: false,
+    requireRoommate: false,
   });
 
   assert.deepEqual(registrationRequirementsFromEvent({}), {
@@ -28,6 +31,9 @@ test("legacy events keep the effective default requirement set", () => {
     requireSecondaryLeaderRoles: false,
     requireSwimmingPermission: false,
     requireShirtSize: false,
+    requireMediaConsent: false,
+    requireNotes: false,
+    requireRoommate: false,
   });
   assert.deepEqual(
     registrationRequirementsFromEvent({
@@ -40,6 +46,9 @@ test("legacy events keep the effective default requirement set", () => {
       requireSecondaryLeaderRoles: false,
       requireSwimmingPermission: true,
       requireShirtSize: true,
+      requireMediaConsent: false,
+      requireNotes: false,
+      requireRoommate: false,
     }
   );
 });

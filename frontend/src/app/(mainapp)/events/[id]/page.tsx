@@ -646,15 +646,21 @@ export default function EventPage() {
       toast.warning(additionalError);
       return;
     }
+    if (eventData?.requireRoommate && !roommate) {
+      toast.warning("Please select an ideal roommate");
+      return;
+    }
     const formData = new FormData();
     if (eventData?.requireShirtSize && data.shirtSize)
       formData.append("shirtSize", data.shirtSize);
     formData.append("additionalAnswers", JSON.stringify(additionalAnswers));
-    if (roommate) {
+    if (eventData?.requireRoommate && roommate) {
       formData.append("roommateRegistrationId", roommate.registrationId);
     }
     formData.append("swimming", String(data.swimming));
-    formData.append("selfPay", String(data.selfPay));
+    if (eventData && eventData.price !== 0) {
+      formData.append("selfPay", String(data.selfPay));
+    }
     data.medications.forEach((m) => formData.append("medications", m));
     data.allergies.forEach((a) => formData.append("allergies", a));
     if (data.spouseId) formData.append("spouseId", data.spouseId);
@@ -665,7 +671,9 @@ export default function EventPage() {
         formData.append("secondaryLeaderRoles", r),
       );
     }
-    formData.append("mediaConsent", String(data.mediaConsent));
+    if (eventData?.requireMediaConsent) {
+      formData.append("mediaConsent", String(data.mediaConsent));
+    }
     if (eventData?.requireSwimmingPermission) {
       formData.append("swimmingPermission", String(data.swimmingPermission));
     }
@@ -673,7 +681,9 @@ export default function EventPage() {
       formData.append("emergencyName", data.emergencyName);
     if (data.emergencyPhone)
       formData.append("emergencyPhone", data.emergencyPhone);
-    if (data.notes) formData.append("notes", data.notes);
+    if (eventData?.requireNotes && data.notes) {
+      formData.append("notes", data.notes);
+    }
     if (safeguardingFile) formData.append("safeguardingDoc", safeguardingFile);
     try {
       await api.post(`/events/${params.id}/register`, formData, {
@@ -984,30 +994,32 @@ export default function EventPage() {
                 </div>
               )}
 
-              <div className="flex flex-col gap-2">
-                <span className="font-bold">
-                  Self payment/scholarship{" "}
-                  <span className="font-medium text-muted-foreground italic">
-                    (only select if you require payment support from your
-                    church)
-                  </span>{" "}
-                </span>
-                <Controller
-                  name="selfPay"
-                  control={control}
-                  render={({ field }) => (
-                    <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={field.value}
-                        onChange={field.onChange}
-                        className="w-4 h-4 accent-neutral-600"
-                      />
-                      <span>I will be requesting a scholarship</span>
-                    </label>
-                  )}
-                />
-              </div>
+              {eventData.price !== 0 && (
+                <div className="flex flex-col gap-2">
+                  <span className="font-bold">
+                    Self payment/scholarship{" "}
+                    <span className="font-medium text-muted-foreground italic">
+                      (only select if you require payment support from your
+                      church)
+                    </span>{" "}
+                  </span>
+                  <Controller
+                    name="selfPay"
+                    control={control}
+                    render={({ field }) => (
+                      <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="w-4 h-4 accent-neutral-600"
+                        />
+                        <span>I will be requesting a scholarship</span>
+                      </label>
+                    )}
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <span className="font-bold">
@@ -1295,32 +1307,38 @@ export default function EventPage() {
                 </>
               )}
 
-              <div className="flex flex-col gap-2">
-                <span className="font-bold">
-                  Media Consent{" "}
-                  <span className="font-medium text-muted-foreground italic">
-                    (optional)
+              {eventData.requireMediaConsent && (
+                <div className="flex flex-col gap-2">
+                  <span className="font-bold">
+                    Media Consent{" "}
+                    <span className="font-medium text-muted-foreground italic">
+                      (required)
+                    </span>
                   </span>
-                </span>
-                <Controller
-                  name="mediaConsent"
-                  control={control}
-                  render={({ field }) => (
-                    <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={field.value}
-                        onChange={field.onChange}
-                        className="w-4 h-4 accent-neutral-600"
-                      />
-                      <span>
-                        I consent to being recorded and photographed at the
-                        event
-                      </span>
-                    </label>
-                  )}
-                />
-              </div>
+                  <Controller
+                    name="mediaConsent"
+                    control={control}
+                    rules={{
+                      validate: (value) =>
+                        value || "Media consent is required",
+                    }}
+                    render={({ field }) => (
+                      <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="w-4 h-4 accent-neutral-600"
+                        />
+                        <span>
+                          I consent to being recorded and photographed at the
+                          event
+                        </span>
+                      </label>
+                    )}
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <span className="font-bold">Emergency Contact</span>
@@ -1364,27 +1382,33 @@ export default function EventPage() {
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <span className="font-bold">
-                  Any Other Notes{" "}
-                  <span className="font-medium text-muted-foreground italic">
-                    (optional)
+              {eventData.requireNotes && (
+                <div className="flex flex-col gap-2">
+                  <span className="font-bold">
+                    Any Other Notes{" "}
+                    <span className="font-medium text-muted-foreground italic">
+                      (required)
+                    </span>
                   </span>
-                </span>
-                <Controller
-                  name="notes"
-                  control={control}
-                  render={({ field }) => (
-                    <textarea
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Anything you want us to know..."
-                      rows={3}
-                      className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  )}
-                />
-              </div>
+                  <Controller
+                    name="notes"
+                    control={control}
+                    rules={{
+                      validate: (value) =>
+                        Boolean(value.trim()) || "Please add any other notes",
+                    }}
+                    render={({ field }) => (
+                      <textarea
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Anything you want us to know..."
+                        rows={3}
+                        className="w-full rounded-lg border border-border bg-transparent px-3.5 py-2.5 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                      />
+                    )}
+                  />
+                </div>
+              )}
 
               <AdditionalQuestionFields
                 questions={eventData.additionalQuestions ?? []}
@@ -1392,11 +1416,13 @@ export default function EventPage() {
                 onChange={setAdditionalAnswers}
                 idPrefix="register-additional"
               />
-              <RoommatePicker
-                eventId={params.id}
-                value={roommate}
-                onChange={setRoommate}
-              />
+              {eventData.requireRoommate && (
+                <RoommatePicker
+                  eventId={params.id}
+                  value={roommate}
+                  onChange={setRoommate}
+                />
+              )}
 
               <p className="font-bold">
                 NOTE:{" "}

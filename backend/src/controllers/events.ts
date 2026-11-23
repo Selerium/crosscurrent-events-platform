@@ -196,6 +196,17 @@ const registerForEvent = async (req: any, res: any) => {
     req.user!.id,
     req.body.roommateRegistrationId,
   );
+  const mediaConsent = asBool(req.body.mediaConsent);
+  const notes = asString(req.body.notes).trim();
+  if (event.requireMediaConsent && !mediaConsent) {
+    throw new AppError("Media consent is required", 400);
+  }
+  if (event.requireNotes && !notes) {
+    throw new AppError("Please add any other notes", 400);
+  }
+  if (event.requireRoommate && !roommateRegistrationId) {
+    throw new AppError("An ideal roommate is required", 400);
+  }
 
   let spouseId: string | null = null;
   let primaryLeaderRole: string | null = null;
@@ -279,6 +290,15 @@ const registerForEvent = async (req: any, res: any) => {
     ) {
       throw new AppError("Swimming permission is required for students", 400);
     }
+    if (lockedEvent.requireMediaConsent && !mediaConsent) {
+      throw new AppError("Media consent is required", 400);
+    }
+    if (lockedEvent.requireNotes && !notes) {
+      throw new AppError("Please add any other notes", 400);
+    }
+    if (lockedEvent.requireRoommate && !roommateRegistrationId) {
+      throw new AppError("An ideal roommate is required", 400);
+    }
 
     if (profile.role === "LEADER") {
       if (lockedEvent.requirePrimaryLeaderRole && !primaryLeaderRole) {
@@ -326,11 +346,11 @@ const registerForEvent = async (req: any, res: any) => {
         medications,
         allergies,
         paid: false,
-        mediaConsent: asBool(req.body.mediaConsent),
+        mediaConsent,
         swimmingPermission: lockedSwimmingPermission,
         emergencyName: asString(req.body.emergencyName).trim(),
         emergencyPhone: asString(req.body.emergencyPhone).trim(),
-        notes: asString(req.body.notes).trim() || null,
+        notes: notes || null,
         safeguardingDoc,
         spouseId,
         primaryLeaderRole: primaryLeaderRole as any,
@@ -395,12 +415,12 @@ const registerForEvent = async (req: any, res: any) => {
           swimming,
           swimmingPermission: asBool(req.body.swimmingPermission),
           selfPay,
-          mediaConsent: asBool(req.body.mediaConsent),
+          mediaConsent,
           medications,
           allergies,
           emergencyName: asString(req.body.emergencyName).trim(),
           emergencyPhone: asString(req.body.emergencyPhone).trim(),
-          notes: asString(req.body.notes).trim(),
+          notes,
         },
         verificationUrl
       );

@@ -525,6 +525,9 @@ export default function AdminEventPage() {
       requireSecondaryLeaderRoles: eventInfo.requireSecondaryLeaderRoles,
       requireSwimmingPermission: eventInfo.requireSwimmingPermission,
       requireShirtSize: eventInfo.requireShirtSize,
+      requireMediaConsent: eventInfo.requireMediaConsent,
+      requireNotes: eventInfo.requireNotes,
+      requireRoommate: eventInfo.requireRoommate,
     });
     setEditEarlyBirdPrice(
       eventInfo.earlyBirdPrice != null ? String(eventInfo.earlyBirdPrice) : ""
@@ -836,6 +839,9 @@ export default function AdminEventPage() {
                   requireSecondaryLeaderRoles: eventInfo.requireSecondaryLeaderRoles,
                   requireSwimmingPermission: eventInfo.requireSwimmingPermission,
                   requireShirtSize: eventInfo.requireShirtSize,
+                  requireMediaConsent: eventInfo.requireMediaConsent,
+                  requireNotes: eventInfo.requireNotes,
+                  requireRoommate: eventInfo.requireRoommate,
                 }
           }
           onRequirementsChange={setEditRequirements}
@@ -1711,6 +1717,7 @@ export default function AdminEventPage() {
       {showAddParticipant && (
         <AddParticipantModal
           eventId={params.id}
+          price={eventInfo.price}
           registeredProfileIds={participants.map((p) => p.profileId)}
           signUps={eventInfo.paidSignUps}
           capacity={eventInfo.capacity}
@@ -1731,7 +1738,11 @@ export default function AdminEventPage() {
             requireSecondaryLeaderRoles: eventInfo.requireSecondaryLeaderRoles,
             requireSwimmingPermission: eventInfo.requireSwimmingPermission,
             requireShirtSize: eventInfo.requireShirtSize,
+            requireMediaConsent: eventInfo.requireMediaConsent,
+            requireNotes: eventInfo.requireNotes,
+            requireRoommate: eventInfo.requireRoommate,
           }}
+          price={eventInfo.price}
           questions={eventInfo.additionalQuestions ?? []}
           registrationAudience={eventInfo.registrationAudience ?? "ALL"}
           primaryRoles={primaryRoles}

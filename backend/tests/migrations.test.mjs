@@ -170,7 +170,8 @@ test("all migrations apply and protect the registration form contract", { skip: 
         AND column_name IN (
           'additionalQuestions', 'additionalAnswers', 'roommateRegistrationId',
           'shirtSize', 'minimumAge', 'registrationAudience', 'requireSafeguardingDoc', 'requirePrimaryLeaderRole',
-          'requireSecondaryLeaderRoles', 'requireSwimmingPermission', 'requireShirtSize'
+          'requireSecondaryLeaderRoles', 'requireSwimmingPermission', 'requireShirtSize',
+          'requireMediaConsent', 'requireNotes', 'requireRoommate'
         )
       ORDER BY table_name, column_name
     `)
@@ -180,7 +181,10 @@ test("all migrations apply and protect the registration form contract", { skip: 
       "Event|additionalQuestions|NO|'[]'::jsonb",
       "Event|minimumAge|YES|",
       `Event|registrationAudience|NO|'ALL'::"EventRegistrationAudience"`,
+      "Event|requireMediaConsent|NO|false",
+      "Event|requireNotes|NO|false",
       "Event|requirePrimaryLeaderRole|NO|true",
+      "Event|requireRoommate|NO|false",
       "Event|requireSafeguardingDoc|NO|true",
       "Event|requireSecondaryLeaderRoles|NO|true",
       "Event|requireShirtSize|NO|true",

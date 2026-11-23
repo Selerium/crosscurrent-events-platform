@@ -681,6 +681,102 @@ try {
   } catch (error) {
     fail("registrationAudience", error);
   }
+
+  // 14. Media consent, notes, and roommate can each be made mandatory.
+  try {
+    const baseFlags = {
+      requireSafeguardingDoc: false,
+      requirePrimaryLeaderRole: false,
+      requireSecondaryLeaderRoles: false,
+      requireSwimmingPermission: false,
+      requireShirtSize: false,
+    };
+    const mediaEvent = await mkEvent(`Media Consent Event ${tag}`, {
+      ...baseFlags,
+      requireMediaConsent: true,
+    });
+    const notesEvent = await mkEvent(`Notes Event ${tag}`, {
+      ...baseFlags,
+      requireNotes: true,
+    });
+    const roommateEvent = await mkEvent(`Roommate Event ${tag}`, {
+      ...baseFlags,
+      requireRoommate: true,
+    });
+    const roommateRegistration = await mkRegistration(
+      roommateEvent.id,
+      roommateTarget.id
+    );
+
+    const mediaMissing = await req(
+      "POST",
+      `/events/${mediaEvent.id}/register`,
+      attendeeToken,
+      {}
+    );
+    const mediaProvided = await req(
+      "POST",
+      `/events/${mediaEvent.id}/register`,
+      attendeeToken,
+      { mediaConsent: true }
+    );
+    const notesMissing = await req(
+      "POST",
+      `/events/${notesEvent.id}/register`,
+      attendeeToken,
+      {}
+    );
+    const notesProvided = await req(
+      "POST",
+      `/events/${notesEvent.id}/register`,
+      attendeeToken,
+      { notes: "  Bus at 9  " }
+    );
+    const roommateMissing = await req(
+      "POST",
+      `/events/${roommateEvent.id}/register`,
+      attendeeToken,
+      {}
+    );
+    const roommateProvided = await req(
+      "POST",
+      `/events/${roommateEvent.id}/register`,
+      attendeeToken,
+      { roommateRegistrationId: roommateRegistration.id }
+    );
+    const createdRegistrations = await prisma.registration.findMany({
+      where: {
+        eventId: {
+          in: [mediaEvent.id, notesEvent.id, roommateEvent.id],
+        },
+      },
+      select: { id: true },
+    });
+    ids.registrations.push(...createdRegistrations.map((row) => row.id));
+
+    step(
+      "newRequirementFlags",
+      mediaMissing.status === 400 &&
+        /media consent/i.test(mediaMissing.data?.message ?? "") &&
+        mediaProvided.status === 201 &&
+        notesMissing.status === 400 &&
+        /notes/i.test(notesMissing.data?.message ?? "") &&
+        notesProvided.status === 201 &&
+        roommateMissing.status === 400 &&
+        /roommate/i.test(roommateMissing.data?.message ?? "") &&
+        roommateProvided.status === 201,
+      {
+        mediaMissing: mediaMissing.status,
+        mediaProvided: mediaProvided.status,
+        notesMissing: notesMissing.status,
+        notesProvided: notesProvided.status,
+        roommateMissing: roommateMissing.status,
+        roommateProvided: roommateProvided.status,
+      }
+    );
+  } catch (error) {
+    fail("newRequirementFlags", error);
+  }
 } catch (error) {
   summary.fatal = String(error?.stack ?? error);
 } finally {

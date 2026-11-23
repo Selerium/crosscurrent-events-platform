@@ -45,6 +45,9 @@ export type RegistrationRequirements = {
   requireSecondaryLeaderRoles: boolean;
   requireSwimmingPermission: boolean;
   requireShirtSize: boolean;
+  requireMediaConsent: boolean;
+  requireNotes: boolean;
+  requireRoommate: boolean;
 };
 
 export type FormattedAdditionalAnswer = {
@@ -59,6 +62,10 @@ export const defaultRegistrationRequirements: RegistrationRequirements = {
   requireSecondaryLeaderRoles: true,
   requireSwimmingPermission: false,
   requireShirtSize: true,
+  // Previously optional fields default to hidden until made mandatory.
+  requireMediaConsent: false,
+  requireNotes: false,
+  requireRoommate: false,
 };
 
 function newOption(label: string): AdditionalQuestionOption {

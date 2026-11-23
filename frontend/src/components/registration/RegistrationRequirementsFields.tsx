@@ -20,6 +20,9 @@ const FIELDS: Array<{
   { key: "requireSecondaryLeaderRoles", label: "Secondary leader roles", audience: "Leaders · select exactly 3 when shown" },
   { key: "requireSwimmingPermission", label: "Swimming permission", audience: "Students · swimming proficiency remains a separate field" },
   { key: "requireShirtSize", label: "Shirt size", audience: "Everyone" },
+  { key: "requireMediaConsent", label: "Media consent", audience: "Everyone" },
+  { key: "requireNotes", label: "Any other notes", audience: "Everyone" },
+  { key: "requireRoommate", label: "Ideal roommate", audience: "Everyone · unconfirmed preference" },
 ];
 
 export default function RegistrationRequirementsFields({ value, onChange, disabled = false }: Props) {

@@ -10,6 +10,9 @@ export const REGISTRATION_REQUIREMENT_KEYS = [
   "requireSecondaryLeaderRoles",
   "requireSwimmingPermission",
   "requireShirtSize",
+  "requireMediaConsent",
+  "requireNotes",
+  "requireRoommate",
 ] as const;
 
 export type RegistrationRequirementKey =
@@ -28,6 +31,11 @@ export const DEFAULT_REGISTRATION_REQUIREMENTS: RegistrationRequirements = {
   // did not enforce it. Each event can now opt into enforcement explicitly.
   requireSwimmingPermission: false,
   requireShirtSize: true,
+  // Previously optional fields default to not required so existing events keep
+  // their registration flow until an admin opts into enforcing them.
+  requireMediaConsent: false,
+  requireNotes: false,
+  requireRoommate: false,
 };
 
 export function registrationRequirementsFromEvent(
