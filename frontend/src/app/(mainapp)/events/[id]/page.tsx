@@ -38,6 +38,17 @@ import {
   formatUaeDate,
   isRegistrationClosed,
 } from "@/lib/uaeDate";
+import AdditionalQuestionFields from "@/components/registration/AdditionalQuestionFields";
+import RoommatePicker, {
+  type RoommateOption,
+} from "@/components/registration/RoommatePicker";
+import {
+  emptyAdditionalAnswers,
+  validateAdditionalAnswers,
+  type AdditionalAnswers,
+  type AdditionalQuestion,
+  type RegistrationRequirements,
+} from "@/lib/registrationForm";
 
 type ScheduleItem = {
   item: string;
@@ -87,7 +98,7 @@ function normalizeMemberList(value: unknown): MemberList | null {
   return { name: record.name, members };
 }
 
-type EventData = {
+type EventData = RegistrationRequirements & {
   id: string;
   name: string;
   brief: string;
@@ -101,6 +112,7 @@ type EventData = {
   earlyBirdDate: Date | null;
   registrationCloseDate: string | null;
   schedule: ScheduleItem[][];
+  additionalQuestions: AdditionalQuestion[];
   status: string;
   user: {
     paid: boolean;
@@ -111,7 +123,9 @@ type EventData = {
     swimming: boolean;
     allergies: string[];
     medication: string[];
-    shirtSize: string;
+    shirtSize: string | null;
+    roommate: string;
+    additionalAnswers: { id: string; label: string; value: string }[];
     primaryLeaderRole: string | null;
     secondaryLeaderRoles: string[];
   } | null;
@@ -431,6 +445,8 @@ export default function EventPage() {
   const [isPrimary, setIsPrimary] = useState(false);
   const [downloadingRegs, setDownloadingRegs] = useState(false);
   const [safeguardingFile, setSafeguardingFile] = useState<File | null>(null);
+  const [additionalAnswers, setAdditionalAnswers] = useState<AdditionalAnswers>({});
+  const [roommate, setRoommate] = useState<RoommateOption | null>(null);
   const [showScholarships, setShowScholarships] = useState(false);
   const [scholarshipRequests, setScholarshipRequests] = useState<
     {
@@ -473,6 +489,11 @@ export default function EventPage() {
     },
   });
 
+  function resetEventSpecificAnswers(questions = eventData?.additionalQuestions ?? []) {
+    setAdditionalAnswers(emptyAdditionalAnswers(questions));
+    setRoommate(null);
+  }
+
   const registrationClosed = eventData
     ? isRegistrationClosed(eventData.status, eventData.registrationCloseDate)
     : false;
@@ -508,6 +529,9 @@ export default function EventPage() {
         registrants: data.registrants || [],
       });
 
+      if (!data.user) {
+        resetEventSpecificAnswers(data.additionalQuestions || []);
+      }
       return data;
     } catch {
       setEventError(true);
@@ -556,6 +580,7 @@ export default function EventPage() {
         eventData.signedUp < eventData.maxSignUps
       ) {
         reset();
+        resetEventSpecificAnswers(eventData.additionalQuestions || []);
         setMedDraft("");
         setAllergyDraft("");
         setShowRegister(true);
@@ -599,12 +624,28 @@ export default function EventPage() {
       toast.warning("Registration is closed for this event.");
       return;
     }
-    if (userRole === "LEADER" && !safeguardingFile) {
+    if (
+      userRole === "LEADER" &&
+      eventData?.requireSafeguardingDoc &&
+      !safeguardingFile
+    ) {
       toast.warning("Please upload your Safeguarding/DBS certificate");
       return;
     }
+    const additionalError = validateAdditionalAnswers(
+      eventData?.additionalQuestions ?? [],
+      additionalAnswers,
+    );
+    if (additionalError) {
+      toast.warning(additionalError);
+      return;
+    }
     const formData = new FormData();
-    formData.append("shirtSize", data.shirtSize);
+    if (data.shirtSize) formData.append("shirtSize", data.shirtSize);
+    formData.append("additionalAnswers", JSON.stringify(additionalAnswers));
+    if (roommate) {
+      formData.append("roommateRegistrationId", roommate.registrationId);
+    }
     formData.append("swimming", String(data.swimming));
     formData.append("selfPay", String(data.selfPay));
     data.medications.forEach((m) => formData.append("medications", m));
@@ -630,6 +671,7 @@ export default function EventPage() {
       toast.success("Registration submitted");
       setShowRegister(false);
       reset();
+      resetEventSpecificAnswers();
       setSafeguardingFile(null);
       await fetchEvent();
     } catch (err: any) {
@@ -823,6 +865,7 @@ export default function EventPage() {
                 onClick={() => {
                   setShowRegister(false);
                   reset();
+                  resetEventSpecificAnswers();
                   setSafeguardingFile(null);
                 }}
                 className="cursor-pointer"
@@ -832,16 +875,28 @@ export default function EventPage() {
             </div>
 
             <form
-              onSubmit={handleSubmit(onRegisterSubmit, () =>
-                toast.warning("Please fill out all fields"),
-              )}
+              onSubmit={handleSubmit(onRegisterSubmit, (errors) => {
+                const message = Object.values(errors)
+                  .map((error) => (error as { message?: string } | undefined)?.message)
+                  .find(Boolean);
+                toast.warning(message || "Please fill out all fields");
+              })}
               className="flex flex-col gap-4"
             >
               <div className="flex flex-col gap-2">
-                <span className="font-bold">Shirt Size</span>
+                <span className="font-bold">
+                  Shirt Size{" "}
+                  <span className="font-medium text-muted-foreground italic">
+                    {eventData.requireShirtSize ? "(required)" : "(optional)"}
+                  </span>
+                </span>
                 <Controller
                   name="shirtSize"
-                  rules={{ required: "Shirt size is required" }}
+                  rules={{
+                    required: eventData.requireShirtSize
+                      ? "Shirt size is required"
+                      : false,
+                  }}
                   control={control}
                   render={({ field }) => (
                     <div className="flex flex-wrap gap-2">
@@ -850,7 +905,9 @@ export default function EventPage() {
                           <button
                             key={size}
                             type="button"
-                            onClick={() => field.onChange(size)}
+                            onClick={() =>
+                              field.onChange(field.value === size ? "" : size)
+                            }
                             className={cn(
                               "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
                               field.value === size
@@ -896,12 +953,20 @@ export default function EventPage() {
                   <span className="font-bold">
                     Swimming Permission{" "}
                     <span className="font-medium text-muted-foreground italic">
-                      (required for students)
+                      ({eventData.requireSwimmingPermission
+                        ? "required for students"
+                        : "optional for students"})
                     </span>
                   </span>
                   <Controller
                     name="swimmingPermission"
                     control={control}
+                    rules={{
+                      validate: (value) =>
+                        !eventData.requireSwimmingPermission ||
+                        value ||
+                        "Swimming permission is required for students",
+                    }}
                     render={({ field }) => (
                       <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
                         <input
@@ -1074,12 +1139,21 @@ export default function EventPage() {
                   </span>
 
                   <div className="flex flex-col gap-2">
-                    <span className="font-bold">Primary Leader Role</span>
+                    <span className="font-bold">
+                      Primary Leader Role{" "}
+                      <span className="font-medium text-muted-foreground italic">
+                        ({eventData.requirePrimaryLeaderRole
+                          ? "required"
+                          : "optional"})
+                      </span>
+                    </span>
                     <Controller
                       name="primaryLeaderRole"
                       control={control}
                       rules={{
-                        required: "Please select a primary leader role",
+                        required: eventData.requirePrimaryLeaderRole
+                          ? "Please select a primary leader role"
+                          : false,
                       }}
                       render={({ field }) => (
                         <div className="flex flex-wrap gap-2">
@@ -1087,7 +1161,11 @@ export default function EventPage() {
                             <button
                               key={role.role}
                               type="button"
-                              onClick={() => field.onChange(role.role)}
+                              onClick={() =>
+                                field.onChange(
+                                  field.value === role.role ? "" : role.role,
+                                )
+                              }
                               className={cn(
                                 "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
                                 field.value === role.role
@@ -1107,7 +1185,9 @@ export default function EventPage() {
                     <span className="font-bold">
                       Secondary Leader Roles{" "}
                       <span className="font-medium text-muted-foreground italic">
-                        (select exactly 3)
+                        {eventData.requireSecondaryLeaderRoles
+                          ? "(select exactly 3)"
+                          : "(optional - up to 3)"}
                       </span>
                     </span>
                     <Controller
@@ -1115,6 +1195,7 @@ export default function EventPage() {
                       control={control}
                       rules={{
                         validate: (v) =>
+                          !eventData.requireSecondaryLeaderRoles ||
                           v.length === 3 ||
                           "Please select exactly three secondary leader roles",
                       }}
@@ -1158,7 +1239,10 @@ export default function EventPage() {
                     <span className="font-bold">
                       Safeguarding/DBS Certificate{" "}
                       <span className="font-medium text-muted-foreground italic">
-                        (PDF, required)
+                        (PDF,{" "}
+                        {eventData.requireSafeguardingDoc
+                          ? "required"
+                          : "optional"})
                       </span>
                     </span>
                     <span>
@@ -1306,6 +1390,18 @@ export default function EventPage() {
                   )}
                 />
               </div>
+
+              <AdditionalQuestionFields
+                questions={eventData.additionalQuestions ?? []}
+                value={additionalAnswers}
+                onChange={setAdditionalAnswers}
+                idPrefix="register-additional"
+              />
+              <RoommatePicker
+                eventId={params.id}
+                value={roommate}
+                onChange={setRoommate}
+              />
 
               <p className="font-bold">
                 NOTE:{" "}
@@ -1692,6 +1788,7 @@ export default function EventPage() {
                         return;
                       }
                       reset();
+                      resetEventSpecificAnswers();
                       setMedDraft("");
                       setAllergyDraft("");
                       setShowRegister(true);
@@ -1782,8 +1879,23 @@ export default function EventPage() {
                   <span className="font-bold">My Details</span>
                   <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
                     <span className="font-bold">Shirt size</span>
-                    <span>{eventData.user.shirtSize}</span>
+                    <span>{eventData.user.shirtSize || "Not provided"}</span>
                   </div>
+                  {eventData.user.roommate && (
+                    <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
+                      <span className="font-bold">Ideal roommate (unconfirmed)</span>
+                      <span>{eventData.user.roommate}</span>
+                    </div>
+                  )}
+                  {eventData.user.additionalAnswers?.map((answer) => (
+                    <div
+                      key={answer.id}
+                      className="flex items-start justify-between gap-4 p-4 rounded-lg border"
+                    >
+                      <span className="font-bold">{answer.label}</span>
+                      <span className="text-right break-words">{answer.value}</span>
+                    </div>
+                  ))}
                   <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">
                     <span className="font-bold">Check-in</span>
                     <CheckInStatusPill status={eventData.user.checkInStatus} />

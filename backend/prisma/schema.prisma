@@ -125,9 +125,20 @@ model Registration {
 
   medications String[]
   allergies   String[]
-  shirtSize   ShirtSize
+  shirtSize   ShirtSize?
   swimming    Boolean
   selfPay     Boolean
+
+  // Additional answers are keyed by stable IDs from Event.additionalQuestions.
+  // Their shape and requiredness are validated by the registration API.
+  additionalAnswers Json @default("{}") @db.JsonB
+
+  // An optional, unconfirmed preference for another registration at this event.
+  // This does not imply mutual consent or an actual room assignment.
+  roommateRegistrationId String?
+  roommate             Registration?  @relation("RegistrationRoommate", fields: [roommateRegistrationId], references: [id], onDelete: SetNull)
+  roommateRequests     Registration[] @relation("RegistrationRoommate")
+
   room        String?
   group       String?
   // Leaders can belong to a group without other members seeing them in the
@@ -167,6 +178,7 @@ model Registration {
   checkInVersion  Int           @default(0)
 
   @@index([eventId, checkInStatus])
+  @@index([roommateRegistrationId])
 }
 
 model Event {
@@ -184,6 +196,18 @@ model Event {
   location       String
   schedule       Json[]
   price          Int
+
+  // Ordered event-specific additional registration question definitions.
+  additionalQuestions Json @default("[]") @db.JsonB
+
+  // Requiredness for existing typed fields. Leader/student-only fields apply
+  // only to their respective profile roles. Swimming proficiency stays separate.
+  requireSafeguardingDoc      Boolean @default(true)
+  requirePrimaryLeaderRole    Boolean @default(true)
+  requireSecondaryLeaderRoles Boolean @default(true)
+  requireSwimmingPermission   Boolean @default(false)
+  requireShirtSize            Boolean @default(true)
+
   earlyBirdPrice Int?
   earlyBirdDate  DateTime?
   // Legacy events may have no automatic cutoff and stay open until manually closed.

@@ -18,6 +18,15 @@ import {
   assertCanManagePoints,
   buildPointsView,
 } from "../lib/points.ts";
+import {
+  formatAdditionalAnswers,
+  normalizeAdditionalAnswers,
+} from "../lib/additionalQuestions.ts";
+import {
+  parseShirtSize,
+  registrationRequirementsFromEvent,
+  resolveRoommateRegistrationId,
+} from "../lib/registrationFields.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -92,7 +101,7 @@ eventsHandler.post(
 );
 
 const registerForEvent = async (req: any, res: any) => {
-  const event = await prisma.event.findUnique({
+  let event = await prisma.event.findUnique({
     where: { id: req.params.id },
   });
 
@@ -135,11 +144,25 @@ const registerForEvent = async (req: any, res: any) => {
     deleteUploadedFile(req.file.filename);
   }
 
-  const shirtSize = asString(req.body.shirtSize);
   const swimming = asBool(req.body.swimming);
+  const swimmingPermission =
+    profile.role === "STUDENT" && asBool(req.body.swimmingPermission);
+  if (
+    profile.role === "STUDENT" &&
+    event.requireSwimmingPermission &&
+    !swimmingPermission
+  ) {
+    throw new AppError("Swimming permission is required for students", 400);
+  }
+
   const selfPay = asBool(req.body.selfPay);
   const medications = asStringArray(req.body.medications);
   const allergies = asStringArray(req.body.allergies);
+  const roommateRegistrationId = await resolveRoommateRegistrationId(
+    event.id,
+    req.user!.id,
+    req.body.roommateRegistrationId,
+  );
 
   let spouseId: string | null = null;
   let primaryLeaderRole: string | null = null;
@@ -148,29 +171,30 @@ const registerForEvent = async (req: any, res: any) => {
 
   if (profile.role === "LEADER") {
     primaryLeaderRole = asString(req.body.primaryLeaderRole) || null;
-    secondaryLeaderRoles = asStringArray(req.body.secondaryLeaderRoles);
+    secondaryLeaderRoles = [...new Set(asStringArray(req.body.secondaryLeaderRoles))];
 
     const validRoles = await getLeaderRoleKeySets();
-    if (!primaryLeaderRole || !validRoles.primary.has(primaryLeaderRole)) {
+    if (primaryLeaderRole && !validRoles.primary.has(primaryLeaderRole)) {
+      throw new AppError("Invalid primary leader role", 400);
+    }
+    if (event.requirePrimaryLeaderRole && !primaryLeaderRole) {
       throw new AppError("A valid primary leader role is required", 400);
     }
 
-    const uniqueSecondary = [...new Set(secondaryLeaderRoles)];
     if (
-      uniqueSecondary.length !== 3 ||
-      !uniqueSecondary.every((r) => validRoles.secondary.has(r))
+      secondaryLeaderRoles.length > 3 ||
+      !secondaryLeaderRoles.every((role) => validRoles.secondary.has(role))
     ) {
-      throw new AppError(
-        "Exactly three distinct secondary leader roles are required",
-        400
-      );
+      throw new AppError("Select up to three distinct valid secondary leader roles", 400);
     }
-    secondaryLeaderRoles = uniqueSecondary;
+    if (event.requireSecondaryLeaderRoles && secondaryLeaderRoles.length !== 3) {
+      throw new AppError("Exactly three distinct secondary leader roles are required", 400);
+    }
 
-    if (!req.file) {
+    if (event.requireSafeguardingDoc && !req.file) {
       throw new AppError("Safeguarding/DBS certificate is required", 400);
     }
-    safeguardingDoc = req.file.filename;
+    safeguardingDoc = req.file?.filename ?? null;
 
     const rawSpouseId = req.body.spouseId as string | null | undefined;
     if (rawSpouseId) {
@@ -191,27 +215,89 @@ const registerForEvent = async (req: any, res: any) => {
     }
   }
 
-  const registration = await prisma.registration.create({
-    data: {
-      eventId: event.id,
-      profileId: req.user!.id,
-      shirtSize,
-      swimming,
-      selfPay,
-      medications,
-      allergies,
-      paid: false,
-      mediaConsent: asBool(req.body.mediaConsent),
-      swimmingPermission:
-        profile.role === "STUDENT" && asBool(req.body.swimmingPermission),
-      emergencyName: asString(req.body.emergencyName).trim(),
-      emergencyPhone: asString(req.body.emergencyPhone).trim(),
-      notes: asString(req.body.notes).trim() || null,
-      safeguardingDoc,
-      spouseId,
-      primaryLeaderRole: primaryLeaderRole as any,
-      secondaryLeaderRoles: secondaryLeaderRoles as any[],
-    },
+  const registration = await prisma.$transaction(async (tx: any) => {
+    const locked: any[] = await tx.$queryRaw`
+      SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE
+    `;
+    if (locked.length === 0) throw new AppError("Event not found", 404);
+
+    const lockedEvent = await tx.event.findUnique({ where: { id: event.id } });
+    event = lockedEvent;
+    const additionalAnswers = normalizeAdditionalAnswers(
+      req.body.additionalAnswers,
+      lockedEvent.additionalQuestions,
+    );
+    const shirtSize = parseShirtSize(
+      req.body.shirtSize,
+      lockedEvent.requireShirtSize,
+    );
+    const lockedSwimmingPermission =
+      profile.role === "STUDENT" && asBool(req.body.swimmingPermission);
+    if (
+      profile.role === "STUDENT" &&
+      lockedEvent.requireSwimmingPermission &&
+      !lockedSwimmingPermission
+    ) {
+      throw new AppError("Swimming permission is required for students", 400);
+    }
+
+    if (profile.role === "LEADER") {
+      if (lockedEvent.requirePrimaryLeaderRole && !primaryLeaderRole) {
+        throw new AppError("A valid primary leader role is required", 400);
+      }
+      if (
+        lockedEvent.requireSecondaryLeaderRoles &&
+        secondaryLeaderRoles.length !== 3
+      ) {
+        throw new AppError("Exactly three distinct secondary leader roles are required", 400);
+      }
+      if (lockedEvent.requireSafeguardingDoc && !safeguardingDoc) {
+        throw new AppError("Safeguarding/DBS certificate is required", 400);
+      }
+    }
+
+    const duplicate = await tx.registration.findFirst({
+      where: { eventId: event.id, profileId: req.user!.id },
+      select: { id: true },
+    });
+    if (duplicate) throw new AppError("Already registered for this event", 409);
+
+    if (roommateRegistrationId) {
+      const roommate = await tx.registration.findFirst({
+        where: { id: roommateRegistrationId, eventId: event.id, deletedAt: null },
+        select: { profileId: true },
+      });
+      if (!roommate) {
+        throw new AppError("Selected roommate is not registered for this event", 400);
+      }
+      if (roommate.profileId === req.user!.id) {
+        throw new AppError("A participant cannot select themselves as a roommate", 400);
+      }
+    }
+
+    return tx.registration.create({
+      data: {
+        eventId: event.id,
+        profileId: req.user!.id,
+        shirtSize,
+        additionalAnswers,
+        roommateRegistrationId,
+        swimming,
+        selfPay,
+        medications,
+        allergies,
+        paid: false,
+        mediaConsent: asBool(req.body.mediaConsent),
+        swimmingPermission: lockedSwimmingPermission,
+        emergencyName: asString(req.body.emergencyName).trim(),
+        emergencyPhone: asString(req.body.emergencyPhone).trim(),
+        notes: asString(req.body.notes).trim() || null,
+        safeguardingDoc,
+        spouseId,
+        primaryLeaderRole: primaryLeaderRole as any,
+        secondaryLeaderRoles: secondaryLeaderRoles as any[],
+      },
+    });
   });
 
   if (profile.role === "STUDENT") {
@@ -246,6 +332,16 @@ const registerForEvent = async (req: any, res: any) => {
         year: "numeric",
       });
     const verificationUrl = `${process.env.FRONTEND_URL}/parent-verify?token=${token}`;
+    const roommate = registration.roommateRegistrationId
+      ? await prisma.registration.findUnique({
+          where: { id: registration.roommateRegistrationId },
+          select: { profile: { select: { name: true } } },
+        })
+      : null;
+    const additionalAnswers = formatAdditionalAnswers(
+      event.additionalQuestions,
+      registration.additionalAnswers,
+    );
 
     try {
       await sendParentVerificationEmail(
@@ -254,7 +350,9 @@ const registerForEvent = async (req: any, res: any) => {
           eventName: event.name,
           eventDates: `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`,
           studentName: studentProfile.name,
-          shirtSize,
+          shirtSize: registration.shirtSize,
+          roommate: roommate?.profile.name ?? "",
+          additionalAnswers,
           swimming,
           swimmingPermission: asBool(req.body.swimmingPermission),
           selfPay,
@@ -432,6 +530,57 @@ eventsHandler.post("/:id/points/entries", async (req, res) => {
   });
 });
 
+// Search only existing registrations for this event. Results intentionally
+// expose just enough Profile information to select an ideal roommate.
+eventsHandler.get("/:id/roommates/search", async (req, res) => {
+  const viewer = await prisma.profile.findUnique({
+    where: { id: req.user!.id },
+    select: { approved: true },
+  });
+  if (!viewer?.approved) {
+    throw new AppError("Your account has not been approved yet", 403);
+  }
+
+  const event = await prisma.event.findUnique({
+    where: { id: req.params.id },
+    select: { id: true },
+  });
+  if (!event) throw new AppError("Event not found", 404);
+
+  const q = asString(req.query.q).trim().slice(0, 100);
+  if (!q) {
+    res.status(200).json({ data: [], error: false, message: "" });
+    return;
+  }
+
+  const excludeProfileId =
+    asString(req.query.excludeProfileId).trim() || req.user!.id;
+  const registrations = await prisma.registration.findMany({
+    where: {
+      eventId: event.id,
+      deletedAt: null,
+      profileId: { not: excludeProfileId },
+      profile: { name: { contains: q, mode: "insensitive" } },
+    },
+    select: {
+      id: true,
+      profile: {
+        select: { id: true, name: true, church: { select: { name: true } } },
+      },
+    },
+    orderBy: { profile: { name: "asc" } },
+    take: 20,
+  });
+
+  const data = registrations.map((registration) => ({
+    registrationId: registration.id,
+    profileId: registration.profile.id,
+    name: registration.profile.name,
+    church: registration.profile.church?.name ?? "",
+  }));
+  res.status(200).json({ data, error: false, message: "" });
+});
+
 eventsHandler.get("/:id", async (req, res) => {
   const event = await prisma.event.findUnique({
     where: { id: req.params.id },
@@ -537,6 +686,9 @@ eventsHandler.get("/:id", async (req, res) => {
 
     const registration = await prisma.registration.findFirst({
       where: { eventId: event.id, profileId: req.user.id },
+      include: {
+        roommate: { select: { profile: { select: { name: true } } } },
+      },
     });
 
     if (registration) {
@@ -601,6 +753,11 @@ eventsHandler.get("/:id", async (req, res) => {
         allergies: registration.allergies,
         medication: registration.medications,
         shirtSize: registration.shirtSize,
+        roommate: registration.roommate?.profile.name ?? "",
+        additionalAnswers: formatAdditionalAnswers(
+          event.additionalQuestions,
+          registration.additionalAnswers,
+        ),
         primaryLeaderRole: registration.primaryLeaderRole || null,
         secondaryLeaderRoles: registration.secondaryLeaderRoles,
       };
@@ -621,6 +778,8 @@ eventsHandler.get("/:id", async (req, res) => {
     earlyBirdDate: event.earlyBirdDate,
     registrationCloseDate: event.registrationCloseDate,
     schedule: event.schedule,
+    additionalQuestions: event.additionalQuestions,
+    ...registrationRequirementsFromEvent(event),
     status: statusMap[effectiveEventStatus(event)] || "closed",
     user,
     registrants,

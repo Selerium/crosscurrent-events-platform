@@ -74,6 +74,8 @@ export type CheckInDetail = {
     group: string;
     hiddenInGroup: boolean;
     spouse: string;
+    roommate: string;
+    additionalAnswers: { id: string; label: string; value: string }[];
     primaryLeaderRole: string;
     secondaryLeaderRoles: string[];
     medications: string[];

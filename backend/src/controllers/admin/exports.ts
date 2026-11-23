@@ -3,6 +3,10 @@ import ExcelJS from "exceljs";
 import { prisma } from "../../lib/prismaClient.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
 import {
+  additionalAnswerExportColumns,
+  additionalAnswerExportValues,
+} from "../../lib/registrationExport.ts";
+import {
   effectiveEventStatus,
   uaeDateKey,
 } from "../../lib/registrationWindow.ts";
@@ -242,6 +246,7 @@ adminExportsHandler.get("/events", async (req, res) => {
             include: { user: { select: { email: true } } },
           },
           spouse: { select: { name: true } },
+          roommate: { select: { profile: { select: { name: true } } } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -278,6 +283,8 @@ adminExportsHandler.get("/events", async (req, res) => {
       { header: "Leader Role", key: "primaryLeaderRole", width: 20 },
       { header: "Secondary Roles", key: "secondaryLeaderRoles", width: 35 },
       { header: "Spouse", key: "spouse", width: 25 },
+      { header: "Ideal Roommate (Unconfirmed)", key: "roommate", width: 25 },
+      ...additionalAnswerExportColumns(event.additionalQuestions),
       { header: "Registered At", key: "createdAt", width: 20 },
     ];
     for (const r of event.registrations) {
@@ -289,7 +296,7 @@ adminExportsHandler.get("/events", async (req, res) => {
         paid: r.paid ? "Yes" : "No",
         paymentMethod: r.paymentMethod === "STRIPE" ? "Stripe" : "Other",
         earlyBird: r.earlyBird ? "Yes" : "No",
-        shirtSize: r.shirtSize,
+        shirtSize: r.shirtSize ?? "",
         swimming: r.swimming ? "Yes" : "No",
         selfPay: r.selfPay ? "Yes" : "No",
         medications: r.medications.join(", "),
@@ -310,6 +317,8 @@ adminExportsHandler.get("/events", async (req, res) => {
           .map((s) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))
           .join(", "),
         spouse: r.spouse?.name || "",
+        roommate: r.roommate?.profile.name || "",
+        ...additionalAnswerExportValues(event.additionalQuestions, r.additionalAnswers),
         createdAt: r.createdAt.toISOString(),
       });
     }

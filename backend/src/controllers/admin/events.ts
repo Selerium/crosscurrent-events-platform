@@ -15,14 +15,29 @@ import {
   parseRegistrationCloseDate,
 } from "../../lib/registrationWindow.ts";
 import { expireOpenCheckoutSessions } from "../../lib/stripeCheckout.ts";
+import {
+  assertQuestionEditsAreSafe,
+  emptyAdditionalAnswers,
+  formatAdditionalAnswers,
+  normalizeAdditionalAnswers,
+  validateAdditionalQuestions,
+} from "../../lib/additionalQuestions.ts";
+import {
+  additionalAnswerExportColumns,
+  additionalAnswerExportValues,
+} from "../../lib/registrationExport.ts";
+import {
+  parseShirtSize,
+  readRegistrationRequirements,
+  registrationRequirementsFromEvent,
+  resolveRoommateRegistrationId,
+} from "../../lib/registrationFields.ts";
 
 const statusMap: Record<string, string> = {
   OPEN: "active",
   CLOSED: "closed",
   COMPLETED: "completed",
 };
-
-const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"] as const;
 
 const asString = (value: unknown): string =>
   value == null ? "" : String(value);
@@ -206,6 +221,10 @@ function parseCloseDateOrThrow(value: unknown): Date | null {
 
 adminEventsHandler.post("", async (req, res) => {
   const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule } = req.body;
+  const registrationRequirements = readRegistrationRequirements(req.body);
+  const additionalQuestions = validateAdditionalQuestions(
+    req.body.additionalQuestions ?? [],
+  );
 
   if (!name || !brief || !startDate || !endDate || !maxSignUps || !location || price === undefined) {
     throw new AppError("Missing required fields", 400);
@@ -239,6 +258,8 @@ adminEventsHandler.post("", async (req, res) => {
         earlyBirdDate: earlyBirdDate ? new Date(earlyBirdDate) : null,
         registrationCloseDate: closeDate,
         schedule: schedule ?? [],
+        additionalQuestions,
+        ...registrationRequirements,
       },
     });
   } catch (err) {
@@ -356,6 +377,87 @@ adminEventsHandler.patch("/:id", async (req, res) => {
 
   logAdminAction({ adminId: req.user.id, adminName: req.user.name, action: "event.update", targetType: "event", targetId: req.params.id, details: { name: name || undefined, location: location || undefined, eventStatus }, success: true });
   res.status(200).json({ data: updated, error: false, message: "Event updated" });
+});
+
+/**
+ * Saves registration-form settings without sending a generic event-updated
+ * notification. Optional additions are backfilled onto every registration so
+ * each answer object continues to contain exactly the current question IDs.
+ */
+adminEventsHandler.put("/:id/registration-form", async (req, res) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
+    // Serialize form edits with registration creation, which takes the same
+    // lock before reading event additionalQuestions.
+    const locked: any[] = await tx.$queryRaw`
+      SELECT "id" FROM "Event" WHERE "id" = ${req.params.id} FOR UPDATE
+    `;
+    if (locked.length === 0) throw new AppError("Event not found", 404);
+
+    const event = await tx.event.findUnique({
+      where: { id: req.params.id },
+      include: {
+        registrations: { select: { id: true, additionalAnswers: true } },
+      },
+    });
+    const currentQuestions = validateAdditionalQuestions(event.additionalQuestions);
+    const nextQuestions = validateAdditionalQuestions(
+      req.body.additionalQuestions ?? [],
+    );
+    const requirements = readRegistrationRequirements(
+      req.body,
+      registrationRequirementsFromEvent(event),
+    );
+
+    if (event.registrations.length > 0) {
+      assertQuestionEditsAreSafe(currentQuestions, nextQuestions);
+    }
+
+    const eventUpdate = await tx.event.update({
+      where: { id: event.id },
+      data: { additionalQuestions: nextQuestions, ...requirements },
+    });
+
+    if (event.registrations.length > 0) {
+      const emptyAnswers = emptyAdditionalAnswers(nextQuestions);
+      for (const registration of event.registrations) {
+        const previous =
+          registration.additionalAnswers &&
+          typeof registration.additionalAnswers === "object" &&
+          !Array.isArray(registration.additionalAnswers)
+            ? registration.additionalAnswers
+            : {};
+        const answers = Object.fromEntries(
+          nextQuestions.map((question) => [
+            question.id,
+            Object.prototype.hasOwnProperty.call(previous, question.id)
+              ? previous[question.id]
+              : emptyAnswers[question.id],
+          ]),
+        );
+        await tx.registration.update({
+          where: { id: registration.id },
+          data: { additionalAnswers: answers },
+        });
+      }
+    }
+
+    return eventUpdate;
+  });
+
+  logAdminAction({
+    adminId: req.user.id,
+    adminName: req.user.name,
+    action: "event.update_registration_form",
+    targetType: "event",
+    targetId: updated.id,
+    details: {
+      additionalQuestionCount: validateAdditionalQuestions(
+        updated.additionalQuestions,
+      ).length,
+    },
+  });
+
+  res.status(200).json({ data: updated, error: false, message: "Registration form updated" });
 });
 
 /**
@@ -739,6 +841,8 @@ adminEventsHandler.get("/:id", async (req, res) => {
     revenueStripe,
     revenueSelf,
     schedule: event.schedule,
+    additionalQuestions: event.additionalQuestions,
+    ...registrationRequirementsFromEvent(event),
     groups: event.groups,
     maxInGroup: event.maxInGroup,
     room: event.room,
@@ -779,6 +883,7 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
         },
       },
       spouse: { select: { name: true } },
+      roommate: { select: { profile: { select: { name: true } } } },
     },
     orderBy: { profile: { name: "asc" } },
   });
@@ -809,12 +914,17 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
       earlyBird: r.earlyBird,
       checkInStatus: r.checkInStatus,
       paymentMethod: r.paymentMethod,
-      shirtSize: r.shirtSize,
+      shirtSize: r.shirtSize ?? "",
       swimming: r.swimming,
       selfPay: r.selfPay,
       medications: r.medications,
       allergies: r.allergies,
       spouse: r.spouse?.name || "",
+      roommate: r.roommate?.profile.name || "",
+      additionalAnswers: formatAdditionalAnswers(
+        event.additionalQuestions,
+        r.additionalAnswers,
+      ),
       mediaConsent: r.mediaConsent,
       swimmingPermission: r.swimmingPermission,
       emergencyName: r.emergencyName || "",
@@ -849,13 +959,10 @@ adminEventsHandler.get("/:id/participants", async (req, res) => {
 const addRegistrationForAdmin = async (req: any, res: any) => {
   const { id } = req.params;
   const profileId = asString(req.body?.profileId).trim();
-  const shirtSize = asString(req.body?.shirtSize) || "M";
+  const shirtSize = parseShirtSize(req.body?.shirtSize, false);
 
   if (!profileId) {
     throw new AppError("profileId is required", 400);
-  }
-  if (!SHIRT_SIZES.includes(shirtSize as (typeof SHIRT_SIZES)[number])) {
-    throw new AppError("Invalid shirt size", 400);
   }
 
   const event = await prisma.event.findUnique({ where: { id } });
@@ -871,6 +978,17 @@ const addRegistrationForAdmin = async (req: any, res: any) => {
     },
   });
   if (!profile) throw new AppError("Profile not found", 404);
+
+  const additionalAnswers = normalizeAdditionalAnswers(
+    req.body?.additionalAnswers,
+    event.additionalQuestions,
+    { enforceRequired: false },
+  );
+  const roommateRegistrationId = await resolveRoommateRegistrationId(
+    id,
+    profileId,
+    req.body?.roommateRegistrationId,
+  );
 
   const existing = await prisma.registration.findFirst({
     where: { eventId: id, profileId },
@@ -953,7 +1071,9 @@ const addRegistrationForAdmin = async (req: any, res: any) => {
         profileId,
         medications,
         allergies,
-        shirtSize: shirtSize as (typeof SHIRT_SIZES)[number],
+        shirtSize,
+        additionalAnswers,
+        roommateRegistrationId,
         swimming: asBool(req.body?.swimming),
         selfPay: asBool(req.body?.selfPay),
         mediaConsent: asBool(req.body?.mediaConsent),
@@ -1368,6 +1488,7 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
             },
           },
           spouse: { select: { name: true } },
+          roommate: { select: { profile: { select: { name: true } } } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -1423,6 +1544,8 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
     { header: "Primary Leader Role", key: "primaryLeaderRole", width: 25 },
     { header: "Secondary Leader Roles", key: "secondaryLeaderRoles", width: 40 },
     { header: "Safeguarding Doc", key: "safeguardingDoc", width: 40 },
+    { header: "Ideal Roommate (Unconfirmed)", key: "roommate", width: 25 },
+    ...additionalAnswerExportColumns(event.additionalQuestions),
   ];
 
   for (const r of event.registrations) {
@@ -1473,6 +1596,11 @@ adminEventsHandler.get("/:id/export/registrations", async (req, res) => {
         ? r.secondaryLeaderRoles.join(", ")
         : "",
       safeguardingDoc: r.safeguardingDoc ?? "",
+      roommate: r.roommate?.profile.name ?? "",
+      ...additionalAnswerExportValues(
+        event.additionalQuestions,
+        r.additionalAnswers,
+      ),
     });
   }
 

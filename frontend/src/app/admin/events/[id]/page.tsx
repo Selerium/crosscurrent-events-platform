@@ -49,6 +49,7 @@ import {
 import { currencyFormatter, formatEventDate, type AdminEvent } from "../../data";
 import RequiredActionsManager from "@/components/admin/RequiredActionsManager";
 import AddParticipantModal from "@/components/admin/AddParticipantModal";
+import RegistrationFormEditor from "@/components/admin/RegistrationFormEditor";
 import { CheckInStatusPill } from "@/components/check-in/CheckInStatusPill";
 import api from "@/lib/axios";
 import { CHECK_IN_LEADER_ROLE } from "@/lib/checkIn";
@@ -88,6 +89,8 @@ type Participant = {
   checkInStatus: CheckInStatus;
   paymentMethod: string;
   shirtSize: string;
+  roommate: string;
+  additionalAnswers: { id: string; label: string; value: string }[];
   swimming: boolean;
   selfPay: boolean;
   medications: string[];
@@ -727,6 +730,14 @@ export default function AdminEventPage() {
         </div>
 
         <hr />
+
+        <RegistrationFormEditor
+          event={eventInfo}
+          onSaved={async (updated) => {
+            setEventInfo(updated);
+            await refreshParticipantData();
+          }}
+        />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="order-2 col-span-1 flex flex-col gap-2 lg:order-1 lg:col-span-2 lg:overflow-y-scroll lg:h-125">
@@ -1420,7 +1431,7 @@ export default function AdminEventPage() {
                       {p.group && <p>Group: {p.group}</p>}
                       {p.room && <p>Room: {p.room}</p>}
                       {p.gender && <p className="capitalize">{p.gender.toLowerCase()}</p>}
-                      <p>Shirt: {p.shirtSize}</p>
+                      <p>Shirt: {p.shirtSize || "Not provided"}</p>
                       <p>Swimming: {p.swimming ? "Yes" : "No"}</p>
                       <p>Swim Permit: {p.swimmingPermission ? "Yes" : "No"}</p>
                       <p>Media: {p.mediaConsent ? "Yes" : "No"}</p>
@@ -1432,6 +1443,12 @@ export default function AdminEventPage() {
                         </p>
                       )}
                       {p.notes && <p>Notes: {p.notes}</p>}
+                      {p.roommate && <p>Ideal roommate (unconfirmed): {p.roommate}</p>}
+                      {p.additionalAnswers.map((answer) => (
+                        <p key={answer.id} className="col-span-2">
+                          {answer.label}: {answer.value}
+                        </p>
+                      ))}
                     </div>
                     {(p.parentOneName ||
                       p.parentOneEmail ||
@@ -1534,6 +1551,7 @@ export default function AdminEventPage() {
           capacity={eventInfo.capacity}
           primaryRoles={primaryRoles}
           secondaryRoles={secondaryRoles}
+          additionalQuestions={eventInfo.additionalQuestions}
           onClose={() => setShowAddParticipant(false)}
           onAdded={refreshParticipantData}
         />

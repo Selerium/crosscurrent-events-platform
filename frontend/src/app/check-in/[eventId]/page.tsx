@@ -556,6 +556,19 @@ export default function EventCheckInPage() {
                     />
                     <InfoBlock
                       icon={<Users className="size-4" />}
+                      label="Ideal roommate (unconfirmed)"
+                      value={detail.registration.roommate}
+                    />
+                    {detail.registration.additionalAnswers.map((answer) => (
+                      <InfoBlock
+                        key={answer.id}
+                        icon={<FileText className="size-4" />}
+                        label={answer.label}
+                        value={answer.value}
+                      />
+                    ))}
+                    <InfoBlock
+                      icon={<Users className="size-4" />}
                       label="Leader roles"
                       value={leaderRolesText(detail, roleInfo)}
                     />

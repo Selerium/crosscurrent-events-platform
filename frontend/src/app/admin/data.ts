@@ -1,3 +1,8 @@
+import type {
+  AdditionalQuestion,
+  RegistrationRequirements,
+} from "@/lib/registrationForm";
+
 export type PaginatedResponse<T> = {
   data: T[];
   total: number;
@@ -8,7 +13,7 @@ export type PaginatedResponse<T> = {
 
 export type EventStatus = "active" | "closed" | "completed";
 
-export type AdminEvent = {
+export type AdminEvent = RegistrationRequirements & {
   id: string;
   name: string;
   brief: string;
@@ -24,6 +29,7 @@ export type AdminEvent = {
   earlyBirdPrice: number | null;
   earlyBirdDate: string | null;
   registrationCloseDate: string | null;
+  additionalQuestions: AdditionalQuestion[];
   revenue: number;
   revenueStripe: number;
   revenueSelf: number;

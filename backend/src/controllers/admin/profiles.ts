@@ -132,7 +132,7 @@ adminProfilesHandler.get("/:id", async (req, res) => {
     registrations: profile.registrations.map((r) => ({
       id: r.id,
       paid: r.paid,
-      shirtSize: r.shirtSize,
+      shirtSize: r.shirtSize ?? "",
       swimming: r.swimming,
       selfPay: r.selfPay,
       createdAt: r.createdAt.toISOString(),

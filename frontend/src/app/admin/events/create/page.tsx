@@ -16,6 +16,13 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { ChevronLeft, CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { dateKeyFromPicker } from "@/lib/uaeDate";
+import AdditionalQuestionBuilder from "@/components/registration/AdditionalQuestionBuilder";
+import RegistrationRequirementsFields from "@/components/registration/RegistrationRequirementsFields";
+import {
+  defaultRegistrationRequirements,
+  type AdditionalQuestion,
+  type RegistrationRequirements,
+} from "@/lib/registrationForm";
 
 type ScheduleItem = {
   item: string;
@@ -50,6 +57,10 @@ export default function CreateEventPage() {
     },
   });
   const [schedule, setSchedule] = useState<ScheduleItem[][]>([[]]);
+  const [additionalQuestions, setAdditionalQuestions] = useState<AdditionalQuestion[]>([]);
+  const [requirements, setRequirements] = useState<RegistrationRequirements>({
+    ...defaultRegistrationRequirements,
+  });
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
   const [closeDateOpen, setCloseDateOpen] = useState(false);
@@ -126,6 +137,8 @@ export default function CreateEventPage() {
           : undefined,
         earlyBirdDate: data.earlyBirdDate?.toISOString(),
         schedule,
+        additionalQuestions,
+        ...requirements,
       });
       toast.success("Event created");
       router.push("/dashboard");
@@ -504,6 +517,15 @@ export default function CreateEventPage() {
               </div>
             ))}
           </div>
+
+          <RegistrationRequirementsFields
+            value={requirements}
+            onChange={setRequirements}
+          />
+          <AdditionalQuestionBuilder
+            value={additionalQuestions}
+            onChange={setAdditionalQuestions}
+          />
 
           <Button type="submit" className="justify-center">
             Create Event

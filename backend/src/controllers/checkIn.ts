@@ -11,6 +11,7 @@ import {
 import { prisma, type CheckInStatus } from "../lib/prismaClient.ts";
 import requireCheckInStaff from "../middleware/requireCheckInStaff.ts";
 import { uploadsDir } from "../lib/uploads.ts";
+import { formatAdditionalAnswers } from "../lib/additionalQuestions.ts";
 
 const checkInHandler = express.Router();
 
@@ -175,6 +176,7 @@ checkInHandler.get(
           },
         },
         spouse: { select: { name: true } },
+        roommate: { select: { profile: { select: { name: true } } } },
         event: {
           select: {
             id: true,
@@ -183,6 +185,7 @@ checkInHandler.get(
             endDate: true,
             location: true,
             eventStatus: true,
+            additionalQuestions: true,
           },
         },
       },
@@ -243,7 +246,7 @@ checkInHandler.get(
         paymentMethod: registration.paymentMethod,
         earlyBird: registration.earlyBird,
         selfPay: registration.selfPay,
-        shirtSize: registration.shirtSize,
+        shirtSize: registration.shirtSize ?? "Not provided",
         swimming: registration.swimming,
         swimmingPermission: registration.swimmingPermission,
         mediaConsent: registration.mediaConsent,
@@ -251,6 +254,11 @@ checkInHandler.get(
         group: registration.group || "",
         hiddenInGroup: registration.hiddenInGroup,
         spouse: registration.spouse?.name || "",
+        roommate: registration.roommate?.profile.name || "",
+        additionalAnswers: formatAdditionalAnswers(
+          registration.event.additionalQuestions,
+          registration.additionalAnswers,
+        ),
         primaryLeaderRole: registration.primaryLeaderRole || "",
         secondaryLeaderRoles: registration.secondaryLeaderRoles,
         medications: registration.medications,

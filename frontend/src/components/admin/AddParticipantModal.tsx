@@ -9,6 +9,16 @@ import type { LeaderRoleOption } from "@/lib/leaderRoles";
 import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import AdditionalQuestionFields from "@/components/registration/AdditionalQuestionFields";
+import RoommatePicker, {
+  type RoommateOption,
+} from "@/components/registration/RoommatePicker";
+import {
+  emptyAdditionalAnswers,
+  validateAdditionalAnswers,
+  type AdditionalAnswers,
+  type AdditionalQuestion,
+} from "@/lib/registrationForm";
 
 const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"] as const;
 
@@ -45,7 +55,7 @@ type SpouseOption = {
 
 function emptyAnswers(): RegistrationAnswers {
   return {
-    shirtSize: "M",
+    shirtSize: "",
     swimming: false,
     selfPay: false,
     medications: [],
@@ -228,6 +238,7 @@ export default function AddParticipantModal({
   capacity,
   primaryRoles,
   secondaryRoles,
+  additionalQuestions,
   onClose,
   onAdded,
 }: {
@@ -237,6 +248,7 @@ export default function AddParticipantModal({
   capacity: number;
   primaryRoles: LeaderRoleOption[];
   secondaryRoles: LeaderRoleOption[];
+  additionalQuestions: AdditionalQuestion[];
   onClose: () => void;
   onAdded: () => Promise<void>;
 }) {
@@ -247,6 +259,10 @@ export default function AddParticipantModal({
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [safeguardingFile, setSafeguardingFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [additionalAnswers, setAdditionalAnswers] = useState<AdditionalAnswers>(
+    () => emptyAdditionalAnswers(additionalQuestions),
+  );
+  const [roommate, setRoommate] = useState<RoommateOption | null>(null);
 
   const { control, handleSubmit, reset } = useForm<RegistrationAnswers>({
     defaultValues: emptyAnswers(),
@@ -278,20 +294,37 @@ export default function AddParticipantModal({
     };
   }, [query]);
 
+  function resetDynamicAnswers() {
+    setAdditionalAnswers(emptyAdditionalAnswers(additionalQuestions));
+    setRoommate(null);
+  }
+
   function chooseAccount(account: Account) {
     setSelectedAccount(account);
     setSafeguardingFile(null);
     reset(emptyAnswers());
+    resetDynamicAnswers();
   }
 
   function changeAccount() {
     setSelectedAccount(null);
     setSafeguardingFile(null);
     reset(emptyAnswers());
+    resetDynamicAnswers();
   }
 
   async function onSubmit(data: RegistrationAnswers) {
     if (!selectedAccount) return;
+
+    const additionalError = validateAdditionalAnswers(
+      additionalQuestions,
+      additionalAnswers,
+      false,
+    );
+    if (additionalError) {
+      toast.warning(additionalError);
+      return;
+    }
 
     const isLeader = selectedAccount.role === "LEADER";
 
@@ -299,7 +332,11 @@ export default function AddParticipantModal({
     try {
       const formData = new FormData();
       formData.append("profileId", selectedAccount.id);
-      formData.append("shirtSize", data.shirtSize);
+      if (data.shirtSize) formData.append("shirtSize", data.shirtSize);
+      formData.append("additionalAnswers", JSON.stringify(additionalAnswers));
+      if (roommate) {
+        formData.append("roommateRegistrationId", roommate.registrationId);
+      }
       formData.append("swimming", String(data.swimming));
       formData.append("selfPay", String(data.selfPay));
       data.medications.forEach((item) => formData.append("medications", item));
@@ -482,7 +519,7 @@ export default function AddParticipantModal({
                 <span className="font-bold">
                   Shirt Size{" "}
                   <span className="font-medium italic text-muted-foreground">
-                    (optional - defaults to M)
+                    (optional)
                   </span>
                 </span>
                 <Controller
@@ -494,7 +531,9 @@ export default function AddParticipantModal({
                         <button
                           key={size}
                           type="button"
-                          onClick={() => field.onChange(size)}
+                          onClick={() =>
+                            field.onChange(field.value === size ? "" : size)
+                          }
                           className={cn(
                             "cursor-pointer rounded-lg border px-4 py-2 font-bold transition-all",
                             field.value === size
@@ -672,7 +711,11 @@ export default function AddParticipantModal({
                             <button
                               key={role.value}
                               type="button"
-                              onClick={() => field.onChange(role.value)}
+                              onClick={() =>
+                                field.onChange(
+                                  field.value === role.value ? "" : role.value,
+                                )
+                              }
                               className={cn(
                                 "cursor-pointer rounded-lg border px-4 py-2 font-bold transition-all",
                                 field.value === role.value
@@ -872,6 +915,20 @@ export default function AddParticipantModal({
                   )}
                 />
               </div>
+
+              <AdditionalQuestionFields
+                questions={additionalQuestions}
+                value={additionalAnswers}
+                onChange={setAdditionalAnswers}
+                idPrefix="admin-additional"
+              />
+              <RoommatePicker
+                key={selectedAccount.id}
+                eventId={eventId}
+                excludeProfileId={selectedAccount.id}
+                value={roommate}
+                onChange={setRoommate}
+              />
             </div>
 
             <div className="flex justify-end gap-2 border-t pt-3">

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "./prismaClient.ts";
 import { sendParentVerificationEmail } from "./email.ts";
+import { formatAdditionalAnswers } from "./additionalQuestions.ts";
 
 const GROUP_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -22,7 +23,15 @@ export async function sendParentApproval(registrationId: string) {
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: {
-      event: { select: { name: true, startDate: true, endDate: true } },
+      event: {
+        select: {
+          name: true,
+          startDate: true,
+          endDate: true,
+          additionalQuestions: true,
+        },
+      },
+      roommate: { select: { profile: { select: { name: true } } } },
       profile: {
         select: { name: true, parentOneEmail: true },
       },
@@ -54,6 +63,11 @@ export async function sendParentApproval(registrationId: string) {
       eventDates,
       studentName: r.profile.name,
       shirtSize: r.shirtSize,
+      roommate: r.roommate?.profile.name ?? "",
+      additionalAnswers: formatAdditionalAnswers(
+        r.event.additionalQuestions,
+        r.additionalAnswers,
+      ),
       swimming: r.swimming,
       swimmingPermission: r.swimmingPermission,
       selfPay: r.selfPay,

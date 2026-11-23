@@ -6,6 +6,10 @@ import AppError from "../lib/appError.ts";
 import { createNotifications } from "../lib/notifications.ts";
 import { sendChurchApplicationEmail } from "../lib/email.ts";
 import { logAdminAction } from "../lib/adminLog.ts";
+import {
+  additionalAnswerExportColumns,
+  additionalAnswerExportValues,
+} from "../lib/registrationExport.ts";
 
 const churchesHandler = express.Router();
 
@@ -307,6 +311,7 @@ churchesHandler.get("/my/events/:eventId/export", async (req, res) => {
         include: {
           profile: { include: { user: { select: { email: true } } } },
           spouse: { select: { name: true } },
+          roommate: { select: { profile: { select: { name: true } } } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -343,6 +348,8 @@ churchesHandler.get("/my/events/:eventId/export", async (req, res) => {
     { header: "Leader Role", key: "primaryLeaderRole", width: 20 },
     { header: "Secondary Roles", key: "secondaryLeaderRoles", width: 35 },
     { header: "Spouse", key: "spouse", width: 25 },
+    { header: "Ideal Roommate (Unconfirmed)", key: "roommate", width: 25 },
+    ...additionalAnswerExportColumns(event.additionalQuestions),
     { header: "Registered At", key: "createdAt", width: 20 },
   ];
   for (const r of event.registrations) {
@@ -356,7 +363,7 @@ churchesHandler.get("/my/events/:eventId/export", async (req, res) => {
       paid: r.paid ? "Yes" : "No",
       paymentMethod: r.paymentMethod === "STRIPE" ? "Stripe" : "Other",
       earlyBird: r.earlyBird ? "Yes" : "No",
-      shirtSize: r.shirtSize,
+      shirtSize: r.shirtSize ?? "",
       swimming: r.swimming ? "Yes" : "No",
       selfPay: r.selfPay ? "Yes" : "No",
       medications: r.medications.join(", "),
@@ -375,6 +382,8 @@ churchesHandler.get("/my/events/:eventId/export", async (req, res) => {
       primaryLeaderRole: r.primaryLeaderRole ? titleCase(r.primaryLeaderRole) : "",
       secondaryLeaderRoles: r.secondaryLeaderRoles.map(titleCase).join(", "),
       spouse: r.spouse?.name || "",
+      roommate: r.roommate?.profile.name || "",
+      ...additionalAnswerExportValues(event.additionalQuestions, r.additionalAnswers),
       createdAt: r.createdAt.toISOString(),
     });
   }

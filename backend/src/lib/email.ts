@@ -1,6 +1,8 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// The client requires a non-empty key at construction. Tests import this
+// module for its pure email builders without configuring a real mail account.
+const resend = new Resend(process.env.RESEND_API_KEY || "re_test_placeholder");
 
 export const sendVerificationEmail = async (
   to: string,
@@ -220,7 +222,9 @@ export type ParentVerificationOptions = {
   eventName: string;
   eventDates: string;
   studentName: string;
-  shirtSize: string;
+  shirtSize: string | null;
+  roommate?: string;
+  additionalAnswers?: Array<{ label: string; value: string }>;
   swimming: boolean;
   swimmingPermission: boolean;
   selfPay: boolean;
@@ -232,17 +236,24 @@ export type ParentVerificationOptions = {
   notes: string;
 };
 
+const escapeEmailHtml = (value: string) =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
 const optionRow = (label: string, value: string) =>
   `<tr>
-    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; color: #555; font-size: 14px;">${label}</td>
-    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; color: #1a1a1a; font-size: 14px; font-weight: bold;">${value}</td>
+    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; color: #555; font-size: 14px;">${escapeEmailHtml(label)}</td>
+    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; color: #1a1a1a; font-size: 14px; font-weight: bold;">${escapeEmailHtml(value)}</td>
   </tr>`;
 
-export const sendParentVerificationEmail = async (
-  to: string,
+export function buildParentVerificationEmail(
   options: ParentVerificationOptions,
-  verificationUrl: string
-) => {
+  verificationUrl: string,
+) {
   const list = (items: string[], fallback: string) =>
     items.length > 0 ? items.join(", ") : fallback;
 
@@ -250,7 +261,11 @@ export const sendParentVerificationEmail = async (
     optionRow("Event", options.eventName),
     optionRow("Event dates", options.eventDates),
     optionRow("Student", options.studentName),
-    optionRow("Shirt size", options.shirtSize),
+    optionRow("Shirt size", options.shirtSize ?? "Not provided"),
+    options.roommate ? optionRow("Ideal roommate (unconfirmed)", options.roommate) : "",
+    ...(options.additionalAnswers ?? []).map((answer) =>
+      optionRow(answer.label, answer.value),
+    ),
     optionRow("Swimming", options.swimming ? "Yes" : "No"),
     options.swimmingPermission
       ? optionRow("Swimming permission granted", "Yes")
@@ -271,18 +286,14 @@ export const sendParentVerificationEmail = async (
     options.notes ? optionRow("Notes", options.notes) : "",
   ].join("");
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`[email] parent verification link for ${to}: ${verificationUrl}`);
-  }
-
-  const { data, error } = await resend.emails.send({
-    from: "do-not-reply@crosscurrent.ae",
-    to,
+  return {
     subject: `Registration approval needed for ${options.eventName} | CrossCurrent`,
     text: `Hi, this is a notice that ${options.studentName} has registered for ${options.eventName} (${options.eventDates}) and selected the following options:
 
-Shirt size: ${options.shirtSize}
+Shirt size: ${options.shirtSize ?? "Not provided"}
 Swimming: ${options.swimming ? "Yes" : "No"}
+${options.swimmingPermission ? "Swimming permission granted: Yes\n" : ""}${options.roommate ? `Ideal roommate (unconfirmed): ${options.roommate}` : ""}
+${(options.additionalAnswers ?? []).map((answer) => `${answer.label}: ${answer.value}`).join("\n")}
 Payment: ${options.selfPay ? "Requesting scholarship" : "Paying"}
 Medications: ${list(options.medications, "None")}
 Allergies/Dietary restrictions: ${list(options.allergies, "None")}
@@ -308,6 +319,24 @@ Please approve this registration by opening this link: ${verificationUrl}`,
         <p style="color: #777; font-size: 12px;">This link expires in 7 days.</p>
       </div>
     `,
+  };
+}
+
+export const sendParentVerificationEmail = async (
+  to: string,
+  options: ParentVerificationOptions,
+  verificationUrl: string
+) => {
+  const email = buildParentVerificationEmail(options, verificationUrl);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[email] parent verification link for ${to}: ${verificationUrl}`);
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: "do-not-reply@crosscurrent.ae",
+    to,
+    ...email,
   });
 
   if (error) {
