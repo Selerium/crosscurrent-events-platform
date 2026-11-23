@@ -792,7 +792,7 @@ function InfoBlock({
         {icon}
         {label}
       </div>
-      <p className="mt-1 break-words text-sm font-semibold text-foreground">
+      <p className="mt-1 break-words whitespace-pre-wrap text-sm font-semibold text-foreground">
         {value?.trim() ? value : "Not provided"}
       </p>
     </div>

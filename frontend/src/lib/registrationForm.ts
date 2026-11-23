@@ -1,5 +1,6 @@
 export const ADDITIONAL_QUESTION_TYPES = [
   "text",
+  "textarea",
   "date",
   "options",
   "pills",
@@ -32,7 +33,7 @@ export type AdditionalQuestion = {
   multiple?: boolean;
   minSelections?: number;
   maxSelections?: number;
-  /** Maximum character count for text questions. */
+  /** Maximum character count for text and textarea questions. */
   maxLength?: number;
 };
 
@@ -223,7 +224,7 @@ export function validateAdditionalAnswers(
       return `${name} must contain a single answer.`;
     }
 
-    if (question.type === "text") {
+    if (question.type === "text" || question.type === "textarea") {
       if (
         question.maxLength !== undefined &&
         answer.length > question.maxLength

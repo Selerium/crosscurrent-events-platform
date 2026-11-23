@@ -43,6 +43,19 @@ test("parent email shows optional roommate preferences and additional answers", 
   assert.match(email.html, /https:\/\/example\.test\/parent-verify\?token=abc/);
 });
 
+test("multiline additional answers keep their line breaks in HTML email", () => {
+  const email = buildParentVerificationEmail(
+    {
+      ...baseOptions,
+      additionalAnswers: [{ label: "Long answer", value: "Line one\nLine two & more" }],
+    },
+    verificationUrl
+  );
+
+  assert.match(email.text, /Long answer: Line one\nLine two & more/);
+  assert.match(email.html, /Line one<br \/>Line two &amp; more/);
+});
+
 test("swimming and swimming permission stay separate rows", () => {
   const email = buildParentVerificationEmail(baseOptions, verificationUrl);
 

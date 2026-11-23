@@ -25,6 +25,10 @@ export type AdditionalQuestion =
       maxLength: number;
     })
   | (AdditionalQuestionBase & {
+      type: "textarea";
+      maxLength: number;
+    })
+  | (AdditionalQuestionBase & {
       type: "date";
     })
   | (AdditionalQuestionBase & {
@@ -53,7 +57,7 @@ const MAX_HELP_TEXT_LENGTH = 5000;
 const DEFAULT_TEXT_MAX_LENGTH = 5000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const QUESTION_TYPES = new Set(["text", "date", "options", "pills"]);
+const QUESTION_TYPES = new Set(["text", "textarea", "date", "options", "pills"]);
 
 function badRequest(message: string): never {
   throw new AppError(message, 400);
@@ -230,7 +234,7 @@ export function validateAdditionalQuestions(input: unknown): AdditionalQuestion[
     questionIds.add(idKey);
 
     if (typeof questionInput.type !== "string" || !QUESTION_TYPES.has(questionInput.type)) {
-      badRequest(`${description} type must be one of text, date, options, or pills`);
+      badRequest(`${description} type must be one of text, textarea, date, options, or pills`);
     }
     const type = questionInput.type;
 
@@ -260,9 +264,9 @@ export function validateAdditionalQuestions(input: unknown): AdditionalQuestion[
     const showIf = validateCondition(questionInput.showIf, questions, description);
     if (showIf) base.showIf = showIf;
 
-    if (type === "text") {
+    if (type === "text" || type === "textarea") {
       if (questionInput.options !== undefined) {
-        badRequest(`${description} text questions cannot have options`);
+        badRequest(`${description} ${type} questions cannot have options`);
       }
       questions.push({
         ...base,
@@ -401,7 +405,7 @@ function normalizeWithQuestions(
       continue;
     }
 
-    if (question.type === "text") {
+    if (question.type === "text" || question.type === "textarea") {
       if (value !== undefined && value !== null && typeof value !== "string") {
         badRequest(`${description} answer must be a string or null`);
       }

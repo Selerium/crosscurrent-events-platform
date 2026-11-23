@@ -20,6 +20,13 @@ const textQuestion = (overrides = {}) => ({
   required: false,
   ...overrides,
 });
+const textareaQuestion = (overrides = {}) => ({
+  id: uuid(6),
+  type: "textarea",
+  label: "Tell us more",
+  required: false,
+  ...overrides,
+});
 const dateQuestion = (overrides = {}) => ({
   id: uuid(2),
   type: "date",
@@ -61,6 +68,7 @@ test("question validation returns trimmed canonical plain data and defaults", ()
       helpText: "  A short answer  ",
       extraMetadata: "not persisted",
     }),
+    textareaQuestion({ label: "  Tell us more  " }),
     dateQuestion(),
     optionsQuestion({
       label: " Meal ",
@@ -79,6 +87,13 @@ test("question validation returns trimmed canonical plain data and defaults", ()
       type: "text",
       label: "About you",
       helpText: "A short answer",
+      required: false,
+      maxLength: 5000,
+    },
+    {
+      id: uuid(6),
+      type: "textarea",
+      label: "Tell us more",
       required: false,
       maxLength: 5000,
     },
@@ -118,13 +133,14 @@ test("question validation returns trimmed canonical plain data and defaults", ()
   ]);
   assert.deepEqual(questions, snapshot, "validation must not mutate event JSON");
   assert.notEqual(result[0], questions[0]);
-  assert.notEqual(result[2].options[0], questions[2].options[0]);
+  assert.notEqual(result[3].options[0], questions[3].options[0]);
 });
 
 test("empty answers include exactly every question key with canonical empties", () => {
-  const questions = [textQuestion(), dateQuestion(), optionsQuestion(), pillsQuestion(), pillsQuestion({ id: uuid(5), multiple: true })];
+  const questions = [textQuestion(), textareaQuestion(), dateQuestion(), optionsQuestion(), pillsQuestion(), pillsQuestion({ id: uuid(5), multiple: true })];
   const expected = {
     [uuid(1)]: null,
+    [uuid(6)]: null,
     [uuid(2)]: null,
     [uuid(3)]: null,
     [uuid(4)]: null,
@@ -140,9 +156,10 @@ test("empty answers include exactly every question key with canonical empties", 
 });
 
 test("normalizes all answer types and preserves date-only strings", () => {
-  const questions = [textQuestion(), dateQuestion(), optionsQuestion(), pillsQuestion(), pillsQuestion({ id: uuid(5), multiple: true })];
+  const questions = [textQuestion(), textareaQuestion(), dateQuestion(), optionsQuestion(), pillsQuestion(), pillsQuestion({ id: uuid(5), multiple: true })];
   const answers = {
     [uuid(1)]: "  A useful answer  ",
+    [uuid(6)]: "  Line one\nLine two  ",
     [uuid(2)]: "2024-02-29",
     [uuid(3)]: uuid(101),
     [uuid(4)]: uuid(102),
@@ -151,6 +168,7 @@ test("normalizes all answer types and preserves date-only strings", () => {
 
   const expected = {
     [uuid(1)]: "A useful answer",
+    [uuid(6)]: "Line one\nLine two",
     [uuid(2)]: "2024-02-29",
     [uuid(3)]: uuid(101),
     [uuid(4)]: uuid(102),
@@ -192,9 +210,10 @@ test("unknown answer keys and option ids are always rejected", () => {
   }
 });
 
-test("required text, date, options, and single pills reject null or blank answers", () => {
+test("required text, textarea, date, options, and single pills reject null or blank answers", () => {
   const cases = [
     [textQuestion({ required: true }), " "],
+    [textareaQuestion({ required: true }), " "],
     [dateQuestion({ required: true }), ""],
     [optionsQuestion({ required: true }), null],
     [pillsQuestion({ required: true }), " "],
@@ -305,13 +324,16 @@ test("choice options are required, bounded, and have valid unique definitions", 
   assertBadRequest(() => validateAdditionalQuestions([optionsQuestion({ options: [{ id: uuid(101), label: " " }] })]), /blank/);
   assertBadRequest(() => validateAdditionalQuestions([dateQuestion({ options: [] })]), /cannot have options/);
   assertBadRequest(() => validateAdditionalQuestions([textQuestion({ options: [] })]), /cannot have options/);
+  assertBadRequest(() => validateAdditionalQuestions([textareaQuestion({ options: [] })]), /cannot have options/);
 });
 
-test("text maxLength and pills selection definition limits are validated", () => {
+test("text and textarea maxLength and pills selection definition limits are validated", () => {
   for (const maxLength of [0, -1, 1.5, "100", 5001]) {
     assertBadRequest(() => validateAdditionalQuestions([textQuestion({ maxLength })]), /maxLength/);
+    assertBadRequest(() => validateAdditionalQuestions([textareaQuestion({ maxLength })]), /maxLength/);
   }
   assert.equal(validateAdditionalQuestions([textQuestion({ maxLength: 1 })])[0].maxLength, 1);
+  assert.equal(validateAdditionalQuestions([textareaQuestion({ maxLength: 1 })])[0].maxLength, 1);
 
   const invalidPills = [
     { multiple: "true" },
@@ -334,6 +356,20 @@ test("text answers enforce the canonical trimmed maxLength", () => {
   assertBadRequest(() => normalizeAdditionalAnswers({ [uuid(1)]: "abcdef" }, [question]), /cannot exceed 5/);
   assertBadRequest(() => normalizeAdditionalAnswers({ [uuid(1)]: 42 }, [question]), /string or null/);
   assert.deepEqual(normalizeAdditionalAnswers({ [uuid(1)]: "   " }, [question]), { [uuid(1)]: null });
+});
+
+test("textarea answers preserve internal line breaks and enforce maxLength", () => {
+  const question = textareaQuestion({ maxLength: 30 });
+  assert.deepEqual(
+    normalizeAdditionalAnswers({ [uuid(6)]: "  First line\nSecond line  " }, [question]),
+    { [uuid(6)]: "First line\nSecond line" }
+  );
+  assertBadRequest(
+    () => normalizeAdditionalAnswers({ [uuid(6)]: "x\ny\nz\nw\nv" }, [textareaQuestion({ maxLength: 5 })]),
+    /cannot exceed 5/
+  );
+  assertBadRequest(() => normalizeAdditionalAnswers({ [uuid(6)]: 42 }, [question]), /string or null/);
+  assert.deepEqual(normalizeAdditionalAnswers({ [uuid(6)]: " \n " }, [question]), { [uuid(6)]: null });
 });
 
 test("date answers require strict real YYYY-MM-DD dates without timezone conversion", () => {
@@ -377,6 +413,7 @@ test("multi selections reject non-string entries and duplicates", () => {
 test("formatting uses stable question and option labels and canonical empty text", () => {
   const questions = [
     textQuestion({ label: " Notes ", required: true }),
+    textareaQuestion({ label: " Longer notes " }),
     dateQuestion(),
     optionsQuestion({ required: true }),
     pillsQuestion({ id: uuid(4), required: true }),
@@ -384,6 +421,7 @@ test("formatting uses stable question and option labels and canonical empty text
   ];
   const answers = {
     [uuid(1)]: "  ",
+    [uuid(6)]: "First line\nSecond line",
     [uuid(2)]: "2026-07-20",
     [uuid(3)]: uuid(102),
     [uuid(4)]: "",
@@ -392,6 +430,7 @@ test("formatting uses stable question and option labels and canonical empty text
 
   const expected = [
     { id: uuid(1), label: "Notes", value: "Not provided" },
+    { id: uuid(6), label: "Longer notes", value: "First line\nSecond line" },
     { id: uuid(2), label: "Available date", value: "2026-07-20" },
     { id: uuid(3), label: "Meal", value: "Chicken" },
     { id: uuid(4), label: "Sessions", value: "Not provided" },
@@ -400,7 +439,7 @@ test("formatting uses stable question and option labels and canonical empty text
   assert.deepEqual(formatAdditionalAnswers(questions, answers), expected);
   assert.deepEqual(formatAdditionalAnswers(questions, JSON.stringify(answers)), expected);
   assert.deepEqual(
-    formatAdditionalAnswers(questions, { ...answers, [uuid(5)]: [] })[4],
+    formatAdditionalAnswers(questions, { ...answers, [uuid(5)]: [] })[5],
     { id: uuid(5), label: "Many sessions", value: "Not provided" }
   );
 });

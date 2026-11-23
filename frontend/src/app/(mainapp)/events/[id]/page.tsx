@@ -1927,7 +1927,9 @@ export default function EventPage() {
                       className="flex items-start justify-between gap-4 p-4 rounded-lg border"
                     >
                       <span className="font-bold">{answer.label}</span>
-                      <span className="text-right break-words">{answer.value}</span>
+                      <span className="text-right break-words whitespace-pre-wrap">
+                        {answer.value}
+                      </span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between gap-2 p-4 rounded-lg border">

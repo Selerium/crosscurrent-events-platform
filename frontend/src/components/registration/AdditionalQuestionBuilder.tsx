@@ -60,6 +60,12 @@ export default function AdditionalQuestionBuilder({
     if (question.type === type) return;
     const replacement = newAdditionalQuestion(type);
     const next = { ...replacement, id: question.id, label: question.label, helpText: question.helpText, required: question.required };
+    if (
+      (question.type === "text" || question.type === "textarea") &&
+      (type === "text" || type === "textarea")
+    ) {
+      next.maxLength = question.maxLength;
+    }
     if (type === "options" || type === "pills") {
       next.options = question.options?.length ? question.options : replacement.options;
     }
@@ -139,6 +145,7 @@ export default function AdditionalQuestionBuilder({
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="text">Text field</SelectItem>
+                    <SelectItem value="textarea">Multiline text</SelectItem>
                     <SelectItem value="date">Date</SelectItem>
                     <SelectItem value="options">Dropdown options</SelectItem>
                     <SelectItem value="pills">Pill options</SelectItem>
@@ -227,7 +234,7 @@ export default function AdditionalQuestionBuilder({
               Required for attendees
             </label>
 
-            {question.type === "text" && (
+            {(question.type === "text" || question.type === "textarea") && (
               <div className="flex max-w-xs flex-col gap-2">
                 <Label htmlFor={`question-max-${question.id}`}>Maximum characters</Label>
                 <Input id={`question-max-${question.id}`} type="number" min={1} max={5000} disabled={disabled} value={question.maxLength ?? 5000} onChange={(event) => updateQuestion(question.id, { maxLength: Number(event.target.value) })} />

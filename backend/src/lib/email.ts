@@ -247,7 +247,7 @@ const escapeEmailHtml = (value: string) =>
 const optionRow = (label: string, value: string) =>
   `<tr>
     <td style="padding: 6px 12px; border-bottom: 1px solid #eee; color: #555; font-size: 14px;">${escapeEmailHtml(label)}</td>
-    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; color: #1a1a1a; font-size: 14px; font-weight: bold;">${escapeEmailHtml(value)}</td>
+    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; color: #1a1a1a; font-size: 14px; font-weight: bold;">${escapeEmailHtml(value).replaceAll("\n", "<br />")}</td>
   </tr>`;
 
 export function buildParentVerificationEmail(

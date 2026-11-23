@@ -1616,7 +1616,7 @@ export default function AdminEventPage() {
                       {p.notes && <p>Notes: {p.notes}</p>}
                       {p.roommate && <p>Ideal roommate (unconfirmed): {p.roommate}</p>}
                       {p.additionalAnswers.map((answer) => (
-                        <p key={answer.id} className="col-span-2">
+                        <p key={answer.id} className="col-span-2 whitespace-pre-wrap">
                           {answer.label}: {answer.value}
                         </p>
                       ))}
