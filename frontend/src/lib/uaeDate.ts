@@ -35,6 +35,11 @@ export function pickerDateFromUae(value: string | Date): Date {
   return new Date(`${uaeDateKey(value)}T00:00:00`);
 }
 
+/** The exact instant at which a UAE calendar date ends. */
+export function endOfUaeDay(dateKey: string): Date {
+  return new Date(`${dateKey}T23:59:59.999+04:00`);
+}
+
 export function formatUaeDate(value: string | Date): string {
   return displayFormatter.format(new Date(value));
 }

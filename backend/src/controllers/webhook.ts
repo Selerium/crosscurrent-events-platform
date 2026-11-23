@@ -8,6 +8,26 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
 const webhookHandler = express.Router();
 
+/**
+ * Prefer the tier recorded when Checkout was created, so a session opened
+ * before the early-bird cutoff and completed after it is still credited as
+ * early bird (it was charged the early-bird price).
+ */
+function earlyBirdForSession(
+  event: { earlyBirdDate: Date | null; earlyBirdPrice: number | null },
+  session: Stripe.Checkout.Session
+): boolean {
+  const tier = session.metadata?.price_tier;
+  if (tier === "early_bird" || tier === "regular") {
+    return tier === "early_bird";
+  }
+  return isEarlyBirdPayment(
+    event.earlyBirdDate,
+    event.earlyBirdPrice,
+    new Date()
+  );
+}
+
 function warnIfLatePayment(
   event: { name: string; registrationCloseDate: Date | null },
   sessionId: string
@@ -68,10 +88,9 @@ webhookHandler.post(
               },
             });
 
-            const earlyBird = isEarlyBirdPayment(
-              scholarshipPayment.event.earlyBirdDate,
-              scholarshipPayment.event.earlyBirdPrice,
-              new Date()
+            const earlyBird = earlyBirdForSession(
+              scholarshipPayment.event,
+              session
             );
 
             await tx.registration.updateMany({
@@ -104,11 +123,7 @@ webhookHandler.post(
 
         if (registration && !registration.paid) {
           warnIfLatePayment(registration.event, session.id);
-          const earlyBird = isEarlyBirdPayment(
-            registration.event.earlyBirdDate,
-            registration.event.earlyBirdPrice,
-            new Date()
-          );
+          const earlyBird = earlyBirdForSession(registration.event, session);
 
           await prisma.registration.update({
             where: { id: registration.id },

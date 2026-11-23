@@ -219,6 +219,18 @@ function parseCloseDateOrThrow(value: unknown): Date | null {
   }
 }
 
+/** Early bird applies through the end of the selected UAE calendar day. */
+function parseEarlyBirdDateOrThrow(value: unknown): Date | null {
+  try {
+    return parseRegistrationCloseDate(value);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : "Invalid early bird date",
+      400
+    );
+  }
+}
+
 adminEventsHandler.post("", async (req, res) => {
   const { name, brief, startDate, endDate, maxSignUps, location, price, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule } = req.body;
   const registrationRequirements = readRegistrationRequirements(req.body);
@@ -255,7 +267,7 @@ adminEventsHandler.post("", async (req, res) => {
         location,
         price: Number(price),
         earlyBirdPrice: earlyBirdPrice ? Number(earlyBirdPrice) : null,
-        earlyBirdDate: earlyBirdDate ? new Date(earlyBirdDate) : null,
+        earlyBirdDate: parseEarlyBirdDateOrThrow(earlyBirdDate),
         registrationCloseDate: closeDate,
         schedule: schedule ?? [],
         additionalQuestions,
@@ -289,7 +301,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
   if (location !== undefined) data.location = location;
   if (price !== undefined) data.price = Number(price);
   if (earlyBirdPrice !== undefined) data.earlyBirdPrice = earlyBirdPrice ? Number(earlyBirdPrice) : null;
-  if (earlyBirdDate !== undefined) data.earlyBirdDate = earlyBirdDate ? new Date(earlyBirdDate) : null;
+  if (earlyBirdDate !== undefined) data.earlyBirdDate = parseEarlyBirdDateOrThrow(earlyBirdDate);
   if (registrationCloseDate !== undefined) {
     data.registrationCloseDate = parseCloseDateOrThrow(registrationCloseDate);
   }

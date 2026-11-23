@@ -135,7 +135,9 @@ export default function CreateEventPage() {
         earlyBirdPrice: data.earlyBirdPrice
           ? Number(data.earlyBirdPrice)
           : undefined,
-        earlyBirdDate: data.earlyBirdDate?.toISOString(),
+        earlyBirdDate: data.earlyBirdDate
+          ? dateKeyFromPicker(data.earlyBirdDate)
+          : undefined,
         schedule,
         additionalQuestions,
         ...requirements,

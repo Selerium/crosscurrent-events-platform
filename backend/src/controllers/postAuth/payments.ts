@@ -1,21 +1,16 @@
 import express from "express";
-import { prisma } from "../../lib/prismaClient.ts";
+import { randomUUID } from "node:crypto";
+import { prisma, PaymentMethod } from "../../lib/prismaClient.ts";
 import AppError from "../../lib/appError.ts";
 import { isRegistrationOpen } from "../../lib/registrationWindow.ts";
 import { checkoutExpiresAt } from "../../lib/stripeCheckout.ts";
+import { isEarlyBirdPayment } from "../../lib/earlyBird.ts";
+import { activeEventPrice, eventCheckoutLineItem } from "../../lib/eventPricing.ts";
+import { createNotifications } from "../../lib/notifications.ts";
 import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
 const paymentsHandler = express.Router();
-
-const regularPrice = process.env.BW26_PRICE || "";
-const earlyBirdPrice = process.env.EARLY_BW26_PRICE || "";
-
-function getActivePrice(): string {
-  const now = new Date();
-  const cutoff = new Date(2026, 8, 6, 23, 59, 59);
-  return now <= cutoff ? earlyBirdPrice : regularPrice;
-}
 
 paymentsHandler.post("/create-session", async (req, res) => {
   const { eventId } = req.body;
@@ -47,9 +42,12 @@ paymentsHandler.post("/create-session", async (req, res) => {
     where: { id: eventId },
     select: {
       id: true,
+      name: true,
       eventStatus: true,
       maxSignUps: true,
       price: true,
+      earlyBirdPrice: true,
+      earlyBirdDate: true,
       registrationCloseDate: true,
     },
   });
@@ -64,7 +62,13 @@ paymentsHandler.post("/create-session", async (req, res) => {
 
   const registration = await prisma.registration.findFirst({
     where: { profileId: profile.id, eventId },
-    select: { paid: true, paymentSession: true, id: true, parentVerified: true },
+    select: {
+      id: true,
+      profileId: true,
+      paid: true,
+      paymentSession: true,
+      parentVerified: true,
+    },
   });
 
   if (!registration) {
@@ -90,6 +94,52 @@ paymentsHandler.post("/create-session", async (req, res) => {
     throw new AppError("All paid spots for this event are full", 400);
   }
 
+  const now = new Date();
+  const earlyBird = isEarlyBirdPayment(
+    event.earlyBirdDate,
+    event.earlyBirdPrice,
+    now
+  );
+  const amount = activeEventPrice(event, now);
+
+  // Free events (or a free early-bird tier) do not need a Stripe session.
+  if (amount <= 0) {
+    if (registration.paymentSession) {
+      try {
+        const staleSession = await stripe.checkout.sessions.retrieve(
+          registration.paymentSession
+        );
+        if (staleSession.status === "open") {
+          await stripe.checkout.sessions.expire(registration.paymentSession);
+        }
+      } catch (error) {
+        console.error("Failed to expire stale checkout session", error);
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.registration.update({
+        where: { id: registration.id },
+        data: { paid: true, earlyBird, paymentMethod: PaymentMethod.SELF },
+      });
+      await tx.notification.create({
+        data: {
+          profileId: registration.profileId,
+          type: "REGISTRATION_UPDATED",
+          title: "Registration updated",
+          message: `Your registration for "${event.name}" is confirmed — no payment was required.`,
+          link: `/events/${eventId}`,
+        },
+      });
+    });
+
+    return res.status(200).json({
+      data: { url: `${process.env.FRONTEND_URL}/events/${eventId}?success=true` },
+      error: false,
+      message: "",
+    });
+  }
+
   if (registration.paymentSession) {
     const existingSession = await stripe.checkout.sessions.retrieve(
       registration.paymentSession
@@ -111,7 +161,7 @@ paymentsHandler.post("/create-session", async (req, res) => {
   const expiresAt = checkoutExpiresAt(event.registrationCloseDate);
 
   const session = await stripe.checkout.sessions.create({
-    line_items: [{ price: getActivePrice(), quantity: 1 }],
+    line_items: [eventCheckoutLineItem(event, 1, now)],
     mode: "payment",
     currency: "aed",
     customer_email: profile.user.email,
@@ -119,6 +169,8 @@ paymentsHandler.post("/create-session", async (req, res) => {
     metadata: {
       profile_name: profile.name,
       profile_id: profile.id,
+      event_id: event.id,
+      price_tier: earlyBird ? "early_bird" : "regular",
     },
     success_url: `${process.env.FRONTEND_URL}/events/${eventId}?success=true`,
     cancel_url: `${process.env.FRONTEND_URL}/events/${eventId}?success=false`,
@@ -175,6 +227,9 @@ paymentsHandler.post("/scholarship", async (req, res) => {
       name: true,
       eventStatus: true,
       maxSignUps: true,
+      price: true,
+      earlyBirdPrice: true,
+      earlyBirdDate: true,
       registrationCloseDate: true,
     },
   });
@@ -251,16 +306,77 @@ paymentsHandler.post("/scholarship", async (req, res) => {
     }
   }
 
-  const activePrice = getActivePrice();
+  const now = new Date();
+  const earlyBird = isEarlyBirdPayment(
+    event.earlyBirdDate,
+    event.earlyBirdPrice,
+    now
+  );
+  const amount = activeEventPrice(event, now);
+  const successUrl = `${process.env.FRONTEND_URL}/events/${eventId}?scholarship=success=true`;
+  const cancelUrl = `${process.env.FRONTEND_URL}/events/${eventId}?scholarship=cancelled`;
+
+  // Free events (or a free early-bird tier) are confirmed without Stripe. The
+  // ScholarshipPayment still needs a unique sessionId, so use a synthetic one.
+  if (amount <= 0) {
+    const sessionId = existing?.sessionId ?? `free-${randomUUID()}`;
+    await prisma.$transaction(async (tx) => {
+      if (existing) {
+        await tx.scholarshipPayment.update({
+          where: { id: existing.id },
+          data: {
+            sessionId,
+            profileIds: uniqueIds,
+            quantity: uniqueIds.length,
+            paid: true,
+            amount: 0,
+            currency: "aed",
+          },
+        });
+      } else {
+        await tx.scholarshipPayment.create({
+          data: {
+            churchId: profile.churchId,
+            eventId,
+            sessionId,
+            profileIds: uniqueIds,
+            paid: true,
+            quantity: uniqueIds.length,
+            amount: 0,
+            currency: "aed",
+          },
+        });
+      }
+
+      await tx.registration.updateMany({
+        where: { profileId: { in: uniqueIds }, eventId, selfPay: true },
+        data: { paid: true, earlyBird, paymentMethod: PaymentMethod.SELF },
+      });
+    });
+
+    await createNotifications(uniqueIds, {
+      type: "REGISTRATION_UPDATED",
+      title: "Registration updated",
+      message: `Your scholarship for "${event.name}" is confirmed — no payment was required.`,
+      link: `/events/${eventId}`,
+    });
+
+    return res
+      .status(200)
+      .json({ data: { url: successUrl }, error: false, message: "" });
+  }
+
   const expiresAt = checkoutExpiresAt(event.registrationCloseDate);
 
   const session = await stripe.checkout.sessions.create({
-    line_items: [{ price: activePrice, quantity: uniqueIds.length }],
+    line_items: [eventCheckoutLineItem(event, uniqueIds.length, now)],
     mode: "payment",
     currency: "aed",
     customer_email: profile.user.email,
     ...(expiresAt ? { expires_at: expiresAt } : {}),
     metadata: {
+      event_id: event.id,
+      price_tier: earlyBird ? "early_bird" : "regular",
       profiles: JSON.stringify(
         uniqueIds.map((id) => {
           const reg = byProfile.get(id)!;
@@ -268,8 +384,8 @@ paymentsHandler.post("/scholarship", async (req, res) => {
         })
       ),
     },
-    success_url: `${process.env.FRONTEND_URL}/events/${eventId}?scholarship=success=true`,
-    cancel_url: `${process.env.FRONTEND_URL}/events/${eventId}?scholarship=cancelled`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
   });
 
   if (existing) {

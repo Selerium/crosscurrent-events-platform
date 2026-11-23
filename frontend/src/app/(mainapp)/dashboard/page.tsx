@@ -36,7 +36,6 @@ export default function DashboardPage() {
     earlyBirdPrice: number | null;
     earlyBirdDate: Date | null;
     status: string;
-    earlyBirdActualDate: string | null;
   };
 
   type UsersEvent = Event & {
@@ -93,7 +92,9 @@ export default function DashboardPage() {
               ...e,
               startDate: new Date(e.startDate as string),
               endDate: new Date(e.endDate as string),
-              earlyBirdActualDate: new Date(e.earlyBirdDate as string).setHours(23, 59, 59),
+              earlyBirdDate: e.earlyBirdDate
+                ? new Date(e.earlyBirdDate as string)
+                : null,
             })),
         );
       })
@@ -227,7 +228,7 @@ export default function DashboardPage() {
                           <Banknote width={24} height={24} />{" "}
                           {event.earlyBirdPrice != null &&
                           event.earlyBirdDate != null &&
-                          new Date() <= new Date(event.earlyBirdActualDate ?? event.earlyBirdDate) ? (
+                          new Date() <= event.earlyBirdDate ? (
                             <>
                               {event.earlyBirdPrice} AED
                               <span className="rounded-md bg-green-800 px-2 py-0.5 text-xs font-semibold text-white">

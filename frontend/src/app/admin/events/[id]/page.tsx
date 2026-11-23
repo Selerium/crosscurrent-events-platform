@@ -63,6 +63,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   dateKeyFromPicker,
+  endOfUaeDay,
   formatUaeDate,
   pickerDateFromUae,
 } from "@/lib/uaeDate";
@@ -477,7 +478,7 @@ export default function AdminEventPage() {
       eventInfo.earlyBirdPrice != null ? String(eventInfo.earlyBirdPrice) : ""
     );
     setEditEarlyBirdDate(
-      eventInfo.earlyBirdDate ? new Date(eventInfo.earlyBirdDate) : null
+      eventInfo.earlyBirdDate ? pickerDateFromUae(eventInfo.earlyBirdDate) : null
     );
     setEditRegistrationCloseDate(
       eventInfo.registrationCloseDate
@@ -578,7 +579,7 @@ export default function AdminEventPage() {
           ? Number(editEarlyBirdPrice)
           : null,
         earlyBirdDate: editEarlyBirdDate
-          ? editEarlyBirdDate.toISOString()
+          ? dateKeyFromPicker(editEarlyBirdDate)
           : null,
         registrationCloseDate: editRegistrationCloseDate
           ? dateKeyFromPicker(editRegistrationCloseDate)
@@ -598,7 +599,7 @@ export default function AdminEventPage() {
           ? Number(editEarlyBirdPrice)
           : null,
         earlyBirdDate: editEarlyBirdDate
-          ? editEarlyBirdDate.toISOString()
+          ? endOfUaeDay(dateKeyFromPicker(editEarlyBirdDate)).toISOString()
           : null,
         registrationCloseDate: editRegistrationCloseDate
           ? dateKeyFromPicker(editRegistrationCloseDate)
