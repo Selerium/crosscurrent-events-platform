@@ -201,6 +201,9 @@ model Event {
   // NULL means there is no age restriction for this event.
   minimumAge Int?
 
+  // Which profile roles are allowed to register for this event.
+  registrationAudience EventRegistrationAudience @default(ALL)
+
   // Ordered event-specific additional registration question definitions.
   additionalQuestions Json @default("[]") @db.JsonB
 
@@ -365,6 +368,12 @@ enum Role {
   STUDENT
   LEADER
   ADMIN
+}
+
+enum EventRegistrationAudience {
+  ALL
+  STUDENTS
+  LEADERS
 }
 
 enum PaymentMethod {

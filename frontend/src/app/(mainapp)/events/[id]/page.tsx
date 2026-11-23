@@ -49,6 +49,10 @@ import {
   type AdditionalQuestion,
   type RegistrationRequirements,
 } from "@/lib/registrationForm";
+import {
+  REGISTRATION_AUDIENCE_LABELS,
+  type EventRegistrationAudience,
+} from "@/lib/eventAudience";
 
 type ScheduleItem = {
   item: string;
@@ -109,6 +113,7 @@ type EventData = RegistrationRequirements & {
   location: string;
   price: number;
   minimumAge: number | null;
+  registrationAudience: EventRegistrationAudience;
   earlyBirdPrice: number | null;
   earlyBirdDate: Date | null;
   registrationCloseDate: string | null;
@@ -642,7 +647,8 @@ export default function EventPage() {
       return;
     }
     const formData = new FormData();
-    if (data.shirtSize) formData.append("shirtSize", data.shirtSize);
+    if (eventData?.requireShirtSize && data.shirtSize)
+      formData.append("shirtSize", data.shirtSize);
     formData.append("additionalAnswers", JSON.stringify(additionalAnswers));
     if (roommate) {
       formData.append("roommateRegistrationId", roommate.registrationId);
@@ -652,13 +658,17 @@ export default function EventPage() {
     data.medications.forEach((m) => formData.append("medications", m));
     data.allergies.forEach((a) => formData.append("allergies", a));
     if (data.spouseId) formData.append("spouseId", data.spouseId);
-    if (data.primaryLeaderRole)
+    if (eventData?.requirePrimaryLeaderRole && data.primaryLeaderRole)
       formData.append("primaryLeaderRole", data.primaryLeaderRole);
-    data.secondaryLeaderRoles.forEach((r) =>
-      formData.append("secondaryLeaderRoles", r),
-    );
+    if (eventData?.requireSecondaryLeaderRoles) {
+      data.secondaryLeaderRoles.forEach((r) =>
+        formData.append("secondaryLeaderRoles", r),
+      );
+    }
     formData.append("mediaConsent", String(data.mediaConsent));
-    formData.append("swimmingPermission", String(data.swimmingPermission));
+    if (eventData?.requireSwimmingPermission) {
+      formData.append("swimmingPermission", String(data.swimmingPermission));
+    }
     if (data.emergencyName)
       formData.append("emergencyName", data.emergencyName);
     if (data.emergencyPhone)
@@ -884,46 +894,39 @@ export default function EventPage() {
               })}
               className="flex flex-col gap-4"
             >
-              <div className="flex flex-col gap-2">
-                <span className="font-bold">
-                  Shirt Size{" "}
-                  <span className="font-medium text-muted-foreground italic">
-                    {eventData.requireShirtSize ? "(required)" : "(optional)"}
-                  </span>
-                </span>
-                <Controller
-                  name="shirtSize"
-                  rules={{
-                    required: eventData.requireShirtSize
-                      ? "Shirt size is required"
-                      : false,
-                  }}
-                  control={control}
-                  render={({ field }) => (
-                    <div className="flex flex-wrap gap-2">
-                      {["XS", "S", "M", "L", "XL", "XXL", "XXXL"].map(
-                        (size) => (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() =>
-                              field.onChange(field.value === size ? "" : size)
-                            }
-                            className={cn(
-                              "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
-                              field.value === size
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted hover:bg-muted/70",
-                            )}
-                          >
-                            {size}
-                          </button>
-                        ),
-                      )}
-                    </div>
-                  )}
-                />
-              </div>
+              {eventData.requireShirtSize && (
+                <div className="flex flex-col gap-2">
+                  <span className="font-bold">Shirt Size</span>
+                  <Controller
+                    name="shirtSize"
+                    rules={{ required: "Shirt size is required" }}
+                    control={control}
+                    render={({ field }) => (
+                      <div className="flex flex-wrap gap-2">
+                        {["XS", "S", "M", "L", "XL", "XXL", "XXXL"].map(
+                          (size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() =>
+                                field.onChange(field.value === size ? "" : size)
+                              }
+                              className={cn(
+                                "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
+                                field.value === size
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted hover:bg-muted/70",
+                              )}
+                            >
+                              {size}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <span className="font-bold">
@@ -949,14 +952,12 @@ export default function EventPage() {
                 />
               </div>
 
-              {userRole === "STUDENT" && (
+              {userRole === "STUDENT" && eventData.requireSwimmingPermission && (
                 <div className="flex flex-col gap-2">
                   <span className="font-bold">
                     Swimming Permission{" "}
                     <span className="font-medium text-muted-foreground italic">
-                      ({eventData.requireSwimmingPermission
-                        ? "required for students"
-                        : "optional for students"})
+                      (required for students)
                     </span>
                   </span>
                   <Controller
@@ -964,9 +965,7 @@ export default function EventPage() {
                     control={control}
                     rules={{
                       validate: (value) =>
-                        !eventData.requireSwimmingPermission ||
-                        value ||
-                        "Swimming permission is required for students",
+                        value || "Swimming permission is required for students",
                     }}
                     render={({ field }) => (
                       <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer">
@@ -1130,174 +1129,169 @@ export default function EventPage() {
                     />
                   </div>
 
-                  <span className="font-bold">Preferred Roles</span>
-                  <span>
-                    This section is just to know your volunteer preferences at
-                    the event. This{" "}
-                    <span className="italic">does not confirm your role</span> -
-                    just interest. We will assign accordingly based on leader
-                    numbers and logistics
-                  </span>
-
-                  <div className="flex flex-col gap-2">
-                    <span className="font-bold">
-                      Primary Leader Role{" "}
-                      <span className="font-medium text-muted-foreground italic">
-                        ({eventData.requirePrimaryLeaderRole
-                          ? "required"
-                          : "optional"})
+                  {(eventData.requirePrimaryLeaderRole ||
+                    eventData.requireSecondaryLeaderRoles) && (
+                    <>
+                      <span className="font-bold">Preferred Roles</span>
+                      <span>
+                        This section is just to know your volunteer preferences
+                        at the event. This{" "}
+                        <span className="italic">does not confirm your role</span>{" "}
+                        - just interest. We will assign accordingly based on
+                        leader numbers and logistics
                       </span>
-                    </span>
-                    <Controller
-                      name="primaryLeaderRole"
-                      control={control}
-                      rules={{
-                        required: eventData.requirePrimaryLeaderRole
-                          ? "Please select a primary leader role"
-                          : false,
-                      }}
-                      render={({ field }) => (
-                        <div className="flex flex-wrap gap-2">
-                          {(roleInfo?.primary ?? []).map((role) => (
-                            <button
-                              key={role.role}
-                              type="button"
-                              onClick={() =>
-                                field.onChange(
-                                  field.value === role.role ? "" : role.role,
-                                )
-                              }
-                              className={cn(
-                                "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
-                                field.value === role.role
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-muted hover:bg-muted/70",
-                              )}
-                            >
-                              {role.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    />
-                  </div>
+                    </>
+                  )}
 
-                  <div className="flex flex-col gap-2">
-                    <span className="font-bold">
-                      Secondary Leader Roles{" "}
-                      <span className="font-medium text-muted-foreground italic">
-                        {eventData.requireSecondaryLeaderRoles
-                          ? "(select exactly 3)"
-                          : "(optional - up to 3)"}
-                      </span>
-                    </span>
-                    <Controller
-                      name="secondaryLeaderRoles"
-                      control={control}
-                      rules={{
-                        validate: (v) =>
-                          !eventData.requireSecondaryLeaderRoles ||
-                          v.length === 3 ||
-                          "Please select exactly three secondary leader roles",
-                      }}
-                      render={({ field }) => (
-                        <div className="flex flex-wrap gap-2">
-                          {(roleInfo?.secondary ?? []).map((role) => {
-                            const selected = field.value.includes(role.role);
-                            const disabled =
-                              field.value.length >= 3 && !selected;
-                            return (
+                  {eventData.requirePrimaryLeaderRole && (
+                    <div className="flex flex-col gap-2">
+                      <span className="font-bold">Primary Leader Role</span>
+                      <Controller
+                        name="primaryLeaderRole"
+                        control={control}
+                        rules={{ required: "Please select a primary leader role" }}
+                        render={({ field }) => (
+                          <div className="flex flex-wrap gap-2">
+                            {(roleInfo?.primary ?? []).map((role) => (
                               <button
                                 key={role.role}
                                 type="button"
-                                disabled={disabled}
-                                onClick={() => {
-                                  const next = selected
-                                    ? field.value.filter(
-                                        (r) => r !== role.role,
-                                      )
-                                    : [...field.value, role.role];
-                                  field.onChange(next);
-                                }}
+                                onClick={() =>
+                                  field.onChange(
+                                    field.value === role.role ? "" : role.role,
+                                  )
+                                }
                                 className={cn(
                                   "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
-                                  disabled && "opacity-40 cursor-not-allowed",
-                                  selected
+                                  field.value === role.role
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-muted hover:bg-muted/70",
                                 )}
                               >
                                 {role.label}
                               </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    />
-                  </div>
+                            ))}
+                          </div>
+                        )}
+                      />
+                    </div>
+                  )}
 
-                  <div className="flex flex-col gap-2">
-                    <span className="font-bold">
-                      Safeguarding/DBS Certificate{" "}
-                      <span className="font-medium text-muted-foreground italic">
-                        (PDF,{" "}
-                        {eventData.requireSafeguardingDoc
-                          ? "required"
-                          : "optional"})
+                  {eventData.requireSecondaryLeaderRoles && (
+                    <div className="flex flex-col gap-2">
+                      <span className="font-bold">
+                        Secondary Leader Roles{" "}
+                        <span className="font-medium text-muted-foreground italic">
+                          (select exactly 3)
+                        </span>
                       </span>
-                    </span>
-                    <span>
-                      If you do not have one, you can follow the instructions{" "}
-                      <a
-                        target="_blank"
-                        className="underline text-blue-700 rounded-sm"
-                        href="https://drive.google.com/drive/folders/19PGozF9mHkdKrkLfjeVxWKLo4NcbyBfj"
-                      >
-                        here
-                      </a>
-                    </span>
-                    {safeguardingFile ? (
-                      <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3.5 py-2.5">
-                        <span className="truncate text-sm">
-                          {safeguardingFile.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSafeguardingFile(null)}
-                          className="cursor-pointer text-muted-foreground hover:text-foreground"
-                        >
-                          <XIcon width={16} height={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border px-3.5 py-3 text-sm hover:bg-muted">
-                        <input
-                          type="file"
-                          accept="application/pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            if (file.type !== "application/pdf") {
-                              toast.error("Only PDF files are allowed");
-                              e.target.value = "";
-                              return;
-                            }
-                            if (file.size > 5 * 1024 * 1024) {
-                              toast.error("File is too large (max 5MB)");
-                              e.target.value = "";
-                              return;
-                            }
-                            setSafeguardingFile(file);
-                          }}
-                        />
-                        <Upload width={16} height={16} />
-                        <span className="text-muted-foreground">
-                          Upload PDF (Safeguarding/DBS certificate)
-                        </span>
-                      </label>
+                      <Controller
+                        name="secondaryLeaderRoles"
+                        control={control}
+                        rules={{
+                          validate: (v) =>
+                            v.length === 3 ||
+                            "Please select exactly three secondary leader roles",
+                        }}
+                        render={({ field }) => (
+                          <div className="flex flex-wrap gap-2">
+                            {(roleInfo?.secondary ?? []).map((role) => {
+                              const selected = field.value.includes(role.role);
+                              const disabled =
+                                field.value.length >= 3 && !selected;
+                              return (
+                                <button
+                                  key={role.role}
+                                  type="button"
+                                  disabled={disabled}
+                                  onClick={() => {
+                                    const next = selected
+                                      ? field.value.filter(
+                                          (r) => r !== role.role,
+                                        )
+                                      : [...field.value, role.role];
+                                    field.onChange(next);
+                                  }}
+                                  className={cn(
+                                    "py-2 px-4 border rounded-lg cursor-pointer transition-all font-bold",
+                                    disabled && "opacity-40 cursor-not-allowed",
+                                    selected
+                                      ? "bg-primary text-primary-foreground"
+                                      : "bg-muted hover:bg-muted/70",
+                                  )}
+                                >
+                                  {role.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      />
+                    </div>
                     )}
-                  </div>
+
+                  {eventData.requireSafeguardingDoc && (
+                    <div className="flex flex-col gap-2">
+                      <span className="font-bold">
+                        Safeguarding/DBS Certificate{" "}
+                        <span className="font-medium text-muted-foreground italic">
+                          (PDF, required)
+                        </span>
+                      </span>
+                      <span>
+                        If you do not have one, you can follow the instructions{" "}
+                        <a
+                          target="_blank"
+                          className="underline text-blue-700 rounded-sm"
+                          href="https://drive.google.com/drive/folders/19PGozF9mHkdKrkLfjeVxWKLo4NcbyBfj"
+                        >
+                          here
+                        </a>
+                      </span>
+                      {safeguardingFile ? (
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3.5 py-2.5">
+                          <span className="truncate text-sm">
+                            {safeguardingFile.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSafeguardingFile(null)}
+                            className="cursor-pointer text-muted-foreground hover:text-foreground"
+                          >
+                            <XIcon width={16} height={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border px-3.5 py-3 text-sm hover:bg-muted">
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.type !== "application/pdf") {
+                                toast.error("Only PDF files are allowed");
+                                e.target.value = "";
+                                return;
+                              }
+                              if (file.size > 5 * 1024 * 1024) {
+                                toast.error("File is too large (max 5MB)");
+                                e.target.value = "";
+                                return;
+                              }
+                              setSafeguardingFile(file);
+                            }}
+                          />
+                          <Upload width={16} height={16} />
+                          <span className="text-muted-foreground">
+                            Upload PDF (Safeguarding/DBS certificate)
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                  )}
+
                 </>
               )}
 
@@ -1722,6 +1716,13 @@ export default function EventPage() {
                   {eventData.minimumAge} (at event date)
                 </span>
               )}
+              {eventData.registrationAudience &&
+                eventData.registrationAudience !== "ALL" && (
+                  <span className="flex gap-2 w-fit">
+                    <Users width={24} height={24} /> Registration:{" "}
+                    {REGISTRATION_AUDIENCE_LABELS[eventData.registrationAudience]}
+                  </span>
+                )}
               <span className="flex gap-2 w-fit">
                 <Users width={24} height={24} /> {eventData.signedUp} /{" "}
                 {eventData.maxSignUps}

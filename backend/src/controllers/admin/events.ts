@@ -2,7 +2,11 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import AppError from "../../lib/appError.ts";
-import { prisma, PaymentMethod } from "../../lib/prismaClient.ts";
+import {
+  prisma,
+  PaymentMethod,
+  EventRegistrationAudience,
+} from "../../lib/prismaClient.ts";
 import { uploadSafeguardingMiddleware, deleteUploadedFile, uploadsDir } from "../../lib/uploads.ts";
 import { createNotifications } from "../../lib/notifications.ts";
 import { logAdminAction } from "../../lib/adminLog.ts";
@@ -61,6 +65,24 @@ function parseMinimumAge(value: unknown): number | null {
     );
   }
   return number;
+}
+
+function parseRegistrationAudience(
+  value: unknown
+): EventRegistrationAudience | undefined {
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== "string" ||
+    !Object.values(EventRegistrationAudience).includes(
+      value as EventRegistrationAudience
+    )
+  ) {
+    throw new AppError(
+      "Registration audience must be ALL, STUDENTS, or LEADERS",
+      400,
+    );
+  }
+  return value as EventRegistrationAudience;
 }
 
 type PlanDimension = {
@@ -252,6 +274,9 @@ adminEventsHandler.post("", async (req, res) => {
     req.body.additionalQuestions ?? [],
   );
   const minimumAge = parseMinimumAge(req.body.minimumAge);
+  const registrationAudience = parseRegistrationAudience(
+    req.body.registrationAudience
+  );
 
   if (!name || !brief || !startDate || !endDate || !maxSignUps || !location || price === undefined) {
     throw new AppError("Missing required fields", 400);
@@ -282,6 +307,7 @@ adminEventsHandler.post("", async (req, res) => {
         location,
         price: Number(price),
         minimumAge,
+        registrationAudience,
         earlyBirdPrice: earlyBirdPrice ? Number(earlyBirdPrice) : null,
         earlyBirdDate: parseEarlyBirdDateOrThrow(earlyBirdDate),
         registrationCloseDate: closeDate,
@@ -306,7 +332,7 @@ adminEventsHandler.patch("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
-  const { name, brief, startDate, endDate, maxSignUps, location, price, minimumAge, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule, eventStatus, groups, maxInGroup, room, maxInRoom } = req.body;
+  const { name, brief, startDate, endDate, maxSignUps, location, price, minimumAge, registrationAudience, earlyBirdPrice, earlyBirdDate, registrationCloseDate, schedule, eventStatus, groups, maxInGroup, room, maxInRoom } = req.body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
@@ -317,6 +343,8 @@ adminEventsHandler.patch("/:id", async (req, res) => {
   if (location !== undefined) data.location = location;
   if (price !== undefined) data.price = Number(price);
   if (minimumAge !== undefined) data.minimumAge = parseMinimumAge(minimumAge);
+  const parsedAudience = parseRegistrationAudience(registrationAudience);
+  if (parsedAudience !== undefined) data.registrationAudience = parsedAudience;
   if (earlyBirdPrice !== undefined) data.earlyBirdPrice = earlyBirdPrice ? Number(earlyBirdPrice) : null;
   if (earlyBirdDate !== undefined) data.earlyBirdDate = parseEarlyBirdDateOrThrow(earlyBirdDate);
   if (registrationCloseDate !== undefined) {
@@ -755,6 +783,7 @@ adminEventsHandler.get("", async (req, res) => {
       capacity: e.maxSignUps,
       price: e.price,
       minimumAge: e.minimumAge,
+      registrationAudience: e.registrationAudience,
       earlyBirdPrice: e.earlyBirdPrice,
       earlyBirdDate: e.earlyBirdDate,
       revenue,
@@ -820,6 +849,7 @@ adminEventsHandler.get("/:id", async (req, res) => {
     capacity: event.maxSignUps,
     price: event.price,
     minimumAge: event.minimumAge,
+    registrationAudience: event.registrationAudience,
     earlyBirdPrice: event.earlyBirdPrice,
     earlyBirdDate: event.earlyBirdDate,
     revenue,

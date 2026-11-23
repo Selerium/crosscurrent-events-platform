@@ -17,8 +17,8 @@ const FIELDS: Array<{
 }> = [
   { key: "requireSafeguardingDoc", label: "Safeguarding/DBS certificate", audience: "Leaders" },
   { key: "requirePrimaryLeaderRole", label: "Primary leader role", audience: "Leaders" },
-  { key: "requireSecondaryLeaderRoles", label: "Secondary leader roles", audience: "Leaders · exactly 3 when mandatory, up to 3 when optional" },
-  { key: "requireSwimmingPermission", label: "Swimming permission", audience: "Students · proficiency remains a separate optional field" },
+  { key: "requireSecondaryLeaderRoles", label: "Secondary leader roles", audience: "Leaders · select exactly 3 when shown" },
+  { key: "requireSwimmingPermission", label: "Swimming permission", audience: "Students · swimming proficiency remains a separate field" },
   { key: "requireShirtSize", label: "Shirt size", audience: "Everyone" },
 ];
 
@@ -28,7 +28,7 @@ export default function RegistrationRequirementsFields({ value, onChange, disabl
       <div>
         <h3 className="font-bold">Required registration fields</h3>
         <p className="text-sm text-muted-foreground">
-          Choose which existing answers attendees must provide. Admin-added participants can still leave answers blank.
+          Mandatory fields are shown on the registration form and must be filled in. Not required fields are hidden from the form. Admin-added participants can still leave answers blank.
         </p>
       </div>
       {FIELDS.map((field) => {
@@ -41,7 +41,7 @@ export default function RegistrationRequirementsFields({ value, onChange, disabl
             </div>
             <div className="flex shrink-0 gap-2" aria-label={`${field.label} requirement`}>
                 <Button type="button" size="sm" variant="outline" disabled={disabled} aria-pressed={!required} className={cn(!required && "bg-primary text-primary-foreground hover:bg-primary/90")} onClick={() => onChange({ ...value, [field.key]: false })}>
-                  Optional
+                  Not required
                 </Button>
                 <Button type="button" size="sm" variant="outline" disabled={disabled} aria-pressed={required} className={cn(required && "bg-primary text-primary-foreground hover:bg-primary/90")} onClick={() => onChange({ ...value, [field.key]: true })}>
                   Mandatory

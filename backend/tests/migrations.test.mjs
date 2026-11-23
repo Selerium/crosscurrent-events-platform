@@ -169,7 +169,7 @@ test("all migrations apply and protect the registration form contract", { skip: 
       WHERE table_name IN ('Event', 'Registration')
         AND column_name IN (
           'additionalQuestions', 'additionalAnswers', 'roommateRegistrationId',
-          'shirtSize', 'minimumAge', 'requireSafeguardingDoc', 'requirePrimaryLeaderRole',
+          'shirtSize', 'minimumAge', 'registrationAudience', 'requireSafeguardingDoc', 'requirePrimaryLeaderRole',
           'requireSecondaryLeaderRoles', 'requireSwimmingPermission', 'requireShirtSize'
         )
       ORDER BY table_name, column_name
@@ -179,6 +179,7 @@ test("all migrations apply and protect the registration form contract", { skip: 
     assert.deepEqual(columns, [
       "Event|additionalQuestions|NO|'[]'::jsonb",
       "Event|minimumAge|YES|",
+      `Event|registrationAudience|NO|'ALL'::"EventRegistrationAudience"`,
       "Event|requirePrimaryLeaderRole|NO|true",
       "Event|requireSafeguardingDoc|NO|true",
       "Event|requireSecondaryLeaderRoles|NO|true",

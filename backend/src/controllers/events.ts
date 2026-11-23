@@ -28,6 +28,7 @@ import {
   resolveRoommateRegistrationId,
 } from "../lib/registrationFields.ts";
 import { meetsMinimumAge } from "../lib/eventAge.ts";
+import { registrationAudienceAllows } from "../lib/eventAudience.ts";
 
 const asString = (v: any): string => (v == null ? "" : String(v));
 const asBool = (v: any): boolean => v === true || v === "true" || v === "on";
@@ -66,11 +67,14 @@ eventsHandler.get("", async (req, res) => {
     orderBy: { startDate: "asc" },
   });
 
-  // Events with an age rule are hidden from users who are too young on the
-  // event's start date (and from users with no date of birth on file).
+  // Eligibility rules hide events from users who do not qualify on the event's
+  // start date (or who have no date of birth on file). Admins see everything.
   const data = events
-    .filter((e) =>
-      isAdmin || meetsMinimumAge(profile?.dob, e.minimumAge, e.startDate)
+    .filter(
+      (e) =>
+        isAdmin ||
+        (meetsMinimumAge(profile?.dob, e.minimumAge, e.startDate) &&
+          registrationAudienceAllows(e.registrationAudience, profile?.role))
     )
     .map((e) => ({
       id: e.id,
@@ -83,6 +87,7 @@ eventsHandler.get("", async (req, res) => {
       maxSignUps: e.maxSignUps,
       price: e.price,
       minimumAge: e.minimumAge,
+      registrationAudience: e.registrationAudience,
       earlyBirdPrice: e.earlyBirdPrice,
       earlyBirdDate: e.earlyBirdDate,
       registrationCloseDate: e.registrationCloseDate,
@@ -134,6 +139,17 @@ const registerForEvent = async (req: any, res: any) => {
       profile.dob
         ? "You do not meet the minimum age for this event"
         : "Add your date of birth to your profile before registering for this event",
+      400,
+    );
+  }
+
+  if (
+    !registrationAudienceAllows(event.registrationAudience, profile.role)
+  ) {
+    throw new AppError(
+      event.registrationAudience === "LEADERS"
+        ? "Registration for this event is open to leaders only"
+        : "Registration for this event is open to students only",
       400,
     );
   }
@@ -242,6 +258,9 @@ const registerForEvent = async (req: any, res: any) => {
     event = lockedEvent;
     if (!meetsMinimumAge(profile.dob, event.minimumAge, event.startDate)) {
       throw new AppError("You do not meet the minimum age for this event", 400);
+    }
+    if (!registrationAudienceAllows(event.registrationAudience, profile.role)) {
+      throw new AppError("You are not eligible to register for this event", 400);
     }
     const additionalAnswers = normalizeAdditionalAnswers(
       req.body.additionalAnswers,
@@ -613,23 +632,39 @@ eventsHandler.get("/:id", async (req, res) => {
     throw new AppError("Event not found", 404);
   }
 
-  if (event.minimumAge != null && req.user?.id) {
+  if (
+    req.user?.id &&
+    (event.minimumAge != null || event.registrationAudience !== "ALL")
+  ) {
     const viewer = await prisma.profile.findUnique({
       where: { id: req.user.id },
       select: { role: true, dob: true },
     });
-    if (
-      viewer?.role !== "ADMIN" &&
-      !meetsMinimumAge(viewer?.dob, event.minimumAge, event.startDate)
-    ) {
-      // Existing registrants keep access so they can view or cancel their
-      // registration if the minimum age changed after they signed up.
-      const existing = await prisma.registration.findFirst({
-        where: { eventId: event.id, profileId: req.user.id },
-        select: { id: true },
-      });
-      if (!existing) {
-        throw new AppError("You do not meet the minimum age for this event", 403);
+    if (viewer?.role !== "ADMIN") {
+      const meetsAge = meetsMinimumAge(
+        viewer?.dob,
+        event.minimumAge,
+        event.startDate
+      );
+      const meetsAudience = registrationAudienceAllows(
+        event.registrationAudience,
+        viewer?.role
+      );
+      if (!meetsAge || !meetsAudience) {
+        // Existing registrants keep access so they can view or cancel their
+        // registration if the eligibility rules changed after they signed up.
+        const existing = await prisma.registration.findFirst({
+          where: { eventId: event.id, profileId: req.user.id },
+          select: { id: true },
+        });
+        if (!existing) {
+          throw new AppError(
+            !meetsAge
+              ? "You do not meet the minimum age for this event"
+              : "This event is not open to your role",
+            403
+          );
+        }
       }
     }
   }
@@ -816,6 +851,7 @@ eventsHandler.get("/:id", async (req, res) => {
     location: event.location,
     price: event.price,
     minimumAge: event.minimumAge,
+    registrationAudience: event.registrationAudience,
     earlyBirdPrice: event.earlyBirdPrice,
     earlyBirdDate: event.earlyBirdDate,
     registrationCloseDate: event.registrationCloseDate,

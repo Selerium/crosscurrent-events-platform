@@ -55,6 +55,10 @@ import api from "@/lib/axios";
 import { CHECK_IN_LEADER_ROLE } from "@/lib/checkIn";
 import type { CheckInStatus } from "@/lib/checkInStatus";
 import {
+  REGISTRATION_AUDIENCE_LABELS,
+  type EventRegistrationAudience,
+} from "@/lib/eventAudience";
+import {
   defaultRegistrationRequirements,
   type AdditionalQuestion,
   type RegistrationRequirements,
@@ -156,6 +160,8 @@ export default function AdminEventPage() {
   const [editLocation, setEditLocation] = useState("");
   const [editPrice, setEditPrice] = useState(0);
   const [editMinimumAge, setEditMinimumAge] = useState("");
+  const [editRegistrationAudience, setEditRegistrationAudience] =
+    useState<EventRegistrationAudience>("ALL");
   const [editMaxSignUps, setEditMaxSignUps] = useState(0);
   const [editAdditionalQuestions, setEditAdditionalQuestions] = useState<
     AdditionalQuestion[]
@@ -488,6 +494,7 @@ export default function AdminEventPage() {
     setEditMinimumAge(
       eventInfo.minimumAge != null ? String(eventInfo.minimumAge) : "",
     );
+    setEditRegistrationAudience(eventInfo.registrationAudience ?? "ALL");
     setEditMaxSignUps(eventInfo.capacity);
     setEditAdditionalQuestions(eventInfo.additionalQuestions ?? []);
     setEditRequirements({
@@ -608,6 +615,7 @@ export default function AdminEventPage() {
         location: editLocation,
         price: editPrice,
         minimumAge: parsedMinimumAge,
+        registrationAudience: editRegistrationAudience,
         maxSignUps: editMaxSignUps,
         earlyBirdPrice: editEarlyBirdPrice
           ? Number(editEarlyBirdPrice)
@@ -631,6 +639,7 @@ export default function AdminEventPage() {
         location: editLocation,
         price: editPrice,
         minimumAge: parsedMinimumAge,
+        registrationAudience: editRegistrationAudience,
         capacity: editMaxSignUps,
         earlyBirdPrice: editEarlyBirdPrice
           ? Number(editEarlyBirdPrice)
@@ -1027,6 +1036,33 @@ export default function AdminEventPage() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 rounded-lg border p-4">
+                  <Label>Who can register</Label>
+                  <Select
+                    value={editRegistrationAudience}
+                    onValueChange={(value) =>
+                      setEditRegistrationAudience(value as EventRegistrationAudience)
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        Object.keys(
+                          REGISTRATION_AUDIENCE_LABELS
+                        ) as EventRegistrationAudience[]
+                      ).map((audience) => (
+                        <SelectItem key={audience} value={audience}>
+                          {REGISTRATION_AUDIENCE_LABELS[audience]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    Users outside this audience will not see the event or be able to register.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 rounded-lg border p-4">
                   <Label htmlFor="edit-early-bird-price">
                     Early Bird Price (AED)
                   </Label>
@@ -1146,6 +1182,15 @@ export default function AdminEventPage() {
                     eventInfo.minimumAge != null
                       ? `${eventInfo.minimumAge} at event date`
                       : "None"
+                  }
+                />
+                <InfoBlock
+                  icon={<Users width={20} height={20} />}
+                  label="Who can register"
+                  value={
+                    REGISTRATION_AUDIENCE_LABELS[
+                      eventInfo.registrationAudience ?? "ALL"
+                    ]
                   }
                 />
                 {eventInfo.earlyBirdPrice != null && (

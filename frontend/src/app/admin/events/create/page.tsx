@@ -10,12 +10,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useState } from "react";
 import { ChevronLeft, CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { dateKeyFromPicker } from "@/lib/uaeDate";
+import {
+  REGISTRATION_AUDIENCE_LABELS,
+  type EventRegistrationAudience,
+} from "@/lib/eventAudience";
 import AdditionalQuestionBuilder from "@/components/registration/AdditionalQuestionBuilder";
 import RegistrationRequirementsFields from "@/components/registration/RegistrationRequirementsFields";
 import {
@@ -42,6 +53,7 @@ type EventForm = {
   location: string;
   price: number;
   minimumAge: string;
+  registrationAudience: EventRegistrationAudience;
   earlyBirdPrice: number | undefined;
   earlyBirdDate: Date | undefined;
 };
@@ -51,6 +63,7 @@ export default function CreateEventPage() {
   const { register, handleSubmit, formState, control, watch } = useForm<EventForm>({
     defaultValues: {
       minimumAge: "",
+      registrationAudience: "ALL",
       earlyBirdPrice: undefined,
       earlyBirdDate: undefined,
       startDate: undefined,
@@ -143,6 +156,7 @@ export default function CreateEventPage() {
         location: data.location,
         price: Number(data.price),
         minimumAge,
+        registrationAudience: data.registrationAudience,
         earlyBirdPrice: data.earlyBirdPrice
           ? Number(data.earlyBirdPrice)
           : undefined,
@@ -380,6 +394,33 @@ export default function CreateEventPage() {
             />
             <p className="text-sm text-muted-foreground">
               Checked against each participant&apos;s age on the event start date.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>Who can register</Label>
+            <Controller
+              name="registrationAudience"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      Object.keys(REGISTRATION_AUDIENCE_LABELS) as EventRegistrationAudience[]
+                    ).map((audience) => (
+                      <SelectItem key={audience} value={audience}>
+                        {REGISTRATION_AUDIENCE_LABELS[audience]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <p className="text-sm text-muted-foreground">
+              Users outside this audience will not see the event or be able to register.
             </p>
           </div>
 

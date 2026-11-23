@@ -209,6 +209,12 @@ try {
     startDate: futureStart,
     endDate: new Date(futureStart.getTime() + 86400000),
   });
+  const studentOnlyEvent = await mkEvent(`Students Only Event ${tag}`, {
+    registrationAudience: "STUDENTS",
+  });
+  const leaderOnlyEvent = await mkEvent(`Leaders Only Event ${tag}`, {
+    registrationAudience: "LEADERS",
+  });
 
   const roommateRegistration = await mkRegistration(event.id, roommateTarget.id);
   await mkRegistration(otherEvent.id, otherEventPerson.id);
@@ -609,6 +615,71 @@ try {
     );
   } catch (error) {
     fail("minimumAge", error);
+  }
+
+  // 13. Audience: students and leaders only see the events meant for them.
+  try {
+    const studentList = await req("GET", "/events", eligibleToken);
+    const leaderList = await req("GET", "/events", attendeeToken);
+    const seenIn = (response, eventId) =>
+      (response.data?.data ?? []).some((item) => item.id === eventId);
+
+    const wrongRoleStudentDetail = await req(
+      "GET",
+      `/events/${leaderOnlyEvent.id}`,
+      eligibleToken
+    );
+    const rightRoleStudentDetail = await req(
+      "GET",
+      `/events/${studentOnlyEvent.id}`,
+      eligibleToken
+    );
+    const rightRoleLeaderDetail = await req(
+      "GET",
+      `/events/${leaderOnlyEvent.id}`,
+      attendeeToken
+    );
+    const adminAudienceDetail = await req(
+      "GET",
+      `/events/${studentOnlyEvent.id}`,
+      adminToken
+    );
+    const wrongRoleRegister = await req(
+      "POST",
+      `/events/${leaderOnlyEvent.id}/register`,
+      eligibleToken,
+      {}
+    );
+
+    step(
+      "registrationAudience",
+      studentList.status === 200 &&
+        leaderList.status === 200 &&
+        seenIn(studentList, studentOnlyEvent.id) === true &&
+        seenIn(studentList, leaderOnlyEvent.id) === false &&
+        seenIn(leaderList, leaderOnlyEvent.id) === true &&
+        seenIn(leaderList, studentOnlyEvent.id) === false &&
+        wrongRoleStudentDetail.status === 403 &&
+        rightRoleStudentDetail.status === 200 &&
+        rightRoleLeaderDetail.status === 200 &&
+        adminAudienceDetail.status === 200 &&
+        wrongRoleRegister.status === 400 &&
+        /leaders only/i.test(wrongRoleRegister.data?.message ?? ""),
+      {
+        studentSeesStudentEvent: seenIn(studentList, studentOnlyEvent.id),
+        studentSeesLeaderEvent: seenIn(studentList, leaderOnlyEvent.id),
+        leaderSeesLeaderEvent: seenIn(leaderList, leaderOnlyEvent.id),
+        leaderSeesStudentEvent: seenIn(leaderList, studentOnlyEvent.id),
+        wrongRoleDetailStatus: wrongRoleStudentDetail.status,
+        rightRoleStudentDetailStatus: rightRoleStudentDetail.status,
+        rightRoleLeaderDetailStatus: rightRoleLeaderDetail.status,
+        adminDetailStatus: adminAudienceDetail.status,
+        registerStatus: wrongRoleRegister.status,
+        registerMessage: wrongRoleRegister.data?.message,
+      }
+    );
+  } catch (error) {
+    fail("registrationAudience", error);
   }
 } catch (error) {
   summary.fatal = String(error?.stack ?? error);

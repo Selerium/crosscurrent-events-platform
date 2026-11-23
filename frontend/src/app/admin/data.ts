@@ -1,3 +1,4 @@
+import type { EventRegistrationAudience } from "@/lib/eventAudience";
 import type {
   AdditionalQuestion,
   RegistrationRequirements,
@@ -27,6 +28,7 @@ export type AdminEvent = RegistrationRequirements & {
   capacity: number;
   price: number;
   minimumAge: number | null;
+  registrationAudience: EventRegistrationAudience;
   earlyBirdPrice: number | null;
   earlyBirdDate: string | null;
   registrationCloseDate: string | null;
